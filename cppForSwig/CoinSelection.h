@@ -7,7 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifndef _H_COINSELECTION
-#define _H_COINSELECTOIN
+#define _H_COINSELECTION
 
 #include <stdint.h>
 #include <memory>
@@ -320,8 +320,6 @@ namespace Armory
             unsigned topHeight, unsigned ruleset);
       };
 
-      #endif
-
       //////////////////////////////////////////////////////////////////////////
       struct CoinSubSelection
       {
@@ -446,3 +444,5 @@ namespace Armory
       };
    }; //namespace CoinSelection
 }; //namespace Armory
+
+#endif

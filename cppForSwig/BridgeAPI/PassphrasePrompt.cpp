@@ -11,7 +11,7 @@
 
 using namespace Armory::Bridge;
 using namespace std;
-using namespace Codec_ClientProto;
+using namespace BridgeProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////
@@ -90,7 +90,6 @@ PassphraseLambda BridgePassphrasePrompt::getLambda(UnlockPromptType type)
       //push over socket
       auto payload = make_unique<WritePayload_Bridge>();
       payload->message_ = move(msg);
-      payload->id_ = BRIDGE_CALLBACK_PROMPTUSER;
       writeLambda_(move(payload));
 
       if (exit)

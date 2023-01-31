@@ -12,7 +12,7 @@
 #include "../ArmoryConfig.h"
 #include "WalletManager.h"
 #include "btc/ecc.h"
-#include "../protobuf/ClientProto.pb.h"
+#include "../protobuf/BridgeProto.pb.h"
 #include "../AsyncClient.h"
 
 namespace Armory
@@ -23,7 +23,7 @@ namespace Armory
 
       //////////////////////////////////////////////////////////////////////////
       typedef std::function<void(
-         std::unique_ptr<google::protobuf::Message>, unsigned)> notifLbd;
+         std::unique_ptr<BridgeProto::Payload>)> notifLbd;
 
       ////
       class BridgeCallback : public RemoteCallback
@@ -77,7 +77,7 @@ namespace Armory
 
       //////////////////////////////////////////////////////////////////////////
       using CommandQueue = std::shared_ptr<Armory::Threading::BlockingQueue<
-         ::Codec_ClientProto::ClientCommand>>;
+         ::BridgeProto::Request>>;
 
       ////
       class CppBridge;
@@ -117,7 +117,7 @@ namespace Armory
 
       //////////////////////////////////////////////////////////////////////////
       struct ProtobufCommandParser;
-      using BridgeReply = std::unique_ptr<google::protobuf::Message>;
+      using BridgePayload = std::unique_ptr<BridgeProto::Payload>;
 
       class CppBridge
       {
@@ -160,34 +160,34 @@ namespace Armory
 
       private:
          //commands with callback
-         void queueCommandWithCallback(::Codec_ClientProto::ClientCommand);
+         void queueCommandWithCallback(BridgeProto::Request);
          void processCommandWithCallbackThread(void);
 
          //wallet setup
          void loadWallets(unsigned id);
-         BridgeReply createWalletsPacket(void);
+         BridgePayload createWalletsPacket(void);
          bool deleteWallet(const std::string&);
-         BridgeReply getWalletPacket(const std::string&) const;
+         BridgePayload getWalletPacket(const std::string&) const;
 
          //AsyncClient::BlockDataViewer setup
          void setupDB(void);
          void registerWallets(void);
          void registerWallet(const std::string&, bool isNew);
 
-         BridgeReply getNodeStatus(void);
+         BridgePayload getNodeStatus(void);
 
          //balance and counts
-         BridgeReply getBalanceAndCount(const std::string&);
-         BridgeReply getAddrCombinedList(const std::string&);
-         BridgeReply getHighestUsedIndex(const std::string&);
+         BridgePayload getBalanceAndCount(const std::string&);
+         BridgePayload getAddrCombinedList(const std::string&);
+         BridgePayload getHighestUsedIndex(const std::string&);
 
          //wallet & addresses
          void extendAddressPool(const std::string&, unsigned,
             const std::string&, unsigned);
-         BridgeReply getNewAddress(const std::string&, unsigned);
-         BridgeReply getChangeAddress(const std::string&, unsigned);
-         BridgeReply peekChangeAddress(const std::string&, unsigned);
-         std::string createWallet(const ::Codec_ClientProto::ClientCommand&);
+         BridgePayload getNewAddress(const std::string&, unsigned);
+         BridgePayload getChangeAddress(const std::string&, unsigned);
+         BridgePayload peekChangeAddress(const std::string&, unsigned);
+         std::string createWallet(const BridgeProto::Utils::CreateWallet&);
          void createBackupStringForWallet(const std::string&, unsigned);
          void restoreWallet(const BinaryDataRef&,
             std::shared_ptr<MethodCallbacksHandler>);
@@ -200,8 +200,10 @@ namespace Armory
          void getHistoryForWalletSelection(const std::string&,
             std::vector<std::string>, unsigned);
          void createAddressBook(const std::string&, unsigned);
-         void setComment(const Codec_ClientProto::ClientCommand&);
-         void setWalletLabels(const Codec_ClientProto::ClientCommand&);
+         void setComment(const std::string&,
+            const BridgeProto::Wallet::SetComment&);
+         void setWalletLabels(const std::string&,
+            const BridgeProto::Wallet::SetLabels&);
 
          //txs & headers
          void getTxByHash(const BinaryData&, unsigned);
@@ -216,65 +218,40 @@ namespace Armory
          void setupNewCoinSelectionInstance(
             const std::string&, unsigned, unsigned);
          void destroyCoinSelectionInstance(const std::string&);
-         void resetCoinSelection(const std::string&);
-         bool setCoinSelectionRecipient(
-            const std::string&, const std::string&, uint64_t, unsigned);
-         bool cs_SelectUTXOs(const std::string&, uint64_t, float, unsigned);
-         BridgeReply cs_getUtxoSelection(const std::string&);
-         BridgeReply cs_getFlatFee(const std::string&);
-         BridgeReply cs_getFeeByte(const std::string&);
-         BridgeReply cs_getSizeEstimate(const std::string&);
-         bool cs_ProcessCustomUtxoList(const Codec_ClientProto::ClientCommand&);
-         BridgeReply cs_getFeeForMaxVal(const Codec_ClientProto::ClientCommand&);
-         BridgeReply cs_getFeeForMaxValUtxoVector(const Codec_ClientProto::ClientCommand&);
+         std::shared_ptr<CoinSelection::CoinSelectionInstance>
+            coinSelectionInstance(const std::string&) const;
 
          //signer
-         BridgeReply initNewSigner(void);
+         BridgePayload initNewSigner(void);
          void destroySigner(const std::string&);
-         bool signer_SetVersion(const std::string&, unsigned);
-         bool signer_SetLockTime(const std::string&, unsigned);
+         std::shared_ptr<CppBridgeSignerStruct>
+            signerInstance(const std::string&) const;
 
-         bool signer_addSpenderByOutpoint(
-            const std::string&, const BinaryDataRef&, unsigned, unsigned);
-         bool signer_populateUtxo(
-            const std::string&, const BinaryDataRef&, unsigned, uint64_t,
-            const BinaryDataRef&);
-         bool signer_addSupportingTx(const std::string&, const BinaryDataRef&);
-
-         bool signer_addRecipient(
-            const std::string&, const BinaryDataRef&, uint64_t);
-         BridgeReply signer_toTxSigCollect(const std::string&, int) const;
-         bool signer_fromTxSigCollect(const std::string&, const std::string&);
          void signer_signTx(const std::string&, const std::string&, unsigned);
-         BridgeReply signer_getSignedTx(const std::string&) const;
-         BridgeReply signer_getUnsignedTx(const std::string&) const;
-         BridgeReply signer_getSignedStateForInput(
+         BridgePayload getSignedStateForInput(
             const std::string&, unsigned);
-         int signer_resolve(const std::string&, const std::string&) const;
-
-         Armory::Signer::SignerStringFormat signer_fromType(const std::string&) const;
-         bool signer_canLegacySerialize(const std::string&) const;
+         bool signer_resolve(const std::string&, const std::string&) const;
 
          //utils
-         BridgeReply getTxInScriptType(
+         BridgePayload getTxInScriptType(
             const BinaryData&, const BinaryData&) const;
-         BridgeReply getTxOutScriptType(const BinaryData&) const;
-         BridgeReply getScrAddrForScript(const BinaryData&) const;
-         BridgeReply getScrAddrForAddrStr(const std::string&) const;
-         BridgeReply getLastPushDataInScript(const BinaryData&) const;
-         BridgeReply getHash160(const BinaryDataRef&) const;
+         BridgePayload getTxOutScriptType(const BinaryData&) const;
+         BridgePayload getScrAddrForScript(const BinaryData&) const;
+         BridgePayload getScrAddrForAddrStr(const std::string&) const;
+         BridgePayload getLastPushDataInScript(const BinaryData&) const;
+         BridgePayload getHash160(const BinaryDataRef&) const;
          void broadcastTx(const std::vector<BinaryData>&);
-         BridgeReply getTxOutScriptForScrAddr(const BinaryData&) const;
-         BridgeReply getAddrStrForScrAddr(const BinaryData&) const;
+         BridgePayload getTxOutScriptForScrAddr(const BinaryData&) const;
+         BridgePayload getAddrStrForScrAddr(const BinaryData&) const;
          std::string getNameForAddrType(int) const;
-         BridgeReply setAddressTypeFor(
+         BridgePayload setAddressTypeFor(
             const std::string&, const std::string&, uint32_t) const;
          void getBlockTimeByHeight(uint32_t, uint32_t) const;
          void estimateFee(uint32_t, const std::string&, uint32_t) const;
 
          //passphrase prompt
          PassphraseLambda createPassphrasePrompt(
-            ::Codec_ClientProto::UnlockPromptType);
+            ::BridgeProto::UnlockPromptType);
          bool returnPassphrase(const std::string&, const std::string&);
 
       public:
@@ -282,7 +259,7 @@ namespace Armory
             const std::string&, bool, bool);
 
          bool processData(BinaryDataRef socketData);
-         void writeToClient(BridgeReply msgPtr, unsigned id) const;
+         void writeToClient(BridgePayload msgPtr) const;
 
          void setWriteLambda(
             std::function<void(std::unique_ptr<WritePayload_Bridge>)> lbd)

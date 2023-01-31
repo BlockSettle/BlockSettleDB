@@ -167,7 +167,7 @@ ARMORYCOMMON_SOURCE_FILES = AsyncClient.cpp \
 PROTOBUF_PROTO = protobuf/AddressBook.proto \
 	protobuf/AddressData.proto \
 	protobuf/BDVCommand.proto \
-	protobuf/ClientProto.proto \
+	protobuf/BridgeProto.proto \
 	protobuf/CommonTypes.proto \
 	protobuf/FeeEstimate.proto \
 	protobuf/LedgerEntry.proto \
@@ -178,7 +178,7 @@ PROTOBUF_PROTO = protobuf/AddressBook.proto \
 PROTOBUF_CC = protobuf/AddressBook.pb.cc \
 	protobuf/AddressData.pb.cc \
 	protobuf/BDVCommand.pb.cc \
-	protobuf/ClientProto.pb.cc \
+	protobuf/BridgeProto.pb.cc \
 	protobuf/CommonTypes.pb.cc \
 	protobuf/FeeEstimate.pb.cc \
 	protobuf/LedgerEntry.pb.cc \
@@ -189,7 +189,7 @@ PROTOBUF_CC = protobuf/AddressBook.pb.cc \
 PROTOBUF_H = protobuf/AddressBook.pb.h \
 	protobuf/AddressData.pb.h \
 	protobuf/BDVCommand.pb.h \
-	protobuf/ClientProto.pb.h \
+	protobuf/BridgeProto.pb.h \
 	protobuf/CommonTypes.pb.h \
 	protobuf/FeeEstimate.pb.h \
 	protobuf/LedgerEntry.pb.h \

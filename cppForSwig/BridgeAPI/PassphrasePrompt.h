@@ -11,11 +11,11 @@
 
 #include <future>
 
-#include "../protobuf/ClientProto.pb.h"
+#include "../protobuf/BridgeProto.pb.h"
 #include "../Wallets/WalletIdTypes.h"
 #include "../Wallets/PassphraseLambda.h"
 
-#define BRIDGE_CALLBACK_PROMPTUSER UINT32_MAX - 2
+#define BRIDGE_CALLBACK_PROMPTUSER "prompt"
 
 namespace Armory
 {
@@ -44,7 +44,7 @@ namespace Armory
             promptId_(id), writeLambda_(lbd)
          {}
 
-         PassphraseLambda getLambda(::Codec_ClientProto::UnlockPromptType);
+         PassphraseLambda getLambda(::BridgeProto::UnlockPromptType);
          void setReply(const std::string&);
       };
    }; //namespace Bridge

@@ -1,0 +1,921 @@
+syntax = "proto2";
+
+package BridgeProto;
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//// weird shit that needs to go
+//
+////////////////////////////////////////////////////////////////////////////////
+// Unlock prompt
+enum UnlockPromptState
+{
+    start = 1;
+    stop = 2;
+    cycle = 3;
+}
+
+enum UnlockPromptType
+{
+    decrypt = 1;
+    migrate = 2;
+}
+
+message UnlockPromptCallback
+{
+    required bytes promptID = 1;
+    required UnlockPromptType promptType = 2;
+    required string verbose = 3;
+    required UnlockPromptState state = 4; 
+    optional string walletID = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// RestoreWallet messages
+message RestoreWalletPayload
+{
+    repeated string root = 1;
+    repeated string secondary = 2;
+    optional string spPass = 3;
+}
+
+enum RestorePromptType
+{
+    FormatError = 1;
+    Failure = 2;
+    ChecksumError = 3;
+    DecryptError = 4;
+    Passphrase = 5;
+    Control = 6;
+    Id = 7;
+    TypeError = 8;
+    Success = 9;
+    UnknownError = 10;
+}
+
+message RestorePrompt
+{
+
+    required RestorePromptType promptType = 1;
+    repeated int32 checksums = 2;
+    optional string extra = 3;
+}
+
+message RestoreReply
+{
+    required bool result = 1;
+    optional bytes extra = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Opaque payloads
+enum OpaquePayloadType
+{
+    prompt = 1;
+    commandWithCallback = 2;
+}
+
+message OpaquePayload
+{
+    required OpaquePayloadType payloadType = 1;
+    optional bytes uniqueId = 2;
+    optional uint32 intId = 3;
+
+    optional bytes payload = 10;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//// Data types
+//
+////////////////////////////////////////////////////////////////////////////////
+message Ledger
+{
+    required int64  value           = 1;
+    required bytes  hash            = 2;
+    required string id              = 3;
+    required uint32 height          = 4;
+    required uint32 tx_index        = 5;
+    required uint32 tx_time         = 6;
+    required bool   coinbase        = 7;
+    required bool   sent_to_self    = 8;
+    required bool   change_back     = 9;
+    required bool   chained_zc      = 10;
+    required bool   witness         = 11;
+    required bool   rbf             = 12;
+    repeated bytes  scraddr         = 13;
+}
+
+message NodeStatus
+{
+    message NodeChainStatus
+    {
+        required uint32 chain_state  = 2;
+        required float  block_speed  = 3;
+        required float  progress_pct = 4;
+        required uint64 eta          = 5;
+        required uint32 blocks_left  = 6;
+    }
+
+    required bool               is_valid            = 1;
+    optional uint32             node_state          = 10;
+    optional bool               is_segwit_enabled   = 11;
+    optional uint32             rpc_state           = 12;
+    optional NodeChainStatus    chain_status        = 13;
+}
+
+message Utxo
+{
+    required bytes  tx_hash     = 1;
+    required uint32 txout_index = 2;
+
+    required uint64 value       = 3;
+    required uint32 tx_height   = 4;
+    required uint32 tx_index    = 5;
+
+    required bytes  script      = 6;
+    required bytes  scraddr     = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// 
+//// Callbacks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+message Callback
+{
+    message Ready {
+        required uint32 height = 1;
+    }
+    message SetupDone{}
+    message Disconnected{}
+
+    message Registered {
+        repeated string id = 1;
+    }
+
+    message Refresh {
+        repeated string id = 1;
+    }
+
+    message NewBlock {
+        required uint32 height = 1;
+    }
+
+    message Progress {
+        optional uint32 phase               = 1;
+        required float  progress            = 2;
+        optional uint32 etaSec              = 3;
+        required uint32 progress_numeric    = 4;
+
+        repeated string id                  = 10;
+    }
+
+    message ZeroConf {
+        repeated Ledger ledger = 1;
+    }
+
+    ////
+    required string callback_id = 1;
+
+    oneof payload {
+        Ready           ready           = 10;
+        SetupDone       setup_done      = 11;
+        Registered      registered      = 12;
+        Refresh         refresh         = 13;
+        NewBlock        new_block       = 14;
+        Disconnected    disconnected    = 15;
+        Progress        progress        = 20;
+        NodeStatus      node_status     = 21;
+        ZeroConf        zero_conf       = 22;
+        string          error           = 30;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//// Request
+//
+////////////////////////////////////////////////////////////////////////////////
+message BlockchainService
+{
+    message Shutdown{}
+    message SetupDB{}
+    message GoOnline{}
+    message GetNodeStatus{}
+    message LoadWallets{}
+
+    message RegisterWallets{}
+    message RegisterWallet {
+        required string id    = 1;
+        required bool   is_new = 2;
+    }
+
+    message BroadcastTx {
+        repeated bytes raw_tx = 1;
+    }
+    message GetTxByHash {
+        required bytes tx_hash = 1;
+    }
+    message GetHeaderByHeight {
+        required uint32 height = 1;
+    }
+    message GetBlockTimeByHeight {
+        required uint32 height = 1;
+    }
+    message EstimateFee {
+        required uint32 blocks = 1;
+        required string strat  = 2;
+    }
+
+    message GetLedgerDelegateIdForWallets{}
+    message UpdateWalletsLedgerFilter {
+        repeated string wallet_id = 1;
+    }
+
+    message GetHistoryPageForDelegate {
+        required string delegate_id = 1;
+        required uint32 page_id     = 2;
+    }
+
+    message GetHistoryForWalletSelection {
+        repeated string wallet_id  = 1;
+        required string order      = 2;
+    }
+
+    ////
+    oneof method {
+        Shutdown        shutdown        = 1;
+        SetupDB         setup_db        = 2;
+        GoOnline        go_online       = 3;
+        GetNodeStatus   get_node_status = 4;
+        LoadWallets     load_wallets    = 5;
+
+        RegisterWallets register_wallets    = 6;
+        RegisterWallet  register_wallet     = 7;
+
+        BroadcastTx             broadcast_tx                = 8;
+        GetTxByHash             get_tx_by_hash              = 9;
+        GetHeaderByHeight       get_header_by_height        = 10;
+        GetBlockTimeByHeight    get_block_time_by_height    = 11;
+        EstimateFee             estimate_fee                = 12;
+
+        GetLedgerDelegateIdForWallets   get_ledger_delegate_id_for_wallets  = 20;
+        UpdateWalletsLedgerFilter       update_wallets_ledger_filter        = 21;
+        GetHistoryPageForDelegate       get_history_page_for_delegate       = 22;
+        GetHistoryForWalletSelection    get_history_for_wallet_selection    = 23;
+    }
+}
+
+message Wallet
+{
+    message GetNewAddress {
+        required uint32 type = 1;
+    }
+    message GetChangeAddress {
+        required uint32 type = 1;
+    }
+    message PeekChangeAddress {
+        required uint32 type = 1;
+    }
+
+    message GetHighestUsedIndex{}
+    message ExtendAddressPool {
+        required uint32 count       = 1;
+        required string callback_id = 2;
+    }
+
+    message CreateBackupString{}
+    message Delete{}
+    message GetData{}
+
+    message GetAddrCombinedList{}
+    message SetAddressTypeFor {
+        required string address      = 1;
+        required uint32 address_type = 2;
+    }
+
+    message GetLedgerDelegateIdForScrAddr {
+        required bytes hash = 1;
+    }
+    message GetBalanceAndCount{}
+
+    message SetupNewCoinSelectionInstance{
+        required uint32 height = 1;
+    }
+    message GetUtxosForValue {
+        required uint64 value = 1;
+    }
+    message GetSpendableZCList{}
+    message GetRBFTxOutList{}
+
+    message CreateAddressBook{}
+
+    message SetComment {
+        required bytes  hash_key = 1;
+        required string comment  = 2;
+    }
+    message SetLabels {
+        required string title       = 1;
+        required string description = 2;
+    }
+
+    ////
+    required string id = 1;
+    oneof method {
+        GetNewAddress       get_new_address     = 2;
+        GetChangeAddress    get_change_address  = 3;
+        PeekChangeAddress   peek_change_address = 4;
+
+        GetHighestUsedIndex get_highest_used_index  = 10;
+        ExtendAddressPool   extend_address_pool     = 11;
+
+        CreateBackupString  create_backup_string    = 20;
+        Delete              delete                  = 21;
+        GetData             get_data                = 22;
+
+        GetAddrCombinedList get_addr_combined_list  = 30;
+        SetAddressTypeFor   set_address_type_for    = 31;
+
+        GetLedgerDelegateIdForScrAddr get_ledger_delegate_id_for_scraddr = 40;
+        GetBalanceAndCount            get_balance_and_count              = 41;
+
+        SetupNewCoinSelectionInstance setup_new_coin_selection_instance  = 50;
+        GetUtxosForValue              get_utxos_for_value                = 51;
+        GetSpendableZCList            get_spendable_zc_list              = 52;
+        GetRBFTxOutList               get_rbf_txout_list                 = 53;
+
+        CreateAddressBook   create_address_book = 60;
+        SetComment          set_comment         = 61;
+        SetLabels     set_labels   = 62;
+    }
+}
+
+message CoinSelection
+{
+    message Cleanup{}
+    message Reset{}
+
+    message SetRecipient {
+        required string address = 1;
+        required uint64 value   = 2;
+        required uint32 id      = 3;
+    }
+
+    message SelectUTXOs {
+        required uint32 flags    = 1;
+        oneof fee {
+            uint64 flat_fee = 10;
+            float  fee_byte = 11;
+        }
+    }
+
+    message GetUtxoSelection{}
+    message GetFlatFee{}
+    message GetFeeByte{}
+    message GetSizeEstimate{}
+
+    message ProcessCustomUtxoList {
+        repeated Utxo   utxos    = 1;
+        required uint32 flags    = 2;
+        oneof fee {
+            uint64      flat_fee = 10;
+            float       fee_byte = 11;
+        }
+    }
+
+    message GetFeeForMaxVal {
+        repeated Utxo   utxos    = 1;
+        optional float  fee_byte = 2;
+    }
+
+    ////
+    required string id = 1;
+    oneof method {
+        Cleanup cleanup = 2;
+        Reset   reset   = 3;
+
+        SetRecipient set_recipient = 4;
+        SelectUTXOs  select_utxos  = 5;
+
+        GetUtxoSelection    get_utxo_selection  = 6;
+        GetFlatFee          get_flat_fee        = 7;
+        GetFeeByte          get_fee_byte        = 8;
+        GetSizeEstimate     get_size_estimate   = 9;
+
+        ProcessCustomUtxoList process_custom_utxo_list = 10;
+        GetFeeForMaxVal       get_fee_for_max_val      = 11;
+    }
+}
+
+message Signer
+{
+    message GetNew{}
+    message Cleanup{}
+
+    message SetVersion {
+        required uint32 version = 1;
+    }
+    message SetLockTime {
+        required uint32 lock_time = 1;
+    }
+
+    message AddSpenderByOutpoint {
+        required bytes  hash      = 1;
+        required uint32 tx_out_id = 2;
+        required uint32 sequence  = 3;
+    }
+
+    message PopulateUtxo {
+        required bytes  hash        = 1;
+        required bytes  script      = 2;
+        required uint32 tx_out_id   = 3;
+        required uint64 value       = 4;
+    }
+
+    message AddRecipient{
+        required bytes  script = 1;
+        required uint64 value  = 2;
+    }
+
+    message ToTxSigCollect {
+        required uint32 ustx_type = 1;
+    }
+    message FromTxSigCollect{
+        required string tx_sig_collect = 1;
+    }
+
+    message SignTx {
+        required string wallet_id = 1;
+    }
+    message GetSignedTx{}
+    message GetUnsignedTx{}
+    message GetSignedStateForInput {
+        required uint32 input_id = 1;
+    }
+
+    message Resolve {
+        required string wallet_id = 1;
+    }
+    message AddSupportingTx {
+        required bytes raw_tx = 1;
+    }
+
+    message FromType{}
+    message CanLegacySerialize{}
+
+    ////
+    required string id = 1;
+    oneof method {
+        GetNew  get_new = 2;
+        Cleanup cleanup = 3;
+
+        SetVersion  set_version   = 4;
+        SetLockTime set_lock_time = 5;
+
+        AddSpenderByOutpoint add_spender_by_outpoint = 6;
+        PopulateUtxo         populate_utxo           = 7;
+        AddRecipient         add_recipient           = 8;
+
+        ToTxSigCollect      to_tx_sig_collect   = 9;
+        FromTxSigCollect    from_tx_sig_collect = 10;
+
+        SignTx                  sign_tx                     = 11;
+        GetSignedTx             get_signed_tx               = 12;
+        GetUnsignedTx           get_unsigned_tx             = 13;
+        GetSignedStateForInput  get_signed_state_for_input  = 14;
+
+        Resolve         resolve             = 15;
+        AddSupportingTx add_supporting_tx   = 16;
+
+        FromType            from_type            = 17;
+        CanLegacySerialize  can_legacy_serialize = 18;
+    }
+}
+
+message Utils
+{
+    message GenerateRandomHex {
+        required uint32 length = 1;
+    }
+    message GetHash160 {
+        required bytes data = 1;
+    }
+
+    message GetScrAddrForAddrStr {
+        required string address = 1;
+    }
+    message GetNameForAddrType {
+        required int32 address_type = 1;
+    }
+
+    message CreateWalletStruct
+    {
+        required uint32 lookup              = 1;
+        optional string passphrase          = 10;
+        optional string control_passphrase  = 11;
+        optional bytes  extra_entropy       = 20;
+
+        optional string label       = 30;
+        optional string description = 31;
+    }
+
+    message CreateWallet {
+        required CreateWalletStruct wallet_struct = 1;
+    }
+
+    oneof method {
+        GenerateRandomHex       generate_random_hex     = 1;
+        GetHash160              get_hash_160            = 2;
+
+        GetScrAddrForAddrStr    get_scraddr_for_addrstr = 3;
+        GetNameForAddrType      get_name_for_addr_type  = 4;
+
+        CreateWallet            create_wallet           = 5;
+    }
+}
+
+message ScriptUtils
+{
+    message GetTxInScriptType {
+        required bytes hash = 1;
+    }
+    message GetTxOutScriptType {}
+
+    message GetScrAddrForScript{}
+    message GetLastPushDataInScript{}
+    message GetTxOutScriptForScrAddr{}
+    message GetAddrStrForScrAddr{}
+
+    ////
+    required bytes script = 1;
+    oneof method {
+        GetTxInScriptType           get_txin_script_type            = 2;
+        GetTxOutScriptType          get_txout_script_type           = 3;
+
+        GetScrAddrForScript         get_scraddr_for_script          = 10;
+        GetLastPushDataInScript     get_last_push_data_in_script    = 11;
+        GetTxOutScriptForScrAddr    get_txout_script_for_scraddr    = 12;
+        GetAddrStrForScrAddr        get_addrstr_for_scraddr         = 13;
+    }
+}
+
+message MethodsWithCallback
+{
+    optional int32 followUp = 1;
+    optional int32 cleanup = 2;
+
+    //restoreWallet = 10;
+    //returnPassphrase = 22;
+}
+
+message Request
+{
+    required uint32 reference_id = 1;
+
+    oneof method {
+        BlockchainService   service         = 20;
+        Wallet              wallet          = 21;
+        CoinSelection       coin_selection  = 22;
+        Signer              signer          = 23;
+        Utils               utils           = 24;
+        ScriptUtils         script_utils    = 25;
+        MethodsWithCallback callback        = 26;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//// Replies
+//
+////////////////////////////////////////////////////////////////////////////////
+message BlockchainServiceReply
+{
+    message BlockTime {
+        required uint32 timestamp = 1;
+    }
+
+    message LedgerDelegateId {
+        required string id = 1;
+    }
+
+    message HeaderData {
+        required bytes data = 1;
+    }
+
+    message FeeEstimate
+    {
+        required float  feeByte     = 1;
+        required bool   smartFee    = 2;
+    }
+
+    message LedgerHistory {
+        repeated Ledger ledger = 1;
+    }
+
+    message Tx
+    {
+        required bytes  raw         = 2;
+        optional uint32 height      = 10;
+        optional uint32 tx_index    = 11;
+        optional bool   rbf         = 20;
+        optional bool   chained_zc  = 21;
+    }
+
+    //
+    oneof reply {
+        BlockTime           block_time          = 10;
+        LedgerDelegateId    ledger_delegate_id  = 11;
+        HeaderData          header_data         = 12;
+        FeeEstimate         fee_estimate        = 13;
+        LedgerHistory       ledger_history      = 14;
+        Tx                  tx                  = 15;
+        NodeStatus          node_status         = 16;
+    }
+}
+
+////
+message WalletReply
+{
+    message HighestUsedIndex {
+        required int32 index = 1;
+    }
+
+    message CoinSelectionId {
+        required string id = 1;
+    }
+
+    message LedgerDelegateId {
+        required string id = 1;
+    }
+
+    message UtxoList {
+        repeated Utxo utxo = 1;
+    }
+
+    //address book
+    message AddressBook {
+        message AddressBookEntry {
+            required bytes scraddr  = 10;
+            repeated bytes tx_hash  = 11;
+        }
+
+        repeated AddressBookEntry address = 1;
+    }
+
+    //wallet data
+    message Asset
+    {
+        required int32  id          = 1;
+        required uint32 addr_type   = 2;
+        required bool   is_used     = 3;
+        required bool   is_change   = 4;
+        required bytes  asset_id    = 5;
+
+        required bytes prefixed_hash    = 10;
+        required bytes public_key       = 11;
+        optional bytes precursor_script = 12;
+
+        required string address_string = 20;
+    }
+
+    message WalletData
+    {
+        required string id                      = 1;
+        required int64  use_count               = 2;
+        required int64  lookup_count            = 3;
+        required bool   watching_only           = 4;
+        repeated uint32 address_type            = 5;
+        required uint32 default_address_type    = 6;
+
+        optional string label   = 10;
+        optional string desc    = 11;
+
+        repeated Asset asset = 20;
+
+        message Comment
+        {
+            required bytes key = 1;
+            required bytes val = 2;
+        }
+        repeated Comment comments = 30;
+    }
+
+    message MultipleWalletData {
+        repeated WalletData wallet = 1;
+    }
+
+    message BackupString
+    {
+        repeated string root_clear  = 10;
+        repeated string chain_clear = 11;
+
+        repeated string root_encr   = 20;
+        repeated string chain_encr  = 21;
+
+        optional string sp_pass     = 30;
+    }
+
+    //address balance
+    message AddressBalanceData {
+        required bytes              id      = 1;
+        required BalanceAndCount    balance = 2;
+    }
+
+    message AddressAndBalanceData {
+        repeated AddressBalanceData balance         = 1;
+        repeated Asset              updated_asset   = 2;
+    }
+
+    message BalanceAndCount {
+        required uint64 full = 1;
+        required uint64 spendable = 2;
+        required uint64 unconfirmed = 3;
+        required uint64 count = 4;
+    }
+
+    //
+    oneof reply {
+        HighestUsedIndex        highest_used_index          = 10;
+        CoinSelectionId         coin_selection_id           = 11;
+        LedgerDelegateId        ledger_delegate_id          = 12;
+        BalanceAndCount         balance_and_count           = 13;
+        AddressAndBalanceData   address_and_balance_data    = 14;
+        UtxoList                utxo_list                   = 15;
+        AddressBook             address_book                = 16;
+
+        Asset                   asset                       = 20;
+        WalletData              wallet_data                 = 21;
+        MultipleWalletData      multiple_wallets            = 22;
+        BackupString            backup_string               = 23;
+    }
+}
+
+////
+message CoinSelectionReply
+{
+    message FlatFee {
+        required uint64 fee = 1;
+    }
+
+    message FeeByte {
+        required float fee = 1;
+    }
+
+    message SizeEstimate {
+        required uint32 size = 1;
+    }
+
+    message UtxoList {
+        repeated Utxo utxo = 1;
+    }
+
+    //
+    oneof reply {
+        FlatFee         flat_fee        = 10;
+        FeeByte         fee_byte        = 11;
+        SizeEstimate    size_estimate   = 12;
+        UtxoList        utxo_list       = 13;
+    }
+}
+
+////
+message SignerReply
+{
+    message SignerId {
+        required string id = 1;
+    }
+
+    message FromType {
+        required uint32 type = 1;
+    }
+
+    message TxSigCollect {
+        required string data = 1;
+    }
+
+    message TxData {
+        required bytes data = 1;
+    }
+
+    message InputSignedState {
+        required bool isValid = 1;
+        required uint32 m = 2;
+        required uint32 n = 3;
+
+        required uint32 sigCount = 10;
+        repeated PubKeySignatureState signStateList = 11;
+
+        message PubKeySignatureState
+        {
+            required bytes pubKey = 1;
+            required bool hasSig = 2;
+        }
+    }
+
+    //
+    oneof reply {
+        SignerId            signer_id           = 10;
+        FromType            from_type           = 11;
+        TxSigCollect        tx_sig_collect      = 12;
+        TxData              tx_data             = 13;
+        InputSignedState    input_signed_state  = 14;
+    }
+}
+
+////
+message UtilsReply
+{
+    message RandomHex {
+        required string data = 1;
+    }
+
+    message AddressTypeName {
+        required string name = 1;
+    }
+
+    message WalletId {
+        required string id = 1;
+    }
+
+    message Hash {
+        required bytes data = 1;
+    }
+
+    //
+    oneof reply {
+        RandomHex       random_hex          = 10;
+        AddressTypeName address_type_name   = 11;
+        WalletId        wallet_id           = 12;
+        Hash            hash                = 13;
+    }
+}
+
+////
+message ScriptUtilsReply
+{
+    message TxInScriptType {
+        required uint32 script_type = 1;
+    }
+
+    message TxOutScriptType {
+        required uint32 script_type = 1;
+    }
+
+    message AddressString {
+        required string address = 1;
+    }
+
+    message ScriptAddress {
+        required bytes scraddr = 1;
+    }
+
+    message PushData {
+        required bytes data = 1;
+    }
+
+    message ScriptData {
+        required bytes data = 1;
+    }
+
+    //
+    oneof reply {
+        TxInScriptType  txin_script_type    = 10;
+        TxOutScriptType txout_script_type   = 11;
+        AddressString   address_string      = 12;
+        ScriptAddress   scraddr             = 13;
+        PushData        push_data           = 14;
+        ScriptData      script_data         = 15;
+    }
+}
+
+////
+message Reply
+{
+    required bool   success         = 1;
+    optional uint32 reference_id    = 2;
+    optional string error           = 3;
+
+    oneof reply_type {
+        BlockchainServiceReply  service         = 10;
+        WalletReply             wallet          = 11;
+        CoinSelectionReply      coin_selection  = 12;
+        SignerReply             signer          = 13;
+        UtilsReply              utils           = 14;
+        ScriptUtilsReply        script_utils    = 15;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//// Wrapper message
+//
+////////////////////////////////////////////////////////////////////////////////
+message Payload
+{
+    oneof payload {
+        Reply       reply       = 1;
+        Callback    callback    = 2;
+    }
+}
