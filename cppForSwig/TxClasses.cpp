@@ -558,32 +558,32 @@ void Tx::pprint(ostream & os, int nIndent, bool pBigendian) const
 // supposed to be not NULL.  I'd like to try to force a segfault here, if it
 // is going to happen, instead of letting it kill my program where I don't 
 // know what happened.
-void Tx::pprintAlot(ostream &) const
+void Tx::pprintAlot(ostream &strm) const
 {
-   cout << "Tx hash:   " << thisHash_.toHexStr(true) << endl;
+   strm << "Tx hash:   " << thisHash_.toHexStr(true) << endl;
 
-   cout << endl << "NumTxIn:   " << getNumTxIn() << endl;
+   strm << endl << "NumTxIn:   " << getNumTxIn() << endl;
    for (uint32_t i = 0; i<getNumTxIn(); i++)
    {
       TxIn txin = getTxInCopy(i);
-      cout << "   TxIn: " << i << endl;
-      cout << "      Siz:  " << txin.getSize() << endl;
-      cout << "      Scr:  " << txin.getScriptSize() << "  Type: "
+      strm << "   TxIn: " << i << endl;
+      strm << "      Siz:  " << txin.getSize() << endl;
+      strm << "      Scr:  " << txin.getScriptSize() << "  Type: "
          << (int)txin.getScriptType() << endl;
-      cout << "      OPR:  " << txin.getOutPoint().getTxHash().toHexStr(true)
+      strm << "      OPR:  " << txin.getOutPoint().getTxHash().toHexStr(true)
          << txin.getOutPoint().getTxOutIndex() << endl;
-      cout << "      Seq:  " << txin.getSequence() << endl;
+      strm << "      Seq:  " << txin.getSequence() << endl;
    }
 
-   cout << endl << "NumTxOut:   " << getNumTxOut() << endl;
+   strm << endl << "NumTxOut:   " << getNumTxOut() << endl;
    for (uint32_t i = 0; i<getNumTxOut(); i++)
    {
       TxOut txout = getTxOutCopy(i);
-      cout << "   TxOut: " << i << endl;
-      cout << "      Siz:  " << txout.getSize() << endl;
-      cout << "      Scr:  " << txout.getScriptSize() << "  Type: "
+      strm << "   TxOut: " << i << endl;
+      strm << "      Siz:  " << txout.getSize() << endl;
+      strm << "      Scr:  " << txout.getScriptSize() << "  Type: "
          << (int)txout.getScriptType() << endl;
-      cout << "      Val:  " << txout.getValue() << endl;
+      strm << "      Val:  " << txout.getValue() << endl;
    }
 
 }

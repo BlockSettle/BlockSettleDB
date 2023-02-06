@@ -271,7 +271,7 @@ unique_ptr<DBIfaceTransaction> WalletDBInterface::beginWriteTransaction(
             dbEnv_.get(), controlDb_.get(), true);
       }
 
-      throw WalletInterfaceException("invalid db name");
+      throw WalletInterfaceException("[beginWriteTransaction] invalid db name " + dbName);
    }
 
    return make_unique<WalletIfaceTransaction>(this, iter->second.get(), true);
@@ -290,7 +290,7 @@ unique_ptr<DBIfaceTransaction> WalletDBInterface::beginReadTransaction(
             dbEnv_.get(), controlDb_.get(), false);
       }
 
-      throw WalletInterfaceException("invalid db name");
+      throw WalletInterfaceException("[beginReadTransaction] invalid db name " + dbName);
    }
 
    return make_unique<WalletIfaceTransaction>(this, iter->second.get(), false);
