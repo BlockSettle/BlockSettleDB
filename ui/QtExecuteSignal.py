@@ -20,43 +20,32 @@ class QtExecuteSignalError(Exception):
 
 ##############################################################################
 class QtExecuteSignal(QObject):
-
    executeSignal = Signal(list)
 
    ###########################################################################
-   def __init__(self, mainWnd):
-      super(QtExecuteSignal, self).__init__(mainWnd)
-      self.mainWnd = mainWnd
+   def __init__(self):
+      super(QtExecuteSignal, self).__init__()
       self.executeSignal.connect(self.methodSlot)
       self.waiting = {}
 
    ###########################################################################
-   def executeMethod(self, callableList):
-      if len(callableList) == 0:
-         raise Exception("-- invalid arg list --")
-      self.executeSignal.emit(callableList)
+   def executeMethod(self, _callable, *args):
+      if not callable(_callable):
+         print (f"** executeMethod: {str(_callable)} **")
+         print (f"** args type: {str(type(args))}, args: {str(args)} **")
+         raise QtExecuteSignalError("invalid arguments")
+
+      self.executeSignal.emit([{
+         'callable' : _callable,
+         'args' : args
+      }])
 
    ###########################################################################
-   def methodSlot(self, callableList):
-      if type(callableList) != list or len(callableList) == 0:
-         LOGERROR('[ArmoryQt::methodSlot] invalid callabale list:')
-         LOGERROR(str(callableList))
-         raise QtExecuteSignalError("invalid callable list")
-
-      if not callable(callableList[0]):
-         raise QtExecuteSignalError("first list entry isn't callable")
-
-      args = []
-      if len(callableList) == 2:
-         if type(callableList[1]) != list:
-            raise QtExecuteSignalError("second list entry isn't list")
-         args = callableList[1]
-
-      callableList[0](*args)
+   def methodSlot(self, execList):
+      execList[0]['callable'](*(execList[0]['args']))
 
    ###########################################################################
    def callLater(self, delay, _callable, *_args):
-
       #if a given method is already waiting on delayed execution, update the
       #args and return
       if _callable in self.waiting:
@@ -71,4 +60,6 @@ class QtExecuteSignal(QObject):
    def callLaterThread(self, delay, _callable, *args):
       sleep(delay)
       args = self.waiting.pop(_callable, [])
-      self.executeMethod([_callable, args])
+      self.executeMethod(_callable, *args)
+
+TheSignalExecution = QtExecuteSignal()

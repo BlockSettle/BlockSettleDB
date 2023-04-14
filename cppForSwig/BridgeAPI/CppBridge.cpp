@@ -45,148 +45,12 @@ CppBridge::CppBridge(const string& path, const string& dbAddr,
    const string& dbPort, bool oneWayAuth, bool offline) :
    path_(path), dbAddr_(dbAddr), dbPort_(dbPort),
    dbOneWayAuth_(oneWayAuth), dbOffline_(offline)
-{
-   commandWithCallbackQueue_ = make_shared<
-      Armory::Threading::BlockingQueue<BridgeProto::Request>>();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void CppBridge::startThreads()
-{
-   auto commandLbd = [this]()
-   {
-      this->processCommandWithCallbackThread();
-   };
-
-   commandWithCallbackProcessThread_ = thread(commandLbd);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void CppBridge::stopThreads()
-{
-   commandWithCallbackQueue_->terminate();
-
-   if (commandWithCallbackProcessThread_.joinable())
-      commandWithCallbackProcessThread_.join();
-}
+{}
 
 ////////////////////////////////////////////////////////////////////////////////
 bool CppBridge::processData(BinaryDataRef socketData)
 {
    return ProtobufCommandParser::processData(this, socketData);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void CppBridge::queueCommandWithCallback(BridgeProto::Request msg)
-{
-   commandWithCallbackQueue_->push_back(move(msg));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void CppBridge::processCommandWithCallbackThread()
-{
-   /***
-   This class of methods needs to interact several times with the user in the
-   course of their lifetime. A dedicated callback object to keep track of the
-   methods running thread and set of callbacks awaiting a return.
-   ***/
-
-   while (true)
-   {
-      BridgeProto::Request msg;
-      try
-      {
-         msg = move(commandWithCallbackQueue_->pop_front());
-      }
-      catch (const StopBlockingLoop&)
-      {
-         break;
-      }
-
-      /*BinaryDataRef opaqueRef;
-      if (msg.byteargs_size() < 2)
-      {
-         //msg has to carry a callback id
-         if (msg.byteargs_size() == 0)
-            throw runtime_error("malformed command");
-      }
-      else
-      {
-         //grab opaque data
-         opaqueRef.setRef(msg.byteargs(1));
-      }
-
-      //grab callback id
-      BinaryDataRef callbackId;
-      callbackId.setRef(msg.byteargs(0));
-
-      auto getCallbackHandler = [this, &callbackId]()->
-         shared_ptr<MethodCallbacksHandler>
-      {
-         //grab the callback handler, add to map if missing
-         auto iter = callbackHandlerMap_.find(callbackId);
-         if (iter == callbackHandlerMap_.end())
-         {
-            auto insertIter = callbackHandlerMap_.emplace(
-               callbackId, make_shared<MethodCallbacksHandler>(
-                  callbackId, commandWithCallbackQueue_));
-            
-            iter = insertIter.first;
-         }
-
-         return iter->second;
-      };
-
-      auto deleteCallbackHandler = [this, &callbackId]()
-      {
-         callbackHandlerMap_.erase(callbackId);
-      };
-
-      //process the commands
-      try
-      {
-         switch (msg.method_case())
-         {
-            case MethodsWithCallback::followUp:
-            {
-               //this is a reply to an existing callback
-               if (msg.intargs_size() == 0)
-                  throw runtime_error("missing callback arguments");
-
-               auto handler = getCallbackHandler();
-               handler->processCallbackReply(msg.intargs(0), opaqueRef);
-               break;
-            }
-
-            case MethodsWithCallback::cleanup:
-            {
-               //caller is done, cleanup callbacks entry from map
-               deleteCallbackHandler();
-               break;
-            }
-
-            //Entry point to the methods, they will populate their respective
-            //callbacks object with lambdas to process the returned values
-            case MethodsWithCallback::restoreWallet:
-            {
-               auto handler = getCallbackHandler();
-               restoreWallet(opaqueRef, handler);
-               break;
-            }
-
-            default:
-               throw runtime_error("unknown command");
-         }
-      }
-      catch (const exception& e)
-      {
-         //make sure to cleanup the callback map entry on throws
-         deleteCallbackHandler();
-
-         //rethrow so that the caller can handle the error
-         throw e;
-      }*/
-   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,47 +62,43 @@ void CppBridge::writeToClient(BridgePayload msgPtr) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-PassphraseLambda CppBridge::createPassphrasePrompt(UnlockPromptType promptType)
+void CppBridge::callbackWriter(ServerPushWrapper& wrapper)
 {
-   unique_lock<mutex> lock(passPromptMutex_);
-   auto&& id = fortuna_.generateRandom(6).toHexStr();
-   auto passPromptObj = make_shared<BridgePassphrasePrompt>(id, writeLambda_);
-
-   promptMap_.insert(make_pair(id, passPromptObj));
-   return passPromptObj->getLambda(promptType);
+   setCallbackHandler(wrapper);
+   writeToClient(move(wrapper.payload));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool CppBridge::returnPassphrase(
-   const string& promptId, const string& passphrase)
-{
-   unique_lock<mutex> lock(passPromptMutex_);
-   auto iter = promptMap_.find(promptId);
-   if (iter == promptMap_.end())
-      return false;
-
-   iter->second->setReply(passphrase);
-   return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void CppBridge::loadWallets(unsigned id)
+void CppBridge::loadWallets(const string& callbackId, unsigned referenceId)
 {
    if (wltManager_ != nullptr)
       return;
 
-   auto thrLbd = [this, id](void)->void
+   auto thrLbd = [this, callbackId, referenceId](void)->void
    {
-      auto lbd = createPassphrasePrompt(UnlockPromptType::migrate);
+      auto passPromptObj = make_shared<BridgePassphrasePrompt>(
+         callbackId, [this](ServerPushWrapper wrapper){
+            this->callbackWriter(wrapper);
+         });
+      auto lbd = passPromptObj->getLambda();
       wltManager_ = make_shared<WalletManager>(path_, lbd);
       auto response = createWalletsPacket();
-      response->mutable_reply()->set_reference_id(id);
+      response->mutable_reply()->set_reference_id(referenceId);
       writeToClient(move(response));
    };
 
    thread thr(thrLbd);
    if (thr.joinable())
       thr.detach();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+WalletPtr CppBridge::getWalletPtr(const string& wltId) const
+{
+   auto wai = WalletAccountIdentifier::deserialize(wltId);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
+   return wltContainer->getWalletPtr();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -397,15 +257,20 @@ void CppBridge::registerWallet(const string& id, bool isNew)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::createBackupStringForWallet(
-   const string& id, unsigned msgId)
+void CppBridge::createBackupStringForWallet(const string& waaId,
+   const string& callbackId, unsigned msgId)
 {
-   auto passLbd = createPassphrasePrompt(UnlockPromptType::decrypt);
-   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wai = WalletAccountIdentifier::deserialize(waaId);
 
    const auto& walletId = wai.walletId;
-   auto backupStringLbd = [this, walletId, msgId, passLbd]()->void
+   auto backupStringLbd = [this, walletId, msgId, callbackId]()->void
    {
+      auto passPromptObj = make_shared<BridgePassphrasePrompt>(
+         callbackId, [this](ServerPushWrapper wrapper){
+            this->callbackWriter(wrapper);
+         });
+      auto lbd = passPromptObj->getLambda();
+
       Armory::Backups::WalletBackup backupData;
       try
       {
@@ -413,13 +278,13 @@ void CppBridge::createBackupStringForWallet(
          auto wltContainer = wltManager_->getWalletContainer(walletId);
 
          //grab root
-         backupData = move(wltContainer->getBackupStrings(passLbd));
+         backupData = move(wltContainer->getBackupStrings(lbd));
       }
       catch (const exception&)
       {}
 
       //wind down passphrase prompt
-      passLbd({BridgePassphrasePrompt::concludeKey});
+      passPromptObj->cleanup();
 
       auto payload = make_unique<BridgeProto::Payload>();
       auto reply = payload->mutable_reply();
@@ -463,8 +328,7 @@ void CppBridge::createBackupStringForWallet(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::restoreWallet(
-   const BinaryDataRef& msgRef, shared_ptr<MethodCallbacksHandler> handler)
+void CppBridge::restoreWallet(const BinaryDataRef& msgRef)
 {
    /*
    Needs 2 lines for the root, possibly another 2 for the chaincode, possibly
@@ -482,9 +346,10 @@ void CppBridge::restoreWallet(
       throw runtime_error("[restoreWallet] invalid root lines count");
 
    //
-   auto restoreLbd = [this, handler](RestoreWalletPayload msg)
+   #if 0
+   auto restoreLbd = [this](RestoreWalletPayload msg)
    {
-      auto createCallbackMessage = [handler](
+      auto createCallbackMessage = [](
          int promptType,
          const vector<int> chkResults,
          SecureBinaryData& extra)->unique_ptr<BridgeProto::Payload>
@@ -628,8 +493,9 @@ void CppBridge::restoreWallet(
 
       handler->flagForCleanup();
    };
+   #endif
 
-   handler->methodThr_ = thread(restoreLbd, move(msg));
+   //handler->methodThr_ = thread(restoreLbd, move(msg));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -824,7 +690,8 @@ BridgePayload CppBridge::getAddrCombinedList(const string& id)
    for (auto& addrPair : updatedMap)
    {
       auto newAsset = aabData->add_updated_asset();
-      CppToProto::addr(newAsset, addrPair.second, accPtr);
+      CppToProto::addr(newAsset, addrPair.second, accPtr,
+         wltContainer->getDefaultEncryptionKeyId());
    }
 
    reply->set_success(true);
@@ -842,9 +709,8 @@ BridgePayload CppBridge::getHighestUsedIndex(const string& id)
    auto reply = payload->mutable_reply();
    reply->set_success(true);
 
-   auto index = reply->mutable_wallet()->mutable_highest_used_index();
-   index->set_index(wltContainer->getHighestUsedIndex());
-
+   reply->mutable_wallet()->set_highest_used_index(
+      wltContainer->getHighestUsedIndex());
    return payload;
 }
 
@@ -930,11 +796,11 @@ void CppBridge::extendAddressPool(const string& wltId,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-string CppBridge::createWallet(const Utils::CreateWallet& msg)
+string CppBridge::createWallet(
+   const Utils::CreateWalletStruct& createWalletProto)
 {
    if (wltManager_ == nullptr)
       throw runtime_error("wallet manager is not initialized");
-   const auto& createWalletProto = msg.wallet_struct();
 
    //extra entropy
    SecureBinaryData extraEntropy;
@@ -1013,8 +879,9 @@ BridgePayload CppBridge::getNewAddress(const string& id, unsigned type)
    auto reply = payload->mutable_reply();
    reply->set_success(true);
 
-   auto addrProto = reply->mutable_wallet()->mutable_asset();
-   CppToProto::addr(addrProto, addrPtr, accPtr);
+   auto addrProto = reply->mutable_wallet()->mutable_address_data();
+   CppToProto::addr(addrProto, addrPtr, accPtr,
+      wltContainer->getDefaultEncryptionKeyId());
    return payload;
 }
 
@@ -1033,8 +900,9 @@ BridgePayload CppBridge::getChangeAddress(const string& id, unsigned type)
    auto reply = payload->mutable_reply();
    reply->set_success(true);
 
-   auto addrProto = reply->mutable_wallet()->mutable_asset();
-   CppToProto::addr(addrProto, addrPtr, accPtr);
+   auto addrProto = reply->mutable_wallet()->mutable_address_data();
+   CppToProto::addr(addrProto, addrPtr, accPtr,
+      wltContainer->getDefaultEncryptionKeyId());
    return payload;
 }
 
@@ -1053,8 +921,9 @@ BridgePayload CppBridge::peekChangeAddress(const string& id, unsigned type)
    auto reply = payload->mutable_reply();
    reply->set_success(true);
 
-   auto addrProto = reply->mutable_wallet()->mutable_asset();
-   CppToProto::addr(addrProto, addrPtr, accPtr);
+   auto addrProto = reply->mutable_wallet()->mutable_address_data();
+   CppToProto::addr(addrProto, addrPtr, accPtr,
+      wltContainer->getDefaultEncryptionKeyId());
    return payload;
 }
 
@@ -1110,8 +979,7 @@ BridgePayload CppBridge::getTxInScriptType(
    auto reply = payload->mutable_reply();
    reply->set_success(true);
 
-   auto scriptType = reply->mutable_script_utils()->mutable_txin_script_type();
-   scriptType->set_script_type(typeInt);
+   reply->mutable_script_utils()->set_txin_script_type(typeInt);
    return payload;
 }
 
@@ -1124,8 +992,7 @@ BridgePayload CppBridge::getTxOutScriptType(const BinaryData& script) const
    auto reply = payload->mutable_reply();
    reply->set_success(true);
 
-   auto scriptType = reply->mutable_script_utils()->mutable_txout_script_type();
-   scriptType->set_script_type(typeInt);
+   reply->mutable_script_utils()->set_txout_script_type(typeInt);
    return payload;
 }
 
@@ -1138,8 +1005,9 @@ BridgePayload CppBridge::getScrAddrForScript(
    auto payload = make_unique<BridgeProto::Payload>();
    auto reply = payload->mutable_reply();
    reply->set_success(true);
-   auto scrAddr = reply->mutable_script_utils()->mutable_scraddr();
-   scrAddr->set_scraddr(resultBd.toCharPtr(), resultBd.getSize());
+
+   reply->mutable_script_utils()->set_scraddr(
+      resultBd.toCharPtr(), resultBd.getSize());
    return payload;
 }
 
@@ -1153,8 +1021,8 @@ BridgePayload CppBridge::getScrAddrForAddrStr(const string& addrStr) const
    {
       auto resultBd = BtcUtils::getScrAddrForAddrStr(addrStr);
       reply->set_success(true);
-      auto scrAddr = reply->mutable_script_utils()->mutable_scraddr();
-      scrAddr->set_scraddr(resultBd.toCharPtr(), resultBd.getSize());
+      reply->mutable_utils()->set_scraddr(
+         resultBd.toCharPtr(), resultBd.getSize());
    }
    catch (const exception& e)
    {
@@ -1178,8 +1046,8 @@ BridgePayload CppBridge::getLastPushDataInScript(const BinaryData& script) const
    else
    {
       reply->set_success(true);
-      auto pushData = reply->mutable_script_utils()->mutable_push_data();
-      pushData->set_data(result.getCharPtr(), result.getSize());
+      reply->mutable_script_utils()->set_push_data(
+         result.getCharPtr(), result.getSize());
    }
    return payload;
 }
@@ -1193,8 +1061,7 @@ BridgePayload CppBridge::getHash160(const BinaryDataRef& dataRef) const
    auto reply = payload->mutable_reply();
    reply->set_success(true);
 
-   auto hashMsg = reply->mutable_utils()->mutable_hash();
-   hashMsg->set_data(hash.getCharPtr(), hash.getSize());
+   reply->mutable_utils()->set_hash(hash.getCharPtr(), hash.getSize());
    return payload;
 }
 
@@ -1207,8 +1074,8 @@ BridgePayload CppBridge::getTxOutScriptForScrAddr(const BinaryData& script) cons
    auto reply = payload->mutable_reply();
    reply->set_success(true);
 
-   auto scriptReply = reply->mutable_script_utils()->mutable_script_data();
-   scriptReply->set_data(resultBd.toCharPtr(), resultBd.getSize());
+   reply->mutable_script_utils()->set_script_data(
+      resultBd.toCharPtr(), resultBd.getSize());
    return payload;
 }
 
@@ -1223,12 +1090,10 @@ BridgePayload CppBridge::getAddrStrForScrAddr(const BinaryData& script) const
       auto reply = payload->mutable_reply();
       reply->set_success(true);
       auto scriptUtilsReply = reply->mutable_script_utils();
-      auto addr = scriptUtilsReply->mutable_address_string();
-      addr->set_address(addrStr);
+      scriptUtilsReply->set_address_string(addrStr);
    }
    catch (const exception& e)
    {
-      auto payload = make_unique<BridgeProto::Payload>();
       auto reply = payload->mutable_reply();
       reply->set_success(false);
       reply->set_error(e.what());
@@ -1309,9 +1174,9 @@ BridgePayload CppBridge::setAddressTypeFor(
       wai.walletId, wai.accountId);
    auto wltPtr = wltContainer->getWalletPtr();
 
-   BinaryDataRef bdr; bdr.setRef(assetIdStr);
+   auto idRef = BinaryDataRef::fromString(assetIdStr);
    auto assetId = Armory::Wallets::AssetId::deserializeKey(
-      bdr, PROTO_ASSETID_PREFIX);
+      idRef, PROTO_ASSETID_PREFIX);
 
    //set address type in wallet
    wltPtr->updateAddressEntryType(assetId, (AddressEntryType)addrType);
@@ -1325,8 +1190,9 @@ BridgePayload CppBridge::setAddressTypeFor(
    auto reply = payload->mutable_reply();
    reply->set_success(true);
 
-   auto addrProto = reply->mutable_wallet()->mutable_asset();
-   CppToProto::addr(addrProto, addrPtr, accPtr);
+   auto addrProto = reply->mutable_wallet()->mutable_address_data();
+   CppToProto::addr(addrProto, addrPtr, accPtr,
+      wltContainer->getDefaultEncryptionKeyId());
    return payload;
 }
 
@@ -1342,9 +1208,8 @@ void CppBridge::getHeaderByHeight(unsigned height, unsigned msgId)
       reply->set_success(true);
       reply->set_reference_id(msgId);
 
-      auto headerData = reply->mutable_service()->mutable_header_data();
-      headerData->set_data(headerRaw.getCharPtr(), headerRaw.getSize());
-
+      reply->mutable_service()->set_header_data(
+         headerRaw.getCharPtr(), headerRaw.getSize());
       this->writeToClient(move(payload));
    };
 
@@ -1390,10 +1255,7 @@ void CppBridge::setupNewCoinSelectionInstance(const string& id,
       reply->set_success(true);
       reply->set_reference_id(msgId);
 
-      auto walletReply = reply->mutable_wallet();
-      auto csReply = walletReply->mutable_coin_selection_id();
-      csReply->set_id(csId);
-
+      reply->mutable_wallet()->set_coin_selection_id(csId);
       this->writeToClient(move(payload));
    };
 
@@ -1486,6 +1348,7 @@ void CppBridge::getUtxosForValue(const string& id,
       auto payload = make_unique<BridgeProto::Payload>();
       auto reply = payload->mutable_reply();
       reply->set_success(true);
+      reply->set_reference_id(msgId);
 
       auto utxoList = reply->mutable_wallet()->mutable_utxo_list();
       for (auto& utxo : utxoVec)
@@ -1513,6 +1376,7 @@ void CppBridge::getSpendableZCList(const string& id, unsigned msgId)
       auto payload = make_unique<BridgeProto::Payload>();
       auto reply = payload->mutable_reply();
       reply->set_success(true);
+      reply->set_reference_id(msgId);
 
       auto utxoList = reply->mutable_wallet()->mutable_utxo_list();
       for(auto& utxo : utxoVec)
@@ -1559,14 +1423,19 @@ void CppBridge::getRBFTxOutList(const string& id, unsigned msgId)
 BridgePayload CppBridge::initNewSigner()
 {
    auto id = fortuna_.generateRandom(6).toHexStr();
-   signerMap_.emplace(make_pair(id, make_shared<CppBridgeSignerStruct>()));
+   signerMap_.emplace(make_pair(id,
+      make_shared<CppBridgeSignerStruct>(
+         [this](const string& wltId)->auto {
+            return this->getWalletPtr(wltId); },
+         [this](ServerPushWrapper wrapper) {
+            callbackWriter(wrapper);
+         })
+   ));
 
    auto payload = make_unique<BridgeProto::Payload>();
    auto reply = payload->mutable_reply();
    reply->set_success(true);
-
-   auto signerId = reply->mutable_signer()->mutable_signer_id();
-   signerId->set_id(id);
+   reply->mutable_signer()->set_signer_id(id);
    return payload;
 }
 
@@ -1584,120 +1453,6 @@ shared_ptr<CppBridgeSignerStruct> CppBridge::signerInstance(
    if (iter == signerMap_.end())
       return nullptr;
    return iter->second;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void CppBridge::signer_signTx(
-   const string& id, const string& wltId, unsigned msgId)
-{
-   //grab signer
-   auto iter = signerMap_.find(id);
-   if (iter == signerMap_.end())
-      throw runtime_error("invalid signer id");
-   auto signerPtr = iter->second;
-
-   //grab wallet
-   auto wai = WalletAccountIdentifier::deserialize(wltId);
-   auto wltContainer = wltManager_->getWalletContainer(
-      wai.walletId, wai.accountId);
-   auto wltPtr = wltContainer->getWalletPtr();
-
-   auto passLbd = createPassphrasePrompt(UnlockPromptType::decrypt);
-
-   //instantiate and set resolver feed
-   auto signLbd = [wltPtr, signerPtr, passLbd, msgId, this](void)->void
-   {
-      bool success = true;
-      try
-      {
-         auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);
-         auto feed = make_shared<ResolverFeed_AssetWalletSingle>(wltSingle);
-
-         signerPtr->signer_.resetFeed();
-         signerPtr->signer_.setFeed(feed);
-
-         //create & set wallet lambda
-         wltPtr->setPassphrasePromptLambda(passLbd);
-
-         //lock wallet
-         auto lock = wltPtr->lockDecryptedContainer();
-
-         //sign
-         signerPtr->signer_.sign();
-      }
-      catch (exception&)
-      {
-         success = false;
-      }
-
-      //signal Python that we're done
-      auto payload = make_unique<BridgeProto::Payload>();
-      auto reply = payload->mutable_reply();
-      reply->set_success(success);
-      reply->set_reference_id(msgId);
-      this->writeToClient(move(payload));
-
-      //wind down passphrase prompt
-      passLbd({BridgePassphrasePrompt::concludeKey});
-   };
-
-   thread thr(signLbd);
-   if (thr.joinable())
-      thr.detach();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool CppBridge::signer_resolve(
-   const string& sId, const string& wltId) const
-{
-   //grab signer
-   auto iter = signerMap_.find(sId);
-   if (iter == signerMap_.end())
-      throw runtime_error("invalid signer id");
-   auto& signer = iter->second->signer_;
-
-   //grab wallet
-   auto wai = WalletAccountIdentifier::deserialize(wltId);
-   auto wltContainer = wltManager_->getWalletContainer(
-      wai.walletId, wai.accountId);
-   auto wltPtr = wltContainer->getWalletPtr();
-
-   //get wallet feed
-   auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);
-   auto feed = make_shared<ResolverFeed_AssetWalletSingle>(wltSingle);
-
-   //set feed & resolve
-   signer.resetFeed();
-   signer.setFeed(feed);
-   signer.resolvePublicData();
-
-   return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BridgePayload CppBridge::getSignedStateForInput(
-   const string& id, unsigned inputId)
-{
-   auto iter = signerMap_.find(id);
-   if (iter == signerMap_.end())
-      throw runtime_error("invalid signer id");
-
-   if (iter->second->signState_ == nullptr)
-   {
-      iter->second->signState_ = make_unique<TxEvalState>(
-         iter->second->signer_.evaluateSignedState());
-   }
-
-   const auto signState = iter->second->signState_.get();
-   auto payload = make_unique<BridgeProto::Payload>();
-   auto reply = payload->mutable_reply();
-
-   auto signStateInput = signState->getSignedStateForInput(inputId);
-   auto inputState = reply->mutable_signer()->mutable_input_signed_state();
-   CppToProto::signatureState(inputState, signStateInput);
-
-   reply->set_success(true);
-   return payload;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1728,9 +1483,7 @@ void CppBridge::getBlockTimeByHeight(uint32_t height, uint32_t msgId) const
       reply->set_success(true);
       reply->set_reference_id(msgId);
 
-      auto blockTime = reply->mutable_service()->mutable_block_time();
-      blockTime->set_timestamp(timestamp);
-
+      reply->mutable_service()->set_block_time(timestamp);
       this->writeToClient(move(payload));
    };
 
@@ -1753,8 +1506,8 @@ void CppBridge::estimateFee(uint32_t blocks,
 
          result->set_success(true);
          auto feeMsg = result->mutable_service()->mutable_fee_estimate();
-         feeMsg->set_feebyte(feeData.val_);
-         feeMsg->set_smartfee(feeData.isSmart_);
+         feeMsg->set_fee_byte(feeData.val_);
+         feeMsg->set_smart_fee(feeData.isSmart_);
       }
       catch (const ClientMessageError& e)
       {
@@ -1769,6 +1522,31 @@ void CppBridge::estimateFee(uint32_t blocks,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void CppBridge::setCallbackHandler(ServerPushWrapper& wrapper)
+{
+   if (wrapper.referenceId == 0 || wrapper.handler == nullptr)
+      return;
+
+   unique_lock<mutex> lock(callbackHandlerMu_);
+   auto result = callbackHandlers_.emplace(
+      wrapper.referenceId, move(wrapper.handler));
+   if (!result.second)
+      throw runtime_error("handler collision");
+}
+
+CallbackHandler CppBridge::getCallbackHandler(uint32_t id)
+{
+   unique_lock<mutex> lock(callbackHandlerMu_);
+   auto handlerIter = callbackHandlers_.find(id);
+   if (handlerIter == callbackHandlers_.end())
+      throw runtime_error("missing handler");
+
+   auto handler = move(handlerIter->second);
+   callbackHandlers_.erase(handlerIter);
+   return handler;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////
 ////  BridgeCallback
 ////
@@ -1778,21 +1556,19 @@ void BridgeCallback::waitOnId(const string& id)
    string currentId;
    while(true)
    {
+      if (currentId == id)
+         return;
+
+      unique_lock<mutex> lock(idMutex_);
+      auto iter = validIds_.find(id);
+      if (*iter == id)
       {
-         if (currentId == id)
-             return;
-
-         unique_lock<mutex> lock(idMutex_);
-         auto iter = validIds_.find(id);
-         if (*iter == id)
-         {
-            validIds_.erase(iter);
-            return;
-         }
-
-         validIds_.insert(currentId);
-         currentId.clear();
+         validIds_.erase(iter);
+         return;
       }
+
+      validIds_.insert(currentId);
+      currentId.clear();
 
       //TODO: implement queue wake up logic
       currentId = move(idQueue_.pop_front());
@@ -1914,7 +1690,7 @@ void BridgeCallback::progress(
 
    progressMsg->set_phase((uint32_t)phase);
    progressMsg->set_progress(progress);
-   progressMsg->set_etasec(secondsRem);
+   progressMsg->set_eta_sec(secondsRem);
    progressMsg->set_progress_numeric(progressNumeric);
 
    for (auto& id : walletIdVec)
@@ -1995,49 +1771,110 @@ void BridgeCallback::disconnected()
 
 ////////////////////////////////////////////////////////////////////////////////
 ////
-////  MethodCallbacksHandler
+////  CppBridgeSignerStruct
 ////
 ////////////////////////////////////////////////////////////////////////////////
-void MethodCallbacksHandler::processCallbackReply(
-   unsigned callbackId, BinaryDataRef& dataRef)
-{
-   auto iter = callbacks_.find(callbackId);
-   if (iter == callbacks_.end())
-      return; //ignore unknown callbacks ids
+CppBridgeSignerStruct::CppBridgeSignerStruct(
+   function<WalletPtr(const string&)> getWalletFunc,
+   function<void(ServerPushWrapper)> writeFunc) :
+   getWalletFunc_(getWalletFunc), writeFunc_(writeFunc)
+{}
 
-   auto callbackLbd = move(iter->second);
-   callbacks_.erase(iter);
-   callbackLbd(dataRef);
+////////////////////////////////////////////////////////////////////////////////
+void CppBridgeSignerStruct::signTx(const string& wltId,
+   const string& callbackId, unsigned referenceId)
+{
+   //grab wallet
+   auto wltPtr = getWalletFunc_(wltId);
+
+   //run signature process in its own thread, as it's an async process
+   auto signLbd = [this, wltPtr, callbackId, referenceId](void)->void
+   {
+      bool success = true;
+
+      //create passphrase lambda
+      auto passPromptObj = make_shared<BridgePassphrasePrompt>(
+         callbackId, writeFunc_);
+      auto passLbd = passPromptObj->getLambda();
+
+      try
+      {
+         //cast wallet & create resolver
+         auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);
+         auto feed = make_shared<ResolverFeed_AssetWalletSingle>(wltSingle);
+
+         //set resolver
+         signer_.resetFeed();
+         signer_.setFeed(feed);
+
+         //create & set passphrase lambda
+         wltPtr->setPassphrasePromptLambda(passLbd);
+
+         //lock decryption container
+         auto lock = wltPtr->lockDecryptedContainer();
+
+         //sign, this will prompt the passphrase lambda on demand
+         signer_.sign();
+      }
+      catch (const exception&)
+      {
+         success = false;
+      }
+      catch (...)
+      {
+         LOGINFO << "false catch";
+      }
+
+      //send reply to caller
+      auto protoMsg = make_unique<BridgeProto::Payload>();
+      auto reply = protoMsg->mutable_reply();
+      reply->set_success(success);
+      reply->set_reference_id(referenceId);
+
+      ServerPushWrapper wrapper{ 0, nullptr, move(protoMsg) };
+      writeFunc_(move(wrapper));
+
+      //wind down passphrase prompt
+      passPromptObj->cleanup();
+   };
+
+   thread thr(signLbd);
+   if (thr.joinable())
+      thr.detach();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void MethodCallbacksHandler::flagForCleanup()
+bool CppBridgeSignerStruct::resolve(const string& wltId)
 {
-   /*
-   Mock a shutdown message and queue it up. This message will trigger the 
-   deletion of this callback handler from the callback map;
-   */
-   if (parentCommandQueue_ == nullptr)
-      return;
+   //grab wallet
+   auto wltPtr = getWalletFunc_(wltId);
 
-   BridgeProto::Request msg;
+   //get wallet feed
+   auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);
+   auto feed = make_shared<ResolverFeed_AssetWalletSingle>(wltSingle);
 
-   /*msg.set_method(Methods::methodWithCallback);
-   msg.set_methodwithcallback(MethodsWithCallback::cleanup);
-   msg.add_byteargs(id_.toCharPtr(), id_.getSize());*/
+   //set feed & resolve
+   signer_.resetFeed();
+   signer_.setFeed(feed);
+   signer_.resolvePublicData();
 
-   parentCommandQueue_->push_back(move(msg));
-   parentCommandQueue_ = nullptr;
+   return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unsigned MethodCallbacksHandler::addCallback(
-   const function<void(BinaryData)>& callback)
+BridgePayload CppBridgeSignerStruct::getSignedStateForInput(unsigned inputId)
 {
-   /*
-   This method isn't thread safe.
-   */
-   auto id = counter_++;
-   callbacks_.emplace(id, callback);
-   return id;
+   if (signState_ == nullptr)
+      signState_ = make_unique<TxEvalState>(signer_.evaluateSignedState());
+
+   const auto signState = signState_.get();
+   auto payload = make_unique<BridgeProto::Payload>();
+   auto reply = payload->mutable_reply();
+
+   auto signStateInput = signState->getSignedStateForInput(inputId);
+   auto inputState = reply->mutable_signer()->mutable_input_signed_state();
+   CppToProto::signatureState(inputState, signStateInput);
+
+   reply->set_success(true);
+   return payload;
 }

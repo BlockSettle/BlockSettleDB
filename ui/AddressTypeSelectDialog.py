@@ -145,7 +145,7 @@ class AddressLabelFrame(object):
 
    def setType(self, _type):
       self.addrType = _type
-      addrTypeStr = TheBridge.getNameForAddrType(_type)
+      addrTypeStr = TheBridge.utils.getNameForAddrType(_type)
       self.typeLabel.setText(\
          self.main.tr("<u><font color='blue'>%s</font></u>" \
          % addrTypeStr))

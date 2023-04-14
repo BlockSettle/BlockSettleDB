@@ -1,21 +1,26 @@
 from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
-################################################################################
-#                                                                              #
-# Copyright (C) 2011-2021, Armory Technologies, Inc.                           #
-# Distributed under the GNU Affero General Public License (AGPL v3)            #
-# See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
-#                                                                              #
-################################################################################
+##############################################################################
+#                                                                            #
+# Copyright (C) 2011-2015, Armory Technologies, Inc.                         #
+# Distributed under the GNU Affero General Public License (AGPL v3)          #
+# See LICENSE or http://www.gnu.org/licenses/agpl.html                       #
+#                                                                            #
+# Copyright (C) 2016-2023, goatpig                                           #
+#  Distributed under the MIT license                                         #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
+#                                                                            #
+##############################################################################
 
 import random
 
 from qtdialogs.qtdefines import ArmoryFrame, tightSizeNChar, \
    GETFONT, QRichLabel, VLINE, QLabelButton, USERMODE, \
    VERTICAL, makeHorizFrame, STYLE_RAISED, makeVertFrame, \
-   relaxedSizeNChar, STYLE_SUNKEN, CHANGE_ADDR_DESCR_STRING
+   relaxedSizeNChar, STYLE_SUNKEN, CHANGE_ADDR_DESCR_STRING, \
+   STRETCH, createToolTipWidget
 
-from qtdialogs.qtdialogs import NO_CHANGE, STRETCH
+from qtdialogs.qtdialogs import NO_CHANGE
 from qtdialogs.DlgDispTxInfo import DlgDispTxInfo
 from qtdialogs.DlgConfirmSend import DlgConfirmSend
 
@@ -29,8 +34,10 @@ from armoryengine.ArmoryUtils import MAX_COMMENT_LENGTH, getAddrByte, \
    str2coin, CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, \
    coin2str, MIN_FEE_BYTE, getNameForAddrType, addrTypeInSet, \
    getAddressTypeForOutputType, binary_to_hex
+from armoryengine.Settings import TheSettings
 
 from ui.FeeSelectUI import FeeSelectionDialog
+from ui.QtExecuteSignal import TheSignalExecution
 
 from PySide2.QtCore import Qt, QByteArray
 from PySide2.QtGui import QPalette
@@ -53,96 +60,86 @@ from armoryengine.PyBtcAddress import AddressEntryType_Default, \
 
 ################################################################################
 class CoinSelectionInstance(object):
-   def __init__(self, wltID, topHeight):
-      self.id = None
-      self.wltId = wltID
+   def __init__(self, wallet, topHeight):
+      self.wallet = wallet
       self.height = topHeight
+      self.csInstance = None
 
    #############################################################################
    def __del__(self):
-      TheBridge.destroyCoinSelectionInstance(self.id)
+      if self.csInstance:
+         self.csInstance.destroyCoinSelectionInstance()
 
    #############################################################################
    def setup(self):
-      self.id = TheBridge.initCoinSelectionInstance(self.wltId, self.height)
+      self.csInstance = self.wallet.initCoinSelectionInstance(self.height)
 
    #############################################################################
    def setRecipient(self, addr, value, id):
-      if self.id == None:
+      if not self.csInstance:
          raise Exception("uninitialized coin selection instance")
-
-      TheBridge.setCoinSelectionRecipient(self.id, addr, value, id)
+      self.csInstance.setCoinSelectionRecipient(addr, value, id)
 
    #############################################################################
    def updateRecipient(self, addr, value, id):
-      if self.id == None:
+      if not self.csInstance:
          raise Exception("uninitialized coin selection instance")
-
-      TheBridge.setCoinSelectionRecipient(self.id, addr, value, id)
+      self.csInstance.setCoinSelectionRecipient(addr, value, id)
 
    #############################################################################
    def resetRecipients(self):
-      if self.id == None:
+      if not self.csInstance:
          raise Exception("uninitialized coin selection instance")
-
-      TheBridge.resetCoinSelection()
+      self.csInstance.reset()
 
    #############################################################################
    def selectUTXOs(self, fee, feePerByte, processFlags):
-      if self.id == None:
+      if not self.csInstance:
          raise Exception("uninitialized coin selection instance")
-
-      TheBridge.cs_SelectUTXOs(self.id, fee, feePerByte, processFlags)
+      self.csInstance.selectUTXOs(fee, feePerByte, processFlags)
 
    #############################################################################
    def processCustomUtxoList(self, utxoList, fee, feePerByte, processFlags):
-      if self.id == None:
+      if not self.csInstance:
          raise Exception("uninitialized coin selection instance")
-
-      TheBridge.cs_ProcessCustomUtxoList(\
-         self.id, utxoList, fee, feePerByte, processFlags)
+      self.csInstance.processCustomUtxoList(
+         utxoList, fee, feePerByte, processFlags)
 
    #############################################################################
    def getUtxoSelection(self):
-      if self.id == None:
+      if not self.csInstance:
          raise Exception("uninitialized coin selection instance")
-
-      return TheBridge.cs_getUtxoSelection(self.id)
+      return self.csInstance.getUtxoSelection()
 
    #############################################################################
    def getFlatFee(self):
-      if self.id == None:
+      if not self.csInstance:
          raise Exception("uninitialized coin selection instance")
-
-      return TheBridge.cs_getFlatFee(self.id)
+      return self.csInstance.getFlatFee()
 
    #############################################################################
    def getFeeByte(self):
-      if self.id == None:
+      if not self.csInstance:
          raise Exception("uninitialized coin selection instance")
-
-      return TheBridge.cs_getFeeByte(self.id)
+      return self.csInstance.getFeeByte()
 
    #############################################################################
    def getSizeEstimate(self):
-      if self.id == None:
+      if not self.csInstance:
          raise Exception("uninitialized coin selection instance")
-
-      return TheBridge.cs_getSizeEstimate(self.id)
+      return self.csInstance.getSizeEstimate()
 
    #############################################################################
    def getFeeForMaxVal(self, feePerByte):
-      if self.id == None:
+      if not self.csInstance:
          raise Exception("uninitialized coin selection instance")
-
-      return TheBridge.cs_getFeeForMaxVal(self.id, feePerByte)
+      return self.csInstance.getFeeForMaxVal(feePerByte)
 
    #############################################################################
    def getFeeForMaxValUtxoVector(self, utxoList, feePerByte):
-      if self.id == None:
+      if not self.csInstance:
          raise Exception("uninitialized coin selection instance")
-
-      return TheBridge.cs_getFeeForMaxValUtxoVector(self.id, utxoList, feePerByte)
+      return self.csInstance.getFeeForMaxValUtxoVector(utxoList, feePerByte)
 
 
 ################################################################################
@@ -187,7 +184,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       if wltIDList == None:
          self.wltIDList = getWalletIdList(onlyOfflineWallets)
 
-      feetip = self.main.createToolTipWidget(\
+      feetip = createToolTipWidget(\
             self.tr('Transaction fees go to users who contribute computing power to '
             'keep the Bitcoin network secure, and in return they get your transaction '
             'included in the blockchain faster.'))
@@ -218,30 +215,30 @@ class SendBitcoinsFrame(ArmoryFrame):
       self.chkRememberChng = QCheckBox(self.tr('Remember for future transactions'))
       self.vertLine = VLINE()
 
-      self.ttipSendChange = self.main.createToolTipWidget(\
+      self.ttipSendChange = createToolTipWidget(\
             self.tr('Most transactions end up with oversized inputs and Armory will send '
             'the change to the next address in this wallet.  You may change this '
             'behavior by checking this box.'))
-      self.ttipFeedback = self.main.createToolTipWidget(\
+      self.ttipFeedback = createToolTipWidget(\
             self.tr('Guarantees that no new addresses will be created to receive '
             'change. This reduces anonymity, but is useful if you '
             'created this wallet solely for managing imported addresses, '
             'and want to keep all funds within existing addresses.'))
-      self.ttipSpecify = self.main.createToolTipWidget(\
+      self.ttipSpecify = createToolTipWidget(\
             self.tr('You can specify any valid Bitcoin address for the change. '
             '<b>NOTE:</b> If the address you specify is not in this wallet, '
             'Armory will not be able to distinguish the outputs when it shows '
             'up in your ledger.  The change will look like a second recipient, '
             'and the total debit to your wallet will be equal to the amount '
             'you sent to the recipient <b>plus</b> the change.'))
-      self.ttipUnsigned = self.main.createToolTipWidget(\
+      self.ttipUnsigned = createToolTipWidget(\
          self.tr('Check this box to create an unsigned transaction to be signed'
          ' and/or broadcast later.'))
       self.unsignedCheckbox = QCheckBox(self.tr('Create Unsigned'))
 
       self.RBFcheckbox = QCheckBox(self.tr('enable RBF'))
       self.RBFcheckbox.setChecked(True)
-      self.ttipRBF = self.main.createToolTipWidget(\
+      self.ttipRBF = createToolTipWidget(\
          self.tr('RBF flagged inputs allow to respend the underlying outpoint for a '
                  'higher fee as long as the original spending transaction remains '
                  'unconfirmed. <br><br>'
@@ -297,7 +294,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          metaButtonList, STYLE_RAISED, condenseMargins=True)
       buttonFrame = makeHorizFrame(buttonList, condenseMargins=True)
       btnEnterURI = QPushButton(self.tr('Manually Enter "bitcoin:" Link'))
-      ttipEnterURI = self.main.createToolTipWidget( self.tr(
+      ttipEnterURI = createToolTipWidget(self.tr(
          'Armory does not always succeed at registering itself to handle '
          'URL links from webpages and email. '
          'Click this button to copy a "bitcoin:" link directly into Armory.'))
@@ -387,7 +384,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          self.toggleSpecify(False)
          self.toggleChngAddr(False)
 
-      hexgeom = self.main.settings.get('SendBtcGeometry')
+      hexgeom = TheSettings.get('SendBtcGeometry')
       if len(hexgeom) > 0:
          geom = QByteArray(bytes.fromhex(hexgeom))
          self.restoreGeometry(geom)
@@ -513,8 +510,8 @@ class SendBitcoinsFrame(ArmoryFrame):
          self.coinSelection = None
          return
 
-      self.coinSelection = CoinSelectionInstance(\
-         self.wltID, TheBDM.getTopBlockHeight())
+      self.coinSelection = CoinSelectionInstance(
+         self.wlt, TheBDM.getTopBlockHeight())
       self.coinSelection.setup()
 
       try:
@@ -524,12 +521,12 @@ class SendBitcoinsFrame(ArmoryFrame):
 
    #############################################################################   
    def setupCoinSelectionForLockbox(self, lbox):
-      try:        
+      try:
          lbCppWlt = self.main.cppLockboxWltMap[lbox.uniqueIDB58]
          self.coinSelection = Cpp.CoinSelectionInstance(\
             lbCppWlt, lbox.M, lbox.N, \
             TheBDM.getTopBlockHeight(), lbCppWlt.getSpendableBalance())
-         
+
       except:
          self.coinSelection = None
       
@@ -604,7 +601,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       return serializedUtxoList
 
    #############################################################################
-   def resolveCoinSelection(self):   
+   def resolveCoinSelection(self):
       maxRecipientID = self.getMaxRecipientID()
       if maxRecipientID != None:
          self.setMaximum(maxRecipientID)
@@ -629,6 +626,7 @@ class SendBitcoinsFrame(ArmoryFrame):
 
          self.feeDialog.updateLabelButton()
       except RuntimeError as e:
+         print (f"[resolveCoinSelection] failed with error: {str(e)}")
          self.resetCoinSelectionText()
          raise e
 
@@ -881,7 +879,6 @@ class SendBitcoinsFrame(ArmoryFrame):
             if not reply==QMessageBox.Yes:
                return False
 
-
       if len(utxoSelect) == 0:
          QMessageBox.critical(self, self.tr('Coin Selection Error'), self.tr(
             'There was an error constructing your transaction, due to a '
@@ -993,7 +990,6 @@ class SendBitcoinsFrame(ArmoryFrame):
 
             if not dlg.exec_():
                return False
-
          else:
             self.main.warnNewUSTXFormat()
 
@@ -1022,21 +1018,26 @@ class SendBitcoinsFrame(ArmoryFrame):
                      if len(self.comments[i][0].strip()) > 0:
                         commentStr += '%s (%s);  ' % (self.comments[i][0], coin2str_approx(amt).strip())
 
-               def finalizeSignTx():
+               def finalizeSignTx(success):
                   #this needs to run in the GUI thread
-                  def signTxLastStep():
-                     finalTx = ustx.getSignedPyTx()
+                  def signTxLastStep(success):
+                     print (f"signtx success: {success}")
+                     if success:
+                        finalTx = ustx.getSignedPyTx()
 
-                     if len(commentStr) > 0:
-                        self.wlt.setComment(finalTx.getHash(), commentStr)
-                     self.main.broadcastTransaction(finalTx)
+                        if len(commentStr) > 0:
+                           self.wlt.setComment(finalTx.getHash(), commentStr)
+                        self.main.broadcastTransaction(finalTx)
 
-                     if self.sendCallback:
-                        self.sendCallback()
+                        if self.sendCallback:
+                           self.sendCallback()
+                     else:
+                        QMessageBox.warning(self, self.tr('Error'),
+                           self.tr('Failed to sign transaction!'),
+                           QMessageBox.Ok)
+                  TheSignalExecution.executeMethod(signTxLastStep, success)
 
-                  self.main.signalExecution.executeMethod([signTxLastStep])
-
-               ustx.signTx(self.wlt.uniqueIDB58, finalizeSignTx)
+               ustx.signTx(self.wlt.uniqueIDB58, finalizeSignTx, self)
 
             except:
                LOGEXCEPT('Problem sending transaction!')
@@ -1063,8 +1064,8 @@ class SendBitcoinsFrame(ArmoryFrame):
       self.resolveCoinSelection()
       utxoVec = self.coinSelection.getUtxoSelection()
       utxoSelect = []
-      for i in range(len(utxoVec)):
-         pyUtxo = PyUnspentTxOut().createFromBridgeUtxo(utxoVec[i])
+      for i in range(len(utxoVec.utxo)):
+         pyUtxo = PyUnspentTxOut().createFromBridgeUtxo(utxoVec.utxo[i])
          utxoSelect.append(pyUtxo)
       return utxoSelect
 
@@ -1118,7 +1119,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       outputAddressTypes = set()
       for i in range(0, len(scriptValPairs)):
          svPair = scriptValPairs[i]
-         scriptType = TheBridge.getTxOutScriptType(svPair[0])
+         scriptType = TheBridge.scriptUtils.getTxOutScriptType(svPair[0])
          try:
             addrType = getAddressTypeForOutputType(scriptType)
             outputAddressTypes.add(addrType)
@@ -1166,7 +1167,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          if self.lbox is None:
             changeAddrObj = self.getDefaultChangeAddress(scriptValPairs, peek)
             changeAddr160 = changeAddrObj.getAddr160()
-            changeScript  = TheBridge.getTxOutScriptForScrAddr(\
+            changeScript  = TheBridge.scriptUtils.getTxOutScriptForScrAddr(\
                changeAddrObj.getPrefixedAddr())
             self.wlt.setComment(changeAddr160, CHANGE_ADDR_DESCR_STRING)
          else:
@@ -1373,7 +1374,7 @@ class SendBitcoinsFrame(ArmoryFrame):
             r = len(self.widgetTable)
             self.widgetTable.append({})
 
-            self.widgetTable[r]['UID'] = TheBridge.generateRandomHex(8)
+            self.widgetTable[r]['UID'] = TheBridge.utils.generateRandomHex(8)
 
             if not is_opreturn:
                createAddrWidget(self.widgetTable[r], r)

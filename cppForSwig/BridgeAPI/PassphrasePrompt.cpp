@@ -6,105 +6,100 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
+#include "log.h"
+#include "../protobuf/BridgeProto.pb.h"
 #include "PassphrasePrompt.h"
-#include "BridgeSocket.h"
 
 using namespace Armory::Bridge;
 using namespace std;
 using namespace BridgeProto;
+
+uint32_t BridgePassphrasePrompt::referenceCounter_ = 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////
 ////  BridgePassphrasePrompt
 ////
 ////////////////////////////////////////////////////////////////////////////////
-const Armory::Wallets::EncryptionKeyId
-   BridgePassphrasePrompt::concludeKey("concludePrompt");
+BridgePassphrasePrompt::BridgePassphrasePrompt(const std::string& id,
+   std::function<void(ServerPushWrapper)> func) :
+   promptId_(id), writeFunc_(move(func))
+{}
 
-PassphraseLambda BridgePassphrasePrompt::getLambda(UnlockPromptType type)
+////////////////////////////////////////////////////////////////////////////////
+SecureBinaryData BridgePassphrasePrompt::processFeedRequest(
+   const set<Armory::Wallets::EncryptionKeyId>& ids)
 {
-   auto lbd = [this, type]
-      (const set<Armory::Wallets::EncryptionKeyId>& ids)
-      ->SecureBinaryData
+   if (ids.empty())
    {
-      UnlockPromptState promptState = UnlockPromptState::cycle;
-      if (encryptionKeyIds_.empty())
-      {
-         if (ids.empty()) 
-            throw runtime_error("malformed command");
+      //exit condition
+      cleanup();
+      return {};
+   }
 
-         encryptionKeyIds_ = ids;
-         promptState = UnlockPromptState::start;
+   //cycle the promise & future
+   auto promPtr = make_shared<promise<SecureBinaryData>>();
+   auto fut = promPtr->get_future();
+
+   auto refId = referenceCounter_++;
+
+   //create protobuf payload
+   auto protoPtr = make_unique<Payload>();
+   auto pushPtr = protoPtr->mutable_callback();
+   pushPtr->set_callback_id(promptId_);
+   pushPtr->set_reference_id(refId);
+
+   auto unlockPtr = pushPtr->mutable_unlock_request();
+   for (const auto& id : ids)
+      unlockPtr->add_encryption_key_ids(id.toHexStr());
+
+   //reply handler
+   auto replyHandler = [promPtr](const CallbackReply& reply)->bool
+   {
+      if (!reply.success() ||
+         reply.reply_payload_case() != CallbackReply::kPassphrase)
+      {
+         promPtr->set_exception(make_exception_ptr(runtime_error("")));
+      }
+      else
+      {
+         promPtr->set_value(SecureBinaryData::fromString(reply.passphrase()));
       }
 
-      //cycle the promise & future
-      promPtr_ = make_unique<promise<SecureBinaryData>>();
-      futPtr_ = make_unique<shared_future<SecureBinaryData>>(
-         promPtr_->get_future());
-
-      //create protobuf payload
-      UnlockPromptCallback opaque;
-      opaque.set_promptid(promptId_);
-      opaque.set_prompttype(type);
-
-      switch (type)
-      {
-         case UnlockPromptType::decrypt:
-         {
-            opaque.set_verbose("Unlock Wallet");
-            break;
-         }
-
-         case UnlockPromptType::migrate:
-         {
-            opaque.set_verbose("Migrate Wallet");
-            break;
-         }
-
-         default:
-            opaque.set_verbose("undefined prompt type");
-      }
-
-      bool exit = false;
-      if (!ids.empty())
-      {
-         auto iter = ids.begin();
-         if (*iter == concludeKey)
-         {
-            promptState = UnlockPromptState::stop;
-            exit = true;
-         }
-
-         opaque.set_walletid(iter->toHexStr());
-      }
-
-      opaque.set_state(promptState);
-
-      auto msg = make_unique<OpaquePayload>();
-      msg->set_payloadtype(OpaquePayloadType::prompt);
-
-      string serializedOpaqueData;
-      opaque.SerializeToString(&serializedOpaqueData);
-      msg->set_payload(serializedOpaqueData);
-
-      //push over socket
-      auto payload = make_unique<WritePayload_Bridge>();
-      payload->message_ = move(msg);
-      writeLambda_(move(payload));
-
-      if (exit)
-         return {};
-
-      //wait on future
-      return futPtr_->get();
+      return true;
    };
 
-   return lbd;
+   //push over socket
+   ServerPushWrapper wrapper{ refId, replyHandler, move(protoPtr) };
+   writeFunc_(move(wrapper));
+
+   //wait on future
+   try
+   {
+      return fut.get();
+   }
+   catch (const exception&)
+   {
+      LOGINFO << "cancelled wallet unlock";
+      return {};
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BridgePassphrasePrompt::setReply(const string& passphrase)
+void BridgePassphrasePrompt::cleanup()
 {
-   auto&& passSBD = SecureBinaryData::fromString(passphrase);
-   promPtr_->set_value(passSBD);
+   auto protoPtr = make_unique<Payload>();
+   auto pushPtr = protoPtr->mutable_callback();
+   pushPtr->set_callback_id(promptId_);
+   pushPtr->set_cleanup(true);
+   writeFunc_(ServerPushWrapper{0, nullptr, move(protoPtr)});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+PassphraseLambda BridgePassphrasePrompt::getLambda()
+{
+   return [this](const set<Armory::Wallets::EncryptionKeyId>& ids)->SecureBinaryData
+   {
+      return processFeedRequest(ids);
+   };
 }

@@ -1055,7 +1055,7 @@ shared_ptr<AssetWallet> Helpers::restoreFromBackup(
       {
          //prompt caller on decrypt error and return
          callerPrompt(RestorePromptType::DecryptError, {}, promptDummy);
-         throw RestoreUserException("invalid SP pass");       
+         throw RestoreUserException("invalid SP pass");
       }
    }
 
@@ -1098,7 +1098,7 @@ shared_ptr<AssetWallet> Helpers::restoreFromBackup(
    case BackupType::Armory135:
    {
       /*legacy armory wallet*/
-      
+
       auto id = SecureBinaryData::fromString(
          computeWalletId(primaryData.data_, secondaryData.data_));
       if (!callerPrompt(RestorePromptType::Id, checksumIndexes, id))

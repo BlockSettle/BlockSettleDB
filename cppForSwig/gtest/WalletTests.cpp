@@ -9049,8 +9049,8 @@ TEST_F(BackupTests, Easy16_AutoRepair)
       try
       {
          auto userPrompt = [&wltID, &decoded, &succesfulRepairs](
-            Armory::Backups::RestorePromptType promptType, 
-            const vector<int>& chksumIndexes, 
+            Armory::Backups::RestorePromptType promptType,
+            const vector<int>& chksumIndexes,
             SecureBinaryData& extra)->bool
          {
             switch (promptType)

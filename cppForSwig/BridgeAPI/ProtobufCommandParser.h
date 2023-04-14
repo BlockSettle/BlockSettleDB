@@ -19,7 +19,7 @@ namespace BridgeProto
    class Signer;
    class Utils;
    class ScriptUtils;
-   class MethodsWithCallback;
+   class CallbackReply;
 };
 
 namespace Armory
@@ -43,8 +43,8 @@ namespace Armory
             const BridgeProto::Utils&);
          static bool processScriptUtilsCommands(CppBridge*, unsigned,
             const BridgeProto::ScriptUtils&);
-         static bool processMethodsWithCallback(CppBridge*, unsigned,
-            const BridgeProto::MethodsWithCallback&);
+         static bool processCallbackReply(CppBridge*,
+            const BridgeProto::CallbackReply&);
 
       public:
          static bool processData(CppBridge*, BinaryDataRef);

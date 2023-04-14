@@ -85,8 +85,8 @@ def getScriptForUserStringImpl(userStr, wltMap, lboxList):
             scrAddr = script_to_scrAddr(outScript)
             wltID = getWltIDForScrAddr(a160, wltMap)
       else:
-         scrAddr = TheBridge.getScrAddrForAddrStr(userStr)
-         outScript = TheBridge.getTxOutScriptForScrAddr(scrAddr)
+         scrAddr = TheBridge.utils.getScrAddrForAddrStr(userStr)
+         outScript = TheBridge.scriptUtils.getTxOutScriptForScrAddr(scrAddr)
          hasAddrInIt = True
 
          # Check if it's a wallet scrAddr
@@ -106,7 +106,7 @@ def getScriptForUserStringImpl(userStr, wltMap, lboxList):
               'LboxID': lboxID,
               'ShowID': hasAddrInIt,
               'IsBech32' : isBech32}
-   except:
+   except Exception as e:
       #LOGEXCEPT('Invalid user string entered')
       return {'Script': None,
               'WltID':  None,
@@ -276,10 +276,10 @@ def getDisplayStringForScriptImpl(binScript, wltMap, lboxList, maxChars=256,
    dispStr = ''
    if scriptType == CPP_TXOUT_P2WPKH or scriptType == CPP_TXOUT_P2WSH:
       try:
-         dispStr = TheBridge.getAddrStrForScrAddr(binScript)
+         dispStr = TheBridge.scriptUtils.getAddrStrForScrAddr(binScript)
       except BridgeError as e:
-         scrAddr = TheBridge.getScrAddrForScript(binScript)
-         dispStr = TheBridge.getAddrStrForScrAddr(scrAddr)
+         scrAddr = TheBridge.scriptUtils.getScrAddrForScript(binScript)
+         dispStr = TheBridge.scriptUtils.getAddrStrForScrAddr(scrAddr)
       addrStr = dispStr
    elif scriptType in CPP_TXOUT_HAS_ADDRSTR:
       addrStr = script_to_addrStr(binScript)

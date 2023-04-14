@@ -148,17 +148,19 @@ class PyBtcAddress(object):
    def loadFromProtobufPayload(self, payload):
       self.__init__()
 
-      self.prefixedHash = payload.prefixedHash
-      self.binPublicKey = payload.publicKey
+      self.prefixedHash = payload.prefixed_hash
+      self.binPublicKey = payload.public_key
       self.chainIndex = payload.id
-      self.assetId = payload.assetId
+      self.assetId = payload.asset_id
       self.isInitialized = True
-      self.addrType = payload.addrType
-      self.addressString = payload.addressString
+      self.addrType = payload.addr_type
+      self.addressString = payload.address_string
+      self.hasPrivKey = payload.has_priv_key
+      self.use_encryption = payload.use_encryption
 
-      self.precursorScript = payload.precursorScript
-      self.isUsed = payload.isUsed
-      self.isChange = payload.isChange
+      self.precursorScript = payload.precursor_script
+      self.isUsed = payload.is_used
+      self.isChange = payload.is_change
 
    #############################################################################
    def getTxioCount(self):

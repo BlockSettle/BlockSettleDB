@@ -20,7 +20,7 @@ from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from qtdialogs.qtdefines import ArmoryFrame, VERTICAL, HORIZONTAL, \
    tightSizeNChar, makeHorizFrame, makeVertFrame, QRichLabel, QGridLayout, \
    QPixmapButton, GETFONT, STYLE_SUNKEN, HLINE, determineWalletType, \
-   QMoneyLabel, makeLayoutFrame
+   QMoneyLabel, makeLayoutFrame, createToolTipWidget
 
 from armorycolors import htmlColor
 from armoryengine.ArmoryUtils import enum, isASCII, coin2str
@@ -34,11 +34,9 @@ WALLET_DATA_ENTRY_FIELD_WIDTH = 60
 
 from qtdialogs.DlgUnlockWallet   import DlgUnlockWallet
 from qtdialogs.DlgShowKeyList    import DlgShowKeyList
-
-# Need to put circular imports at the end of the script to avoid an import deadlock
-from qtdialogs.qtdialogs import STRETCH, MIN_PASSWD_WIDTH, \
-   OpenPaperBackupWindow
-from qtdialogs.qtdefines import QRadioButtonBackupCtr
+from qtdialogs.DlgRestore        import OpenPaperBackupDialog
+from qtdialogs.qtdefines         import QRadioButtonBackupCtr, STRETCH, \
+   MIN_PASSWD_WIDTH
 
 from ui.CoinControlUI import CoinControlDlg, RBFDlg
 
@@ -495,89 +493,6 @@ class NewWalletFrame(ArmoryFrame):
    def getDescription(self):
       return str(self.editDescription.toPlainText())
 
-class AdvancedOptionsFrame(ArmoryFrame):
-   def __init__(self, parent, main, initLabel=''):
-      super(AdvancedOptionsFrame, self).__init__(parent, main)
-      lblComputeDescription = QRichLabel( \
-                  self.tr('Armory will test your system\'s speed to determine the most '
-                  'challenging encryption settings that can be applied '
-                  'in a given amount of time.  High settings make it much harder '
-                  'for someone to guess your passphrase.  This is used for all '
-                  'encrypted wallets, but the default parameters can be changed below.\n'))
-      lblComputeDescription.setWordWrap(True)
-      timeDescriptionTip = main.createToolTipWidget( \
-                  self.tr('This is the amount of time it will take for your computer '
-                  'to unlock your wallet after you enter your passphrase. '
-                  '(the actual time used will be less than the specified '
-                  'time, but more than one half of it).  '))
-      
-      # Set maximum compute time
-      self.editComputeTime = QLineEdit()
-      self.editComputeTime.setText('250 ms')
-      self.editComputeTime.setMaxLength(12)
-      lblComputeTime = QLabel(self.tr('Target compute &time (s, ms):'))
-      memDescriptionTip = main.createToolTipWidget( \
-                  self.tr('This is the <b>maximum</b> memory that will be '
-                  'used as part of the encryption process.  The actual value used '
-                  'may be lower, depending on your system\'s speed.  If a '
-                  'low value is chosen, Armory will compensate by chaining '
-                  'together more calculations to meet the target time.  High '
-                  'memory target will make GPU-acceleration useless for '
-                  'guessing your passphrase.'))
-      lblComputeTime.setBuddy(self.editComputeTime)
-
-      # Set maximum memory usage
-      self.editComputeMem = QLineEdit()
-      self.editComputeMem.setText('32.0 MB')
-      self.editComputeMem.setMaxLength(12)
-      lblComputeMem  = QLabel(self.tr('Max &memory usage (kB, MB):'))
-      lblComputeMem.setBuddy(self.editComputeMem)
-
-      self.editComputeTime.setMaximumWidth( tightSizeNChar(self, 20)[0] )
-      self.editComputeMem.setMaximumWidth( tightSizeNChar(self, 20)[0] )
-      
-      entryFrame = QFrame()
-      entryLayout = QGridLayout()
-      entryLayout.addWidget(timeDescriptionTip,        0, 0,  1, 1)
-      entryLayout.addWidget(lblComputeTime,      0, 1,  1, 1)
-      entryLayout.addWidget(self.editComputeTime, 0, 2,  1, 1)
-      entryLayout.addWidget(memDescriptionTip,         1, 0,  1, 1)
-      entryLayout.addWidget(lblComputeMem,       1, 1,  1, 1)
-      entryLayout.addWidget(self.editComputeMem,  1, 2,  1, 1)
-      entryFrame.setLayout(entryLayout)
-      layout = QVBoxLayout()
-      layout.addWidget(lblComputeDescription)
-      layout.addWidget(entryFrame)
-      layout.addStretch()
-      self.setLayout(layout)
-   
-   def getKdfSec(self):
-      # return -1 if the input is invalid
-      kdfSec = -1
-      try:
-         kdfT, kdfUnit = str(self.editComputeTime.text()).strip().split(' ')
-         if kdfUnit.lower() == 'ms':
-            kdfSec = float(kdfT) / 1000.
-         elif kdfUnit.lower() in ('s', 'sec', 'seconds'):
-            kdfSec = float(kdfT)
-      except:
-         pass
-      return kdfSec
-
-   def getKdfBytes(self):
-      # return -1 if the input is invalid
-      kdfBytes = -1
-      try:
-         kdfM, kdfUnit = str(self.editComputeMem.text()).split(' ')
-         if kdfUnit.lower() == 'mb':
-            kdfBytes = round(float(kdfM) * (1024.0 ** 2))
-         elif kdfUnit.lower() == 'kb':
-            kdfBytes = round(float(kdfM) * (1024.0))
-      except:
-         pass
-      return kdfBytes
-
-
 class CardDeckFrame(ArmoryFrame):
    def __init__(self, parent, main, initLabel=''):
       super(CardDeckFrame, self).__init__(parent, main)
@@ -850,40 +765,40 @@ class WalletBackupFrame(ArmoryFrame):
 
 
       F = self.FEATURES
-      self.featuresTips[F.ProtGen] = self.main.createToolTipWidget(self.tr(
+      self.featuresTips[F.ProtGen] = createToolTipWidget(self.tr(
          'Every time you click "Receive Bitcoins," a new address is generated. '
          'All of these addresses are generated from a single seed value, which '
          'is included in all backups.   Therefore, all addresses that you have '
          'generated so far <b>and</b> will ever be generated with this wallet, '
          'are protected by this backup! '))
 
-      self.featuresTips[F.ProtImport] = self.main.createToolTipWidget(self.tr(
+      self.featuresTips[F.ProtImport] = createToolTipWidget(self.tr(
          '<i>This wallet <u>does not</u> currently have any imported '
          'addresses, so you can safely ignore this feature!</i> '
          'When imported addresses are present, backups only protects those '
          'imported before the backup was made.  You must replace that '
          'backup if you import more addresses! '))
 
-      self.featuresTips[F.LostPass] = self.main.createToolTipWidget(self.tr(
+      self.featuresTips[F.LostPass] = createToolTipWidget(self.tr(
          'Lost/forgotten passphrases are, <b>by far</b>, the most common '
          'reason for users losing bitcoins.  It is critical you have '
          'at least one backup that works if you forget your wallet '
          'passphrase. '))
 
-      self.featuresTips[F.Durable] = self.main.createToolTipWidget(self.tr(
+      self.featuresTips[F.Durable] = createToolTipWidget(self.tr(
          'USB drives and CD/DVD disks are not intended for long-term storage. '
          'They will <i>probably</i> last many years, but not guaranteed '
          'even for 3-5 years.   On the other hand, printed text on paper will '
          'last many decades, and useful even when thoroughly faded. '))
 
-      self.featuresTips[F.Visual] = self.main.createToolTipWidget(self.tr(
+      self.featuresTips[F.Visual] = createToolTipWidget(self.tr(
          'The ability to look at a backup and determine if '
          'it is still usable.   If a digital backup is stored in a safe '
          'deposit box, you have no way to verify its integrity unless '
          'you take a secure computer/device with you.  A simple glance at '
          'a paper backup is enough to verify that it is still intact. '))
 
-      self.featuresTips[F.Physical] = self.main.createToolTipWidget(self.tr(
+      self.featuresTips[F.Physical] = createToolTipWidget(self.tr(
          'If multiple pieces/fragments are required to restore this wallet. '
          'For instance, encrypted backups require the backup '
          '<b>and</b> the passphrase.  This feature is only needed for those '
@@ -1134,9 +1049,9 @@ class WalletBackupFrame(ArmoryFrame):
                               Progress=unlockProgress.UpdateHBar)
          
       if self.optPaperBackupOne.isChecked():
-         isBackupCreated = OpenPaperBackupWindow('Single', self.parent(), self.main, self.wlt)
+         isBackupCreated = OpenPaperBackupDialog('Single', self.parent(), self.main, self.wlt)
       elif self.optPaperBackupFrag.isChecked():
-         isBackupCreated = OpenPaperBackupWindow('Frag', self.parent(), self.main, self.wlt)
+         isBackupCreated = OpenPaperBackupDialog('Frag', self.parent(), self.main, self.wlt)
       elif self.optDigitalBackupPlain.isChecked():
          if self.main.digitalBackupWarning():
             isBackupCreated = self.main.makeWalletCopy(self, self.wlt, 'Decrypt', 'decrypt')

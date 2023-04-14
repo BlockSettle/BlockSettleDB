@@ -21,11 +21,12 @@ from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from qtdialogs.qtdefines import QRichLabel, HORIZONTAL, \
    STYLE_SUNKEN, GETFONT, STYLE_RAISED, VERTICAL, makeLayoutFrame, \
    relaxedSizeNChar, determineWalletType, WLTTYPES, makeHorizFrame, \
-   makeVertFrame, STYLE_PLAIN, HLINE, tightSizeNChar
-from qtdialogs.qtdialogs import STRETCH
+   makeVertFrame, STYLE_PLAIN, HLINE, tightSizeNChar, STRETCH, \
+   createToolTipWidget
 from qtdialogs.ArmoryDialog import ArmoryDialog
 
-from ui.TxFramesOffline import SignBroadcastOfflineTxFrame, SignerSerializeTypeSelector
+from ui.TxFramesOffline import SignBroadcastOfflineTxFrame, \
+   SignerSerializeTypeSelector
 
 ################################################################################
 class ReviewOfflineTxFrame(ArmoryDialog):
@@ -36,14 +37,14 @@ class ReviewOfflineTxFrame(ArmoryDialog):
       self.wlt = None
       self.lblDescr = QRichLabel('')
 
-      ttipDataIsSafe = self.main.createToolTipWidget(\
+      ttipDataIsSafe = createToolTipWidget(\
          self.tr('There is no security-sensitive information in this data below, so '
          'it is perfectly safe to copy-and-paste it into an '
          'email message, or save it to a borrowed USB key.'))
 
       btnSave = QPushButton(self.tr('Save as file...'))
       btnSave.clicked.connect(self.doSaveFile)
-      ttipSave = self.main.createToolTipWidget(\
+      ttipSave = createToolTipWidget(\
          self.tr('Save this data to a USB key or other device, to be transferred to '
          'a computer that contains the private keys for this wallet.'))
 
@@ -52,7 +53,7 @@ class ReviewOfflineTxFrame(ArmoryDialog):
       self.lblCopied = QRichLabel('  ')
       self.lblCopied.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
 
-      ttipCopy = self.main.createToolTipWidget(\
+      ttipCopy = createToolTipWidget(\
          self.tr('Copy the transaction data to the clipboard, so that it can be '
          'pasted into an email or a text document.'))
 
@@ -191,13 +192,13 @@ class DlgOfflineTxCreated(ArmoryDialog):
       doneButton = QPushButton(self.tr('Done'))
       doneButton.clicked.connect(self.accept)
 
-      ttipDone = self.main.createToolTipWidget(self.tr(
+      ttipDone = createToolTipWidget(self.tr(
          'By clicking Done you will exit the offline transaction process for now. '
          'When you are ready to sign and/or broadcast the transaction, click the Offline '
          'Transactions button in the main window, then click the Sign and/or '
          'Broadcast Transaction button in the Select Offline Action dialog.'))
 
-      ttipContinue = self.main.createToolTipWidget(self.tr(
+      ttipContinue = createToolTipWidget(self.tr(
          'By clicking Continue you will continue to the next step in the offline '
          'transaction process to sign and/or broadcast the transaction.'))
 

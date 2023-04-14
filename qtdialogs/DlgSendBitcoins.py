@@ -13,6 +13,8 @@
 from PySide2.QtCore import QSize
 from PySide2.QtWidgets import QVBoxLayout
 
+from armoryengine.Settings import TheSettings
+
 from qtdialogs.DlgOfflineTx import DlgOfflineTxCreated
 from qtdialogs.ArmoryDialog import ArmoryDialog
 
@@ -60,7 +62,7 @@ class DlgSendBitcoins(ArmoryDialog):
    #############################################################################
    def saveGeometrySettings(self):
       geom = self.saveGeometry().data().hex()
-      self.main.writeSetting('SendBtcGeometry', geom)
+      TheSettings.set('SendBtcGeometry', geom)
 
    #############################################################################
    def closeEvent(self, event):

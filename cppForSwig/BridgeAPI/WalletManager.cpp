@@ -675,6 +675,11 @@ void WalletContainer::setLabels(const string& title, const string& desc)
    wallet_->setDescription(desc);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+const EncryptionKeyId& WalletContainer::getDefaultEncryptionKeyId() const
+{
+   return wallet_->getDefaultEncryptionKeyId();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////
@@ -876,7 +881,7 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
       {
          //decrypt lbd
          auto decryptPrivKey = [this, &privKeyPass](
-            const PassphraseLambda& passLbd, 
+            const PassphraseLambda& passLbd,
             const Armory135Address& rootAddrObj)->SecureBinaryData
          {
             set<EncryptionKeyId> idSet = { BinaryData::fromString(walletID_) };
@@ -912,7 +917,8 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
          decryptedRoot = move(decryptPrivKey(passLbd, rootAddrObj));
       }
 
-      passLbd({Armory::Bridge::BridgePassphrasePrompt::concludeKey});
+      //cleanup
+      passLbd({});
    }
 
    //create wallet

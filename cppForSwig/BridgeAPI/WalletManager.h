@@ -41,6 +41,7 @@ namespace Armory
    {
       class AddressAccountId;
       class AssetWallet;
+      class EncryptionKeyId;
    };
 };
 
@@ -218,6 +219,8 @@ public:
 
    void setComment(const std::string&, const std::string&);
    void setLabels(const std::string&, const std::string&);
+
+   const Armory::Wallets::EncryptionKeyId& getDefaultEncryptionKeyId() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

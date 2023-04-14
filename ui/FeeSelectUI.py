@@ -13,14 +13,16 @@ from PySide2.QtWidgets import QFrame, QRadioButton, QLineEdit, QGridLayout, \
    QLabel, QPushButton, QCheckBox, QSlider, QComboBox
 
 from qtdialogs.qtdefines import STYLE_RAISED, GETFONT, \
-   tightSizeNChar, QLabelButton, makeHorizFrame, STYLE_NONE
+   tightSizeNChar, QLabelButton, makeHorizFrame, STYLE_NONE, \
+   createToolTipWidget
 from qtdialogs.ArmoryDialog import ArmoryDialog
 
 from armoryengine.CppBridge import TheBridge
 from armoryengine.ArmoryUtils import str2coin, coin2str, MIN_TX_FEE, \
-   MIN_FEE_BYTE, DEFAULT_FEE_TYPE
+   MIN_FEE_BYTE, DEFAULT_FEE_TYPE, LOGWARN
 from armoryengine.CoinSelection import NBLOCKS_TO_CONFIRM, \
    FEEBYTE_CONSERVATIVE, FEEBYTE_ECONOMICAL
+from armoryengine.Settings import TheSettings
 
 class FeeSelectionDialog(ArmoryDialog):
 
@@ -32,12 +34,12 @@ class FeeSelectionDialog(ArmoryDialog):
       self.lblButtonFee = QLabelButton("")
 
       #get default values
-      flatFee = self.main.getSettingOrSetDefault("Default_Fee", MIN_TX_FEE)
+      flatFee = TheSettings.getSettingOrSetDefault("Default_Fee", MIN_TX_FEE)
       flatFee = coin2str(flatFee, maxZeros=1).strip()
-      fee_byte = str(self.main.getSettingOrSetDefault("Default_FeeByte", MIN_FEE_BYTE))
-      blocksToConfirm = self.main.getSettingOrSetDefault(\
+      fee_byte = str(TheSettings.getSettingOrSetDefault("Default_FeeByte", MIN_FEE_BYTE))
+      blocksToConfirm = TheSettings.getSettingOrSetDefault(\
          "Default_FeeByte_BlocksToConfirm", NBLOCKS_TO_CONFIRM)
-      feeStrategy = str(self.main.getSettingOrSetDefault(\
+      feeStrategy = str(TheSettings.getSettingOrSetDefault(\
          "Default_FeeByte_Strategy", FEEBYTE_CONSERVATIVE))
 
       self.coinSelectionCallback = cs_callback
@@ -45,11 +47,11 @@ class FeeSelectionDialog(ArmoryDialog):
       self.validAutoFee = True
 
       isSmartFee = True
-      feeEstimate, isSmartFee, errorMsg = self.getFeeByteFromNode(
+      feeEstimate, isSmartFee = self.getFeeByteFromNode(
          blocksToConfirm, feeStrategy)
 
       defaultCheckState = \
-         self.main.getSettingOrSetDefault("FeeOption", DEFAULT_FEE_TYPE)
+         TheSettings.getSettingOrSetDefault("FeeOption", DEFAULT_FEE_TYPE)
 
       #flat free
       def setFlatFee():
@@ -112,7 +114,7 @@ class FeeSelectionDialog(ArmoryDialog):
 
       self.checkBoxAdjust = QCheckBox(self.tr('Adjust fee/byte for privacy'))
       self.checkBoxAdjust.setChecked(\
-         self.main.getSettingOrSetDefault('AdjustFee', True))
+         TheSettings.getSettingOrSetDefault('AdjustFee', True))
 
       self.connect(self.checkBoxAdjust, SIGNAL('clicked()'), updateLbl)
 
@@ -176,11 +178,8 @@ class FeeSelectionDialog(ArmoryDialog):
 
       def updateAutoFeeByte():
          blocksToConfirm = self.sliderAutoFeeByte.value()
-         try:
-            feeEstimate, version, err = \
-               self.getFeeByteFromNode(blocksToConfirm, FEEBYTE_CONSERVATIVE)
-         except:
-            feeEstimate = "N/A"
+         feeEstimate, version = self.getFeeByteFromNode(
+            blocksToConfirm, FEEBYTE_CONSERVATIVE)
 
          self.lblSlider.setText(getSliderLabelTxt())
          self.lblAutoFeeByte.setText(feeByteToStr(feeEstimate))
@@ -253,7 +252,7 @@ class FeeSelectionDialog(ArmoryDialog):
       self.lblSlider = QLabel()
 
       self.lblStrat = QLabel(self.tr("Profile:"))
-      self.ttStart = self.main.createToolTipWidget(self.tr(
+      self.ttStart = createToolTipWidget(self.tr(
          '''
          <u>Fee Estimation Profiles:</u><br><br>
          <b>CONSERVATIVE:</b> Short term estimate. More reactive to current
@@ -283,11 +282,8 @@ class FeeSelectionDialog(ArmoryDialog):
       def updateAutoFeeByte():
          blocksToConfirm = self.sliderAutoFeeByte.value()
          strategy = getStrategyString()
-         try:
-            feeEstimate, version, err = \
-               self.getFeeByteFromNode(blocksToConfirm, strategy)
-         except:
-            feeEstimate = "N/A"
+         feeEstimate, version = self.getFeeByteFromNode(
+            blocksToConfirm, strategy)
 
          self.lblSlider.setText(getSliderLabelTxt())
          self.lblAutoFeeByte.setText(feeByteToStr(feeEstimate))
@@ -324,14 +320,14 @@ class FeeSelectionDialog(ArmoryDialog):
 
    #############################################################################
    def getFeeByteFromNode(self, blocksToConfirm, strategy):
-      feeEstimateResult = TheBridge.estimateFee(blocksToConfirm, strategy)
-      if feeEstimateResult.error == None or len(feeEstimateResult.error) == 0:
-         return feeEstimateResult.feeByte * 100000, \
-            feeEstimateResult.smartFee, \
-            feeEstimateResult.error
-      else:
+      try:
+         feeEstimateResult = TheBridge.service.estimateFee(
+            blocksToConfirm, strategy)
+         return feeEstimateResult.fee_byte * 100000, feeEstimateResult.smart_fee
+      except Exception as e:
+         LOGWARN(f"[getFeeByteFromNode] failed with error: {str(e)}")
          self.validAutoFee = False
-         return "N/A", False, str(feeEstimateResult.error)
+         return "N/A", False
 
    #############################################################################
    def selectType(self, strType):

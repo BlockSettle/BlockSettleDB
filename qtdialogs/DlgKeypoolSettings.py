@@ -15,11 +15,11 @@ from PySide2.QtWidgets import QLineEdit, QPushButton, QDialogButtonBox, \
 
 from armorycolors import htmlColor
 
-from qtdialogs.qtdefines import relaxedSizeStr, \
+from qtdialogs.qtdefines import relaxedSizeStr, STRETCH, \
    STYLE_SUNKEN, QRichLabel, makeHorizFrame, makeVertFrame
 from qtdialogs.ArmoryDialog import ArmoryDialog
-from qtdialogs.qtdialogs import STRETCH
 from qtdialogs.DlgProgress import DlgProgress
+from ui.QtExecuteSignal import TheSignalExecution
 
 ################################################################################
 class DlgKeypoolSettings(ArmoryDialog):
@@ -132,7 +132,7 @@ class DlgKeypoolSettings(ArmoryDialog):
       def completeCallback():
          if self.main is None:
             return
-         self.main.signalExecution.executeMethod([self.completeCompute, []])
+         TheSignalExecution.executeMethod(self.completeCompute)
 
       fillAddressPoolProgress.exec_(self.wlt.fillAddressPool,
          naddr, fillAddressPoolProgress.callbackId, completeCallback)

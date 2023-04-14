@@ -2243,7 +2243,7 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
+TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync)
 {
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);

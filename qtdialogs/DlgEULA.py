@@ -14,10 +14,9 @@ from PySide2.QtCore import QSize
 from PySide2.QtGui import QIcon
 from PySide2.QtWidgets import QVBoxLayout, QTextEdit, QCheckBox, QPushButton
 
-from qtdialogs.qtdefines import GETFONT, tightSizeNChar, \
+from qtdialogs.qtdefines import GETFONT, tightSizeNChar, STRETCH, \
    makeHorizFrame, makeVertFrame, QRichLabel
 from qtdialogs.ArmoryDialog import ArmoryDialog
-from qtdialogs.qtdialogs import STRETCH
 
 #############################################################################
 class DlgEULA(ArmoryDialog):
@@ -76,7 +75,7 @@ class DlgEULA(ArmoryDialog):
       super(DlgEULA, self).reject()
 
    def accept(self):
-      self.main.writeSetting('Agreed_to_EULA', True)
+      TheSettings.set('Agreed_to_EULA', True)
       super(DlgEULA, self).accept()
 
    def toggleChkBox(self, isEnabled):

@@ -37,6 +37,7 @@ namespace Armory
    {
       class AddressAccountId;
       class AssetWallet;
+      class EncryptionKeyId;
    };
 
    namespace Signer
@@ -53,10 +54,11 @@ namespace Armory
             BridgeProto::Ledger*,
             const DBClientClasses::LedgerEntry&);
 
-         static void addr(
-            BridgeProto::WalletReply::Asset*,
+         static bool addr(
+            BridgeProto::WalletReply::AddressData*,
             std::shared_ptr<AddressEntry>,
-            std::shared_ptr<Accounts::AddressAccount>);
+            std::shared_ptr<Accounts::AddressAccount>,
+            const Wallets::EncryptionKeyId&);
 
          static void wallet(
             BridgeProto::WalletReply::WalletData*,

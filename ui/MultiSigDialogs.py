@@ -34,7 +34,7 @@ from qtdialogs.qtdefines import GETFONT, HLINE, HORIZONTAL, MSGBOX, NETWORKMODE,
 from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
 from ui.MultiSigModels import LOCKBOXCOLS, LockboxDisplayModel, LockboxDisplayProxy
 from ui.WalletFrames import SelectWalletFrame
-
+from ui.QtExecuteSignal import TheSignalExecution
 from armoryengine.MultiSigUtils import *
 
 #############################################################################
@@ -1165,7 +1165,7 @@ class DlgLockboxManager(ArmoryDialog):
          clipb = QApplication.clipboard()
          clipb.clear()
          clipb.setText(scrAddr_to_addrStr(lbox.getAddr()))
-         self.main.signalExecution.callLater(1, lambda: self.btnCopyClip.setText('Copy Address'))
+         TheSignalExecution.callLater(1, lambda: self.btnCopyClip.setText('Copy Address'))
 
       def funcReqPayment():
          lbox = self.getSelectedLockbox()
@@ -1479,7 +1479,7 @@ class DlgLockboxManager(ArmoryDialog):
             DlgQRCodeDisplay(self, self.main, p2shAddr, p2shAddr, createLockboxEntryStr(lboxId)).exec_()
             return
          elif action == actionReqPayment:
-            if not self.main.getSettingOrSetDefault('DNAA_P2SHCompatWarn', False):
+            if not TheSettings.getSettingOrSetDefault('DNAA_P2SHCompatWarn', False):
                oldStartChar = "'m' or 'n'" if USE_TESTNET or USE_REGTEST else "'1'"
                newStartChar = "'2'"        if USE_TESTNET or USE_REGTEST else "'3'"
                reply = MsgBoxWithDNAA(self, self.main, MSGBOX.Warning, self.tr('Compatibility Warning'),
@@ -1496,7 +1496,7 @@ class DlgLockboxManager(ArmoryDialog):
                   dnaaMsg=self.tr('Do not show this message again'))
                
                if reply[1]==True:
-                  self.main.writeSetting('DNAA_P2SHCompatWarn', True)
+                  TheSettings.set('DNAA_P2SHCompatWarn', True)
 
             DlgRequestPayment(self, self.main, p2shAddr).exec_()
             return
@@ -1840,9 +1840,9 @@ class DlgLockboxManager(ArmoryDialog):
 
     #############################################################################
    def saveGeometrySettings(self):
-      self.main.writeSetting('LockboxGeometry', self.saveGeometry().toHex())
-      self.main.writeSetting('LockboxAddrCols', saveTableView(self.lboxView))
-      self.main.writeSetting('LockboxLedgerCols', saveTableView(self.ledgerView))
+      TheSettings.set('LockboxGeometry', self.saveGeometry().toHex())
+      TheSettings.set('LockboxAddrCols', saveTableView(self.lboxView))
+      TheSettings.set('LockboxLedgerCols', saveTableView(self.ledgerView))
 
     #############################################################################
    def closeEvent(self, event):
@@ -2402,7 +2402,7 @@ class DlgExportAsciiBlock(ArmoryDialog):
       QDesktopServices.openUrl(finalUrl)
 
       
-      if not self.main.getSettingOrSetDefault('DNAA_MailtoWarn', False):
+      if not TheSettings.getSettingOrSetDefault('DNAA_MailtoWarn', False):
          reply = MsgBoxWithDNAA(self, self.main, MSGBOX.Warning, self.tr('Email Triggered'), self.tr(
             'Armory attempted to execute a "mailto:" link which should trigger '
             'your email application or web browser to open a compose-email window. '
@@ -2411,7 +2411,7 @@ class DlgExportAsciiBlock(ArmoryDialog):
             ), dnaaMsg=self.tr('Do not show this message again'), dnaaStartChk=True)
 
          if reply[1]:
-            self.main.writeSetting('DNAA_MailtoWarn', True)
+            TheSettings.set('DNAA_MailtoWarn', True)
 
       self.lblCopyMail.setText('<i>Email produced!</i>')
 

@@ -4,32 +4,30 @@
 # Distributed under the GNU Affero General Public License (AGPL v3)          #
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                       #
 #                                                                            #
-# Copyright (C) 2016-2022, goatpig                                           #
+# Copyright (C) 2016-2023, goatpig                                           #
 #  Distributed under the MIT license                                         #
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
 #                                                                            #
 ##############################################################################
 
-from armoryengine.CppBridge import TheBridge
-
 from PySide2.QtWidgets import QFrame, QVBoxLayout, QGridLayout, \
    QPushButton, QLabel, QLineEdit, QDialogButtonBox, QButtonGroup, \
-   QRadioButton, QSizePolicy, QLayout
+   QRadioButton, QSizePolicy, QLayout, QMessageBox
 
-from qtdialogs.qtdefines import makeHorizFrame
+from ui.QtExecuteSignal import TheSignalExecution
+from armoryengine.CppBridge import ServerPush
+
 from qtdialogs.ArmoryDialog import ArmoryDialog
-from qtdialogs.qtdialogs import STRETCH, MIN_PASSWD_WIDTH, LetterButton
+from armoryengine.Settings import TheSettings
+from qtdialogs.qtdefines import makeHorizFrame, STRETCH, \
+   MIN_PASSWD_WIDTH, LetterButton, createToolTipWidget
+
 
 ################################################################################
 class DlgUnlockWallet(ArmoryDialog):
-   def __init__(self, promptId, wltID, parent=None, main=None, \
-      unlockMsg='Unlock Wallet', returnResult=False):
+   def __init__(self, wltID, parent=None, main=None, unlockMsg='Unlock'):
       super(DlgUnlockWallet, self).__init__(parent, main)
-
       self.wltID = wltID
-
-      self.returnResult = returnResult
-      self.promptId = promptId
 
       ##### Upper layout
       lblDescr = QLabel(self.tr("Enter your passphrase to unlock this wallet"))
@@ -57,7 +55,7 @@ class DlgUnlockWallet(ArmoryDialog):
       ##### Lower layout
       # Add scrambled keyboard (EN-US only)
 
-      ttipScramble = self.main.createToolTipWidget(\
+      ttipScramble = createToolTipWidget(\
          self.tr('Using a visual keyboard to enter your passphrase '
          'protects you against simple keyloggers.   Scrambling '
          'makes it difficult to use, but prevents even loggers '
@@ -72,7 +70,7 @@ class DlgUnlockWallet(ArmoryDialog):
       btngrp.addButton(self.rdoScrambleLite)
       btngrp.addButton(self.rdoScrambleFull)
       btngrp.setExclusive(True)
-      defaultScramble = self.main.getSettingOrSetDefault('ScrambleDefault', 0)
+      defaultScramble = TheSettings.getSettingOrSetDefault('ScrambleDefault', 0)
       if defaultScramble == 0:
          self.rdoScrambleNone.setChecked(True)
       elif defaultScramble == 1:
@@ -91,7 +89,7 @@ class DlgUnlockWallet(ArmoryDialog):
       self.frmKeyboard = QFrame()
       self.frmKeyboard.setLayout(self.layoutKeyboard)
 
-      showOSD = self.main.getSettingOrSetDefault('KeybdOSD', False)
+      showOSD = TheSettings.getSettingOrSetDefault('KeybdOSD', False)
       self.layoutLower = QGridLayout()
       self.layoutLower.addWidget(btnRowFrm , 0, 0)
       self.layoutLower.addWidget(self.frmKeyboard , 1, 0)
@@ -123,17 +121,17 @@ class DlgUnlockWallet(ArmoryDialog):
       self.changeScramble()
       self.redrawKeys()
 
+      self.encryptionKeyIds = []
 
    #############################################################################
    def toggleOSD(self, *args):
       isChk = self.btnShowOSD.isChecked()
-      self.main.settings.set('KeybdOSD', isChk)
+      TheSettings.set('KeybdOSD', isChk)
       self.frmLower.setVisible(isChk)
       if isChk:
          self.btnShowOSD.setText(self.tr('Hide Keyboard <<<'))
       else:
          self.btnShowOSD.setText(self.tr('Show Keyboard >>>'))
-
 
    #############################################################################
    def createKeyboardKeyButton(self, keyLow, keyUp, defRow, special=None):
@@ -141,7 +139,6 @@ class DlgUnlockWallet(ArmoryDialog):
       theBtn.clicked.connect(theBtn.insertLetter)
       theBtn.setMaximumWidth(40)
       return theBtn
-
 
    #############################################################################
    def redrawKeys(self):
@@ -269,7 +266,7 @@ class DlgUnlockWallet(ArmoryDialog):
 
       self.frmKeyboard.setLayout(self.layoutKeyboard)
       self.layoutLower.addWidget(self.frmKeyboard, 1, 0)
-      self.main.settings.set('ScrambleDefault', opt)
+      TheSettings.set('ScrambleDefault', opt)
       self.redrawKeys()
 
    #############################################################################
@@ -287,30 +284,64 @@ class DlgUnlockWallet(ArmoryDialog):
    def acceptPassphrase(self):
       passphraseStr = str(self.edtPasswd.text())
 
-      if self.returnResult:
-         self.edtPasswd.setText('')
-         self.accept()
-         return
-
-      TheBridge.returnPassphrase(self.promptId, passphraseStr)
+      self.reply(passphraseStr)
       passphraseStr = ''
 
    #############################################################################
    def rejectPassphrase(self):
       self.edtPasswd.setText('')
-      TheBridge.returnPassphrase(self.promptId, "")
+      self.reply("")
       self.reject()
 
    #############################################################################
    def accept(self):
       self.edtPasswd.setText('')
-      if self.parent != None:
-         self.parent.cleanupPrompt(self.promptId)
-      super(ArmoryDialog, self).accept()
+      super().accept()
 
    #############################################################################
    def reject(self):
       self.edtPasswd.setText('')
-      if self.parent != None:
-         self.parent.cleanupPrompt(self.promptId)
-      super(ArmoryDialog, self).reject()
+      super().reject()
+
+   #############################################################################
+   def reply(self, passphrase):
+      raise Exception("override me")
+
+   #############################################################################
+   def setIds(self, ids):
+      print (f"set ids: {ids}, self.encryptionKeyIds: {self.encryptionKeyIds}")
+      if len(ids) == 0:
+         self.reject()
+      elif len(self.encryptionKeyIds) == 0:
+         self.encryptionKeyIds = ids
+         self.exec_()
+      elif self.encryptionKeyIds != ids:
+         raise Exception("encryption key ids mismtach")
+      else:
+         self.recycle()
+         self.show()
+
+
+################################################################################
+class UnlockWalletHandler(ServerPush, DlgUnlockWallet):
+   def __init__(self, wltId, title, parent):
+      ServerPush.__init__(self)
+      DlgUnlockWallet.__init__(self, main=parent, parent=parent,
+         wltID=wltId, unlockMsg=title)
+
+   #############################################################################
+   def parseProtoPacket(self, protoPacket):
+      def processPacket(theDialog, protoPacket):
+         if protoPacket.HasField('cleanup'):
+            theDialog.reject()
+            return
+         elif protoPacket.HasField('unlock_request'):
+            theDialog.setIds(protoPacket.unlock_request.encryption_key_ids)
+      TheSignalExecution.executeMethod(processPacket, self, protoPacket)
+
+   #############################################################################
+   def reply(self, passphrase):
+      packet = self.getNewPacket()
+      packet.success = bool(len(passphrase) != 0)
+      packet.passphrase = passphrase
+      super().reply()

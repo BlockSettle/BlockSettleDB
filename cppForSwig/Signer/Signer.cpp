@@ -1520,15 +1520,10 @@ void ScriptSpender::sign(shared_ptr<SignerProxy> proxy)
       }
    };
 
-   try
-   {
-      signStack(legacyStack_, false);
-      signStack(witnessStack_, true);
+   signStack(legacyStack_, false);
+   signStack(witnessStack_, true);
 
-      processStacks();
-   }
-   catch (const exception&)
-   {}
+   processStacks();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

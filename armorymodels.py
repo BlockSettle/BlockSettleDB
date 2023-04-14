@@ -19,7 +19,7 @@ from PySide2.QtCore import Qt, QObject, QAbstractTableModel, QModelIndex, \
    Signal, QSortFilterProxyModel
 from PySide2.QtWidgets import QStyle, QApplication, QCalendarWidget, \
    QLineEdit, QFrame, QGridLayout, QPushButton, QAbstractItemView, \
-   QStyledItemDelegate, QTableView
+   QStyledItemDelegate, QTableView, QLabel
 
 
 from armoryengine.ArmoryUtils import enum, coin2str, binary_to_hex, \
@@ -442,24 +442,24 @@ class LedgerDispModelSimple(QAbstractTableModel):
          self.bottomPage.id = 1
          self.bottomPage.table = []
 
-      if self.topPage.id == 0 or len(self.topPage.table) == 0:
+      if self.topPage.id == 0 or not self.topPage.table:
          try:
-            self.topPage.rawData = TheBridge.getHistoryPageForDelegate(\
+            self.topPage.rawData = TheBridge.service.getHistoryPageForDelegate(
                self.ledgerDelegateId, self.topPage.id)
             toTable = self.convertLedger(self.topPage.rawData)
             self.topPage.table = toTable
          except:
             pass
 
-      if self.currentPage.id == 0 or len(self.currentPage.table) == 0:
-            self.currentPage.rawData = TheBridge.getHistoryPageForDelegate(\
+      if self.currentPage.id == 0 or not self.currentPage.table:
+            self.currentPage.rawData = TheBridge.service.getHistoryPageForDelegate(
                self.ledgerDelegateId, self.currentPage.id)
             toTable = self.convertLedger(self.currentPage.rawData)
             self.currentPage.table = toTable
 
-      if len(self.bottomPage.table) == 0:
+      if not self.bottomPage.table:
          try:
-            self.bottomPage.rawData = TheBridge.getHistoryPageForDelegate(\
+            self.bottomPage.rawData = TheBridge.service.getHistoryPageForDelegate(
                self.ledgerDelegateId, self.bottomPage.id)
             toTable = self.convertLedger(self.bottomPage.rawData)
             self.bottomPage.table = toTable
@@ -511,17 +511,17 @@ class LedgerDispModelSimple(QAbstractTableModel):
          return None
 
       if self.bottomPage.rawData:
-         result = filterRawData(self.bottomPage.rawData.le, filter)
+         result = filterRawData(self.bottomPage.rawData.ledger, filter)
          if result:
             return result
 
       if self.currentPage.rawData:
-         result = filterRawData(self.currentPage.rawData.le, filter)
+         result = filterRawData(self.currentPage.rawData.ledger, filter)
          if result:
             return result
 
       if self.topPage.rawData:
-         result = filterRawData(self.topPage.rawData.le, filter)
+         result = filterRawData(self.topPage.rawData.ledger, filter)
          if result:
             return result
 
@@ -1400,8 +1400,6 @@ class TxOutDispModel(QAbstractTableModel):
 class SentToAddrBookModel(QAbstractTableModel):
    def __init__(self, wltID, main):
       super(SentToAddrBookModel, self).__init__()
-
-      self.wltID = wltID
       self.main  = main
       self.wlt   = self.main.walletMap[wltID]
 
@@ -1411,18 +1409,18 @@ class SentToAddrBookModel(QAbstractTableModel):
       # http://sourceforge.net/tracker/?func=detail&atid=101645&aid=3403085&group_id=1645
       # Must use awkwardness to get around iterating a vector<RegisteredTx> in
       # the python code... :(
-      addressBook = TheBridge.createAddressBook(wltID)
-      nabe = len(addressBook)
+      addressBook = self.wlt.createAddressBook()
+      nabe = len(addressBook.address)
       for i in range(nabe):
-         abe = addressBook[i]
+         abe = addressBook.address[i]
 
-         scrAddr = abe.scrAddr
+         scrAddr = abe.scraddr
          try:
             addr160 = addrStr_to_hash160(scrAddr_to_addrStr(scrAddr))[1]
 
             # Only grab addresses that are not in any of your Armory wallets
             if not self.main.getWalletForAddrHash(addr160):
-               txHashList = abe.txHashes
+               txHashList = abe.tx_hash
                self.addrBook.append( [scrAddr, txHashList] )
          except Exception as e:
             # This is not necessarily an error. It could be a lock box LOGERROR(str(e))

@@ -1739,7 +1739,7 @@ public:
    {
       //sanity checks
       if (b58.size() == 0)
-         throw std::range_error("empty BinaryData");
+         throw std::range_error("empty b58 string");
 
       size_t size = b58.size();
       BinaryData result(size);

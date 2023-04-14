@@ -6,7 +6,7 @@ from __future__ import (absolute_import, division,
 # Distributed under the GNU Affero General Public License (AGPL v3)            #
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
-# Copyright (C) 2016-2021, goatpig                                             #
+# Copyright (C) 2016-2023, goatpig                                             #
 #  Distributed under the MIT license                                           #
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                      #
 #                                                                              #
@@ -21,7 +21,7 @@ from armoryengine.BinaryPacker import *
 from armoryengine.BinaryUnpacker import *
 from armoryengine.Timer import Timer, TimeThisFunction
 from armoryengine.Decorators import singleEntrantMethod
-from armoryengine.CppBridge import TheBridge
+from armoryengine.CppBridge import TheBridge, BridgeWalletWrapper
 from armoryengine.PyBtcAddress import PyBtcAddress
 
 BLOCKCHAIN_READONLY   = 0
@@ -182,7 +182,7 @@ class PyBtcWallet(object):
    """
 
    #############################################################################
-   def __init__(self):
+   def __init__(self, *, uniqueId=None, proto=None):
       self.fileTypeStr    = '\xbaWALLET\x00'
       self.version        = PYBTCWALLET_VERSION  # (Major, Minor, Minor++, even-more-minor)
       self.eofByte        = 0
@@ -216,13 +216,8 @@ class PyBtcWallet(object):
 
       # Private key encryption details
       self.useEncryption  = False
-      self.kdf            = None
-      self.crypto         = None
-      self.kdfKey         = None
-      self.defaultKeyLifetime = 10    # seconds after unlock, that key is discarded
-      self.lockWalletAtTime   = 0    # seconds after unlock, that key is discarded
-      self.isLocked       = False
-      self.testedComputeTime=None
+      self.testedComputeTime = None
+      self.kdfMemoryReq = 0
 
       # Deterministic wallet, need a root key.  Though we can still import keys.
       # The unique ID contains the network byte (id[-1]) but is not intended to
@@ -269,6 +264,13 @@ class PyBtcWallet(object):
       self.balance_unconfirmed = 0
       self.balance_full = 0
       self.txnCount = 0
+
+      self.bridgeWalletObj = None
+      if uniqueId != None:
+         self.bridgeWalletObj = BridgeWalletWrapper(uniqueId)
+      elif proto != None:
+         self.loadFromProtobufPayload(proto)
+         self.bridgeWalletObj = BridgeWalletWrapper(self.uniqueIDB58)
 
    #############################################################################
    def isWltSigningAnyLockbox(self, lockboxList):
@@ -361,12 +363,9 @@ class PyBtcWallet(object):
    def getBalance(self, balType="Spendable"):
       if balType.lower() in ('spendable','spend'):
          return self.balance_spendable
-         #return self.cppWallet.getSpendableBalance(topBlockHeight, IGNOREZC)
       elif balType.lower() in ('unconfirmed','unconf'):
-         #return self.cppWallet.getUnconfirmedBalance(topBlockHeight, IGNOREZC)
          return self.balance_unconfirmed
       elif balType.lower() in ('total','ultimate','unspent','full'):
-         #return self.cppWallet.getFullBalance()
          return self.balance_full
       else:
          raise TypeError('Unknown balance type! "' + balType + '"')
@@ -377,7 +376,7 @@ class PyBtcWallet(object):
 
    #############################################################################  
    def updateBalancesAndCount(self):
-      result = TheBridge.getBalanceAndCount(self.uniqueIDB58)
+      result = self.bridgeWalletObj.getBalanceAndCount()
       self.balance_full = result.full
       self.balance_spendable = result.spendable
       self.balance_unconfirmed = result.unconfirmed
@@ -419,7 +418,7 @@ class PyBtcWallet(object):
 
       if not self.doBlockchainSync==BLOCKCHAIN_DONOTUSE:
          from armoryengine.CoinSelection import PyUnspentTxOut
-         utxos = TheBridge.getUtxosForValue(self.uniqueIDB58, valToSpend)
+         utxos = self.bridgeWalletObj.getUtxosForValue(self.uniqueIDB58, valToSpend)
          utxoList = []
          for i in range(len(utxos)):
             utxoList.append(PyUnspentTxOut().createFromBridgeUtxo(utxos[i]))
@@ -445,10 +444,10 @@ class PyBtcWallet(object):
       if not self.doBlockchainSync==BLOCKCHAIN_DONOTUSE:
          #calling this with no value argument will return the full UTXO list
          from armoryengine.CoinSelection import PyUnspentTxOut
-         utxos = TheBridge.getUtxosForValue(self.uniqueIDB58, 2**64 - 1)
+         utxos = self.bridgeWalletObj.getUtxosForValue(2**64 - 1)
          utxoList = []
-         for i in range(len(utxos)):
-            utxoList.append(PyUnspentTxOut().createFromBridgeUtxo(utxos[i]))
+         for i in range(len(utxos.utxo)):
+            utxoList.append(PyUnspentTxOut().createFromBridgeUtxo(utxos.utxo[i]))
          return utxoList
       else:
          LOGERROR('***Blockchain is not available for accessing wallet-tx data')
@@ -460,10 +459,10 @@ class PyBtcWallet(object):
       #return full set of unspent ZC outputs
       if not self.doBlockchainSync==BLOCKCHAIN_DONOTUSE:
          from armoryengine.CoinSelection import PyUnspentTxOut
-         utxos = TheBridge.getSpendableZCList(self.uniqueIDB58)
+         utxos = self.bridgeWalletObj.getSpendableZCList()
          utxoList = []
-         for i in range(len(utxos)):
-            utxoList.append(PyUnspentTxOut().createFromBridgeUtxo(utxos[i]))
+         for i in range(len(utxos.utxo)):
+            utxoList.append(PyUnspentTxOut().createFromBridgeUtxo(utxos.utxo[i]))
          return utxoList
       else:
          LOGERROR('***Blockchain is not available for accessing wallet-tx data')
@@ -475,10 +474,10 @@ class PyBtcWallet(object):
       #return full set of unspent ZC outputs
       if not self.doBlockchainSync==BLOCKCHAIN_DONOTUSE:
          from armoryengine.CoinSelection import PyUnspentTxOut
-         utxos = TheBridge.getRBFTxOutList(self.uniqueIDB58)
+         utxos = self.bridgeWalletObj.getRBFTxOutList()
          utxoList = []
-         for i in range(len(utxos)):
-            utxoList.append(PyUnspentTxOut().createFromBridgeUtxo(utxos[i]))
+         for i in range(len(utxos.utxo)):
+            utxoList.append(PyUnspentTxOut().createFromBridgeUtxo(utxos.utxo[i]))
          return utxoList
       else:
          LOGERROR('***Blockchain is not available for accessing wallet-tx data')
@@ -505,7 +504,8 @@ class PyBtcWallet(object):
       return addrStr in self.addrByString
 
    #############################################################################
-   def createNewWallet(self, passphrase=None, \
+   @staticmethod
+   def createNewWallet(passphrase=None, \
       kdfTargSec=DEFAULT_COMPUTE_TIME_TARGET, kdfMaxMem=DEFAULT_MAXMEM_LIMIT, \
       shortLabel='', longLabel='', extraEntropy=None):
 
@@ -538,24 +538,26 @@ class PyBtcWallet(object):
       LOGINFO('***Creating new deterministic wallet')
 
       #create cpp wallet
-      walletId = TheBridge.createWallet(\
-         self.addrPoolSize, \
-         passphrase, "", \
-         #kdfTargSec, kdfMaxMem, \
+      walletId = TheBridge.utils.createWallet(
+         self.addrPoolSize,
+         passphrase, "",
+         #kdfTargSec, kdfMaxMem,
          shortLabel, longLabel,
          extraEntropy)
 
-      self.loadFromBridge(walletId)
-      return self
+      return PyBtcWallet().loadFromBridge(walletId)
 
    #############################################################################
+   @staticmethod
    def loadFromBridge(self, walletId):
-      walletProto = TheBridge.getWalletData(walletId)
-      self.loadFromProtobufPayload(walletProto)
+      wallet = PyBtcWallet(uniqueId=walletId)
+      walletProto = wallet.bridgeWalletObj.getData()
+      wallet.loadFromProtobufPayload(walletProto)
+      return wallet
 
    #############################################################################
    def peekChangeAddr(self, addrType=AddressEntryType_Default):
-      newAddrProto = TheBridge.getNewAddress(self.uniqueIDB58, addrType)
+      newAddrProto = self.bridgeWalletObj.getNewAddress(addrType)
       newAddrObj = PyBtcAddress()
       newAddrObj.loadFromProtobufPayload(newAddrProto)
 
@@ -574,7 +576,7 @@ class PyBtcWallet(object):
 
    #############################################################################
    def getNewChangeAddr(self, addrType=AddressEntryType_Default):
-      newAddrProto = TheBridge.getNewAddress(self.uniqueIDB58, addrType)
+      newAddrProto = self.bridgeWalletObj.getNewAddress(addrType)
       newAddrObj = PyBtcAddress()
       newAddrObj.loadFromProtobufPayload(newAddrProto)
 
@@ -583,7 +585,7 @@ class PyBtcWallet(object):
 
    #############################################################################
    def getNextUnusedAddress(self, addrType=AddressEntryType_Default):
-      newAddrProto = TheBridge.getNewAddress(self.uniqueIDB58, addrType)
+      newAddrProto = self.bridgeWalletObj.getNewAddress(addrType)
       newAddrObj = PyBtcAddress()
       newAddrObj.loadFromProtobufPayload(newAddrProto)
 
@@ -597,7 +599,6 @@ class PyBtcWallet(object):
       for instance, the wallet was just imported but has been used before.
       """
       return self.highestUsedChainIndex
-
 
    #############################################################################
    def getHighestComputedIndex(self):
@@ -626,8 +627,7 @@ class PyBtcWallet(object):
       highest address used.
       """
 
-      highestIndex = TheBridge.getHighestUsedIndex(self.uniqueIDB58)
-
+      highestIndex = self.bridgeWalletObj.getHighestUsedIndex()
       if highestIndex > self.highestUsedChainIndex:
          self.highestUsedChainIndex = highestIndex
 
@@ -1100,7 +1100,7 @@ class PyBtcWallet(object):
       """
 
       self.commentsMap[hashVal] = newComment
-      TheBridge.setComment(self.uniqueIDB58, hashVal, newComment)
+      self.bridgeWalletObj.setComment(hashVal, newComment)
 
    #############################################################################
    def getAddrCommentIfAvail(self, txHash):
@@ -1139,7 +1139,7 @@ class PyBtcWallet(object):
       # If we haven't extracted relevant addresses for this tx, yet -- do it
       txHash = le.hash
       if txHash not in self.txAddrMap:
-         self.txAddrMap[txHash] = le.scrAddrList
+         self.txAddrMap[txHash] = le.scraddr
 
       addrComments = []
       for a160 in self.txAddrMap[txHash]:
@@ -1165,12 +1165,11 @@ class PyBtcWallet(object):
       return comment
 
    #############################################################################
-   def setWalletLabels(self, lshort, llong=''):
+   def setLabels(self, lshort, llong=''):
       self.labelName = lshort
       self.labelDescr = llong
 
-      TheBridge.setWalletLabels(self.uniqueIDB58,
-         self.labelName, self.labelDescr)
+      self.bridgeWalletObj.setLabels(self.labelName, self.labelDescr)
 
    #############################################################################
    def deleteImportedAddress(self, addr160):
@@ -1209,7 +1208,7 @@ class PyBtcWallet(object):
       self.cppWallet.removeAddressBulk([Hash160ToScrAddr(addr160)])
       self.readWalletFile(wltPath)
       self.cppWallet = passCppWallet
-      self.registerWallet(False)
+      self.register(False)
 
    #############################################################################  
    def importExternalAddressBatch(self, privKeyList):
@@ -1407,10 +1406,10 @@ class PyBtcWallet(object):
 
    ###############################################################################
    def getAddrDataFromDB(self):
-      result = TheBridge.getAddrCombinedList(self.uniqueIDB58)
+      result = self.bridgeWalletObj.getAddrCombinedList()
 
       #update addr map
-      for addrProto in result.updatedAssets:
+      for addrProto in result.updated_asset:
          addrObj = PyBtcAddress()
          addrObj.loadFromProtobufPayload(addrProto)
 
@@ -1418,16 +1417,16 @@ class PyBtcWallet(object):
          self.addrMap[addrHash] = addrObj
 
       #update balances and txio count
-      for i in range(0, len(result.ids)):
-         addrCombinedData = result.data[i]
-         addr = result.ids[i]
+      for i in range(0, len(result.balance)):
+         addrCombinedData = result.balance[i]
+         addr = addrCombinedData.id
          if addr in self.addrMap:
             addrObj = self.addrMap[addr]
 
-            addrObj.fullBalance        = addrCombinedData.full
-            addrObj.spendableBalance   = addrCombinedData.spendable
-            addrObj.unconfirmedBalance = addrCombinedData.unconfirmed
-            addrObj.txioCount          = addrCombinedData.count
+            addrObj.fullBalance        = addrCombinedData.balance.full
+            addrObj.spendableBalance   = addrCombinedData.balance.spendable
+            addrObj.unconfirmedBalance = addrCombinedData.balance.unconfirmed
+            addrObj.txioCount          = addrCombinedData.balance.count
          else:
             print ("[getAddrDataFromDB] missing address " + addr.hex())
 
@@ -1594,14 +1593,16 @@ class PyBtcWallet(object):
       self.labelName   = payload.label
       self.labelDescr  = payload.desc
 
-      self.lastComputedChainIndex = payload.lookupCount
-      self.highestUsedChainIndex = payload.useCount
-      self.watchingOnly = payload.watchingOnly
-      self.addressTypes = payload.addressTypes
-      self.defaultAddressType = payload.defaultAddressType
+      self.useEncryption = payload.use_encryption
+      self.lastComputedChainIndex = payload.lookup_count
+      self.highestUsedChainIndex = payload.use_count
+      self.watchingOnly = payload.watching_only
+      self.addressTypes = payload.address_type
+      self.defaultAddressType = payload.default_address_type
+      self.kdfMemoryReq = payload.kdf_mem_req
 
       #addrMap and chainIndexMap
-      for addr in payload.assets:
+      for addr in payload.address_data:
          addrObj = PyBtcAddress(self)
          addrObj.loadFromProtobufPayload(addr)
          self.addAddress(addrObj)
@@ -1627,18 +1628,23 @@ class PyBtcWallet(object):
 
       def completeProcess(*args):
          self.loadFromProtobufPayload(*args)
-         callback()
+         if callback:
+            callback()
 
-      TheBridge.extendAddressPool(\
-         self.uniqueIDB58, progressId, numPool, completeProcess)
-
-   #############################################################################
-   def registerWallet(self, isNew):
-      TheBridge.registerWallet(self.uniqueIDB58, isNew)
+      self.bridgeWalletObj.extendAddressPool(
+         progressId, numPool, completeProcess)
 
    #############################################################################
-   def createBackupString(self, callback):
-      return TheBridge.createBackupStringForWallet(self.uniqueIDB58, callback)
+   def register(self, isNew):
+      TheBridge.service.registerWallet(self.uniqueIDB58, isNew)
+
+   #############################################################################
+   def createBackupString(self, unlockHandler, callback):
+      def callbackHandler(callbackFunc, reply):
+         callbackFunc(reply)
+
+      return self.bridgeWalletObj.createBackupStringForWallet(
+         unlockHandler, callbackHandler, [callback])
 
    #############################################################################
    def getAddressTypes(self):
@@ -1661,9 +1667,22 @@ class PyBtcWallet(object):
          raise Exception(\
             "[PyBtcWallet::setAddressTypeFor] inneligible address type")
 
-      protoAddr = TheBridge.setAddressTypeFor(\
-         self.uniqueIDB58, addrObj.assetId, addrType)
+      protoAddr = self.bridgeWalletObj.setAddressTypeFor(
+         addrObj.assetId, addrType)
       addrObj.loadFromProtobufPayload(protoAddr)
+
+   #############################################################################
+   def initCoinSelectionInstance(self, height):
+      return self.bridgeWalletObj.initCoinSelectionInstance(height)
+
+   def createAddressBook(self):
+      return self.bridgeWalletObj.createAddressBook()
+
+   def getLedgerDelegateIdForScrAddr(self, scrAddr):
+      return self.bridgeWalletObj.getLedgerDelegateIdForScrAddr(scrAddr)
+
+   def getKdfMemoryReqtBytes(self):
+      return self.kdfMemoryReq
 
 ###############################################################################
 def getSuffixedPath(walletPath, nameSuffix):

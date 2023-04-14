@@ -51,7 +51,7 @@ class DlgRequestPayment(ArmoryDialog):
       # Link Text:
       self.edtLinkText = QLineEdit()
       defaultHex = binary_to_hex('Click here to pay for your order!')
-      savedHex = self.main.getSettingOrSetDefault('DefaultLinkText', defaultHex)
+      savedHex = TheSettings.getSettingOrSetDefault('DefaultLinkText', defaultHex)
       if savedHex.startswith('FFFFFFFF'):
          # An unfortunate hack until we change our settings storage mechanism
          # See comment in saveLinkText function for details
@@ -233,7 +233,7 @@ class DlgRequestPayment(ArmoryDialog):
 
       self.callLater(1, self.periodicUpdate)
 
-      hexgeom = str(self.main.settings.get('PayReqestGeometry'))
+      hexgeom = str(self.main.settings.get('PayRequestGeometry'))
       if len(hexgeom) > 0:
          geom = QByteArray.fromHex(hexgeom)
          self.restoreGeometry(geom)
@@ -254,12 +254,12 @@ class DlgRequestPayment(ArmoryDialog):
          #        mistake it for meaningful data.  We remove it upon reading
          #        the value from the settings file.
          hexText = 'FFFFFFFF'+binary_to_hex(linktext)
-         self.main.writeSetting('DefaultLinkText', hexText)
+         TheSettings.set('DefaultLinkText', hexText)
 
 
    #############################################################################
    def saveGeometrySettings(self):
-      self.main.writeSetting('PayReqestGeometry', self.saveGeometry().toHex())
+      TheSettings.set('PayRequestGeometry', self.saveGeometry().toHex())
 
    #############################################################################
    def closeEvent(self, event):

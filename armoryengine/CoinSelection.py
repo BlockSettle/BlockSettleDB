@@ -88,15 +88,15 @@ class PyUnspentTxOut(object):
 
    #############################################################################
    def createFromBridgeUtxo(self, bridgeUtxo):
-      scrAddr= bridgeUtxo.scrAddr
+      scrAddr= bridgeUtxo.scraddr
       val    = bridgeUtxo.value
-      conf   = TheBDM.getTopBlockHeight() - bridgeUtxo.txHeight + 1
-      txHash = bridgeUtxo.txHash
-      txHashStr = binary_to_hex(bridgeUtxo.txHash)
-      txoIdx = bridgeUtxo.txOutIndex
+      conf   = TheBDM.getTopBlockHeight() - bridgeUtxo.tx_height + 1
+      txHash = bridgeUtxo.tx_hash
+      txHashStr = binary_to_hex(bridgeUtxo.tx_hash)
+      txoIdx = bridgeUtxo.txout_index
       script = bridgeUtxo.script
-      txHeight = bridgeUtxo.txHeight
-      txIndex = bridgeUtxo.txIndex
+      txHeight = bridgeUtxo.tx_height
+      txIndex = bridgeUtxo.tx_index
       sequence = 2**32-1
 
       self.initialize(scrAddr, txHash, txHashStr, txHeight, txIndex, 

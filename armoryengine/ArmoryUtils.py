@@ -1,19 +1,17 @@
 from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
-################################################################################
-#
-# Copyright (C) 2011-2015, Armory Technologies, Inc.
-# Distributed under the GNU Affero General Public License (AGPL v3)
-# See LICENSE or http://www.gnu.org/licenses/agpl.html
-#
-################################################################################
-#
-# Project:    Armory
-# Author:     Alan Reiner
-# Website:    www.bitcoinarmory.com
-# Orig Date:  20 November, 2011
-#
-################################################################################
+##############################################################################
+#                                                                            #
+# Copyright (C) 2011-2015, Armory Technologies, Inc.                         #
+# Distributed under the GNU Affero General Public License (AGPL v3)          #
+# See LICENSE or http://www.gnu.org/licenses/agpl.html                       #
+#                                                                            #
+# Copyright (C) 2016-2023, goatpig                                           #
+#  Distributed under the MIT license                                         #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
+#                                                                            #
+##############################################################################
+
 import ast
 import codecs
 from datetime import datetime
@@ -318,9 +316,6 @@ ARMORY_HOME_DIR  = ''
 ARMORY_DB_DIR    = ''
 DEFAULT_ADDR_TYPE= ''
 SUBDIR = 'testnet3' if USE_TESTNET else '' + 'regtest' if USE_REGTEST else ''
-
-#settingsObject = SettingsFile(CLI_OPTIONS.settingsPath)
-
 
 if not CLI_OPTIONS.satoshiHome==DEFAULT:
    BTC_HOME_DIR = CLI_OPTIONS.satoshiHome
@@ -1497,7 +1492,7 @@ def scrAddr_to_script(scraddr):
 def script_to_scrAddr(binScript):
    """ Convert a binary script to scrAddr string (used by BDM) """
    from armoryengine.CppBridge import TheBridge
-   return TheBridge.getScrAddrForScript(binScript)
+   return TheBridge.scriptUtils.getScrAddrForScript(binScript)
 
 ################################################################################
 def script_to_addrStr(binScript):
@@ -1507,7 +1502,7 @@ def script_to_addrStr(binScript):
 ################################################################################
 def scrAddr_to_addrStr(scrAddr):
    from armoryengine.CppBridge import TheBridge
-   return TheBridge.getAddrStrForScrAddr(scrAddr)
+   return TheBridge.scriptUtils.getAddrStrForScrAddr(scrAddr)
 
 ################################################################################
 # We beat around the bush here, to make sure it goes through addrStr which
@@ -1753,7 +1748,7 @@ def hash256(s):
 def hash160(s):
    """ RIPEMD160( SHA256( binaryStr ) ) """
    from armoryengine.CppBridge import TheBridge
-   return TheBridge.getHash160(s)
+   return TheBridge.utils.getHash160(s)
 
 
 def HMAC(key, msg, hashfunc=sha512, hashsz=None):
@@ -3107,100 +3102,6 @@ def AllowAsync(func):
 def emptyFunc(*args, **kwargs):
    return
 
-
-def EstimateCumulativeBlockchainSize(blkNum):
-   # I tried to make a "static" variable here so that
-   # the string wouldn't be parsed on every call, but
-   # I botched that, somehow.
-   #
-   # It doesn't *have to* be fast, but why not?
-   # Oh well..
-   blksizefile = """
-         0 285
-         20160 4496226
-         40320 9329049
-         60480 16637208
-         80640 31572990
-         82656 33260320
-         84672 35330575
-         86688 36815335
-         88704 38386205
-         100800 60605119
-         102816 64795352
-         104832 68697265
-         108864 79339447
-         112896 92608525
-         116928 116560952
-         120960 140607929
-         124992 170059586
-         129024 217718109
-         133056 303977266
-         137088 405836779
-         141120 500934468
-         145152 593217668
-         149184 673064617
-         153216 745173386
-         157248 816675650
-         161280 886105443
-         165312 970660768
-         169344 1058290613
-         173376 1140721593
-         177408 1240616018
-         179424 1306862029
-         181440 1463634913
-         183456 1639027360
-         185472 1868851317
-         187488 2019397056
-         189504 2173291204
-         191520 2352873908
-         193536 2530862533
-         195552 2744361593
-         197568 2936684028
-         199584 3115432617
-         201600 3282437367
-         203616 3490737816
-         205632 3669806064
-         207648 3848901149
-         209664 4064972247
-         211680 4278148686
-         213696 4557787597
-         215712 4786120879
-         217728 5111707340
-         219744 5419128115
-         221760 5733907456
-         223776 6053668460
-         225792 6407870776
-         227808 6652067986
-         228534 6778529822
-         257568 10838081536
-         259542 11106516992
-         271827 12968787968
-         286296 15619588096
-         290715 16626221056
-         323285 24216006308
-      """
-   strList = [line.strip().split() for line in blksizefile.strip().split('\n')]
-   BLK_SIZE_LIST = [[int(x[0]), int(x[1])] for x in strList]
-
-   if blkNum < BLK_SIZE_LIST[-1][0]:
-      # Interpolate
-      bprev,bcurr = None, None
-      for i,blkpair in enumerate(BLK_SIZE_LIST):
-         if blkNum < blkpair[0]:
-            b0,d0 = BLK_SIZE_LIST[i-1]
-            b1,d1 = blkpair
-            ratio = float(blkNum-b0)/float(b1-b0)
-            return int(ratio*d1 + (1-ratio)*d0)
-      raise ValueError('Interpolation failed for %d' % blkNum)
-
-   else:
-      bend,  dend  = BLK_SIZE_LIST[-1]
-      bend2, dend2 = BLK_SIZE_LIST[-3]
-      rate = float(dend - dend2) / float(bend - bend2)  # bytes per block
-      extraOnTop = (blkNum - bend) * rate
-      return dend+extraOnTop
-
-
 ################################################################################
 # Function checks to see if a binary value that's passed in is a valid public
 # key. The incoming key may be binary or hex. The return value is a boolean
@@ -3345,201 +3246,6 @@ def getLastBytesOfFile(filename, nBytes=500*1024):
          fin.seek(sz - nBytes)
       return fin.read()
 
-################################################################################
-################################################################################
-class SettingsFile(object):
-   """
-   This class could be replaced by the built-in QSettings in PyQt, except
-   that older versions of PyQt do not support the QSettings (or at least
-   I never figured it out).  Easy enough to do it here
-
-   All settings must populated with a simple datatype -- non-simple
-   datatypes should be broken down into pieces that are simple:  numbers
-   and strings, or lists/tuples of them.
-
-   Will write all the settings to file.  Each line will look like:
-         SingleValueSetting1 | 3824.8
-         SingleValueSetting2 | this is a string
-         Tuple Or List Obj 1 | 12 $ 43 $ 13 $ 33
-         Tuple Or List Obj 2 | str1 $ another str
-   """
-
-   #############################################################################
-   def __init__(self, path=None):
-      self.settingsPath = path
-      self.settingsMap = {}
-      if not path:
-         self.settingsPath = os.path.join(ARMORY_HOME_DIR, 'ArmorySettings.txt')
-
-      LOGINFO('Using settings file: %s', self.settingsPath)
-      if os.path.exists(self.settingsPath):
-         self.loadSettingsFile(path)
-
-
-
-   #############################################################################
-   def pprint(self, nIndent=0):
-      indstr = indent*nIndent
-      print(indstr + 'Settings:')
-      for k,v in self.settingsMap.items():
-         print(indstr + indent + k.ljust(15), v)
-
-
-   #############################################################################
-   def hasSetting(self, name):
-      return name in self.settingsMap
-
-   #############################################################################
-   def set(self, name, value):
-      if isinstance(value, tuple):
-         self.settingsMap[name] = list(value)
-      else:
-         self.settingsMap[name] = value
-      self.writeSettingsFile()
-
-   #############################################################################
-   def extend(self, name, value):
-      """ Adds/converts setting to list, appends value to the end of it """
-      if name not in self.settingsMap:
-         if isinstance(value, list):
-            self.set(name, value)
-         else:
-            self.set(name, [value])
-      else:
-         origVal = self.get(name, expectList=True)
-         if isinstance(value, list):
-            origVal.extend(value)
-         else:
-            origVal.append(value)
-         self.settingsMap[name] = origVal
-      self.writeSettingsFile()
-
-   #############################################################################
-   def get(self, name, expectList=False):
-      if not self.hasSetting(name) or self.settingsMap[name]=='':
-         return ([] if expectList else '')
-      else:
-         val = self.settingsMap[name]
-         if expectList:
-            if isinstance(val, list):
-               return val
-            else:
-               return [val]
-         else:
-            return val
-
-   #############################################################################
-   def getAllSettings(self):
-      return self.settingsMap
-
-   #############################################################################
-   def getSettingOrSetDefault(self, name, defaultVal, expectList=False):
-      output = defaultVal
-      if self.hasSetting(name):
-         output = self.get(name)
-      else:
-         self.set(name, defaultVal)
-
-      return output
-
-
-
-   #############################################################################
-   def delete(self, name):
-      if self.hasSetting(name):
-         del self.settingsMap[name]
-      self.writeSettingsFile()
-
-   #############################################################################
-   def writeSettingsFile(self, path=None):
-      if not path:
-         path = self.settingsPath
-      f = open(path, 'wb')
-      for key,val in self.settingsMap.items():
-         try:
-            # Skip anything that throws an exception
-            from PySide2.QtCore import QByteArray
-
-            valStr = ''
-            if   isinstance(val, str):
-               valStr = val
-            elif isinstance(val, int) or \
-                 isinstance(val, float):
-               valStr = str(val)
-            elif isinstance(val, list) or \
-                 isinstance(val, tuple):
-               valStr = ' $  '.join([str(v) for v in val])
-            elif isinstance(val, QByteArray) and \
-                 sys.version_info >= (3,0):
-               valStr = str(val.data(), encoding='utf-8')
-            else:
-               valStr = str(val)
-            f.write(key.ljust(36).encode('utf-8'))
-            f.write(b' | ')
-            if valStr:
-               f.write(valStr.encode('utf-8'))
-            f.write(b'\n')
-         except:
-            LOGEXCEPT('Invalid entry in SettingsFile... skipping')
-      f.close()
-
-
-   #############################################################################
-   def loadSettingsFile(self, path=None):
-      if not path:
-         path = self.settingsPath
-
-      if not os.path.exists(path):
-         raise FileExistsError('Settings file DNE:' + path)
-
-      f = open(path, 'rb')
-      sdata = f.read()
-      f.close()
-
-      # Automatically convert settings to numeric if possible
-      def castVal(v):
-         v = v.strip()
-         a,b = v.isdigit(), v.replace(b'.',b'').isdigit()
-         if a:
-            return int(v)
-         elif b:
-            return float(v)
-         else:
-            if v.lower()==b'true':
-               return True
-            elif v.lower()==b'false':
-               return False
-            else:
-               return toUnicode(v)
-
-
-      sdata = [line.strip() for line in sdata.split(b'\n')]
-      for line in sdata:
-         if len(line.strip())==0:
-            continue
-
-         try:
-            key,vals = line.split(b'|')[0:2]
-            valList = [castVal(v) for v in vals.split(b'$')]
-            if len(valList)==1:
-               self.settingsMap[key.strip().decode('utf-8')] = valList[0]
-            else:
-               self.settingsMap[key.strip().decode('utf-8')] = valList
-         except:
-            LOGEXCEPT('Invalid setting in %s (skipping...)', path)
-
-# Grab language settings from settings file or from cli
-LANGUAGES = ["da", "de", "en", "es", "el", "fr", "he", "hr", "id", "ru", "sv"]
-if CLI_OPTIONS.language == "en":
-   langSetting = SettingsFile(SETTINGS_PATH).get('Language')
-else:
-   langSetting = CLI_OPTIONS.language
-if langSetting not in LANGUAGES:
-   LOGERROR("Unsupported language %s specified. Defaulting to English (en)", langSetting)
-   langSetting = "en"
-GUI_LANGUAGE = "armory_" + langSetting + ".qm"
-LOGINFO("Using Language: %s", langSetting)
-
 # Random method for creating
 def touchFile(fname):
    try:
@@ -3577,7 +3283,7 @@ def calcLockboxID(script=None, scraddr=None):
 ################################################################################
 def getNameForAddrType(addrType):
    from armoryengine.CppBridge import TheBridge
-   return TheBridge.getNameForAddrType(addrType)
+   return TheBridge.utils.getNameForAddrType(addrType)
 
 ################################################################################
 def getRandomHexits_NotSecure(count):
@@ -3587,9 +3293,7 @@ def getRandomHexits_NotSecure(count):
 # bridge setup
 #################
 
-def startBridge(notifyReadyCB):
-   from armoryengine.CppBridge import TheBridge
-
+def getBridgeArgList():
    #gather cli args for bridge
    bridgeArgs = []
 
@@ -3621,6 +3325,4 @@ def startBridge(notifyReadyCB):
       if len(argPair[1]) > 0:
          stringArgs += "="
          stringArgs += argPair[1]
-
-   #set bridge
-   TheBridge.start(stringArgs, notifyReadyCB)
+   return stringArgs

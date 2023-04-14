@@ -15,11 +15,18 @@
 #include "../protobuf/BridgeProto.pb.h"
 #include "../AsyncClient.h"
 
+namespace BridgeProto
+{
+   class CallbackReply;
+};
+
 namespace Armory
 {
    namespace Bridge
    {
       struct WritePayload_Bridge;
+      struct ServerPushWrapper;
+      using BridgePayload = std::unique_ptr<BridgeProto::Payload>;
 
       //////////////////////////////////////////////////////////////////////////
       typedef std::function<void(
@@ -69,55 +76,29 @@ namespace Armory
       };
 
       //////////////////////////////////////////////////////////////////////////
-      struct CppBridgeSignerStruct
+      using WalletPtr = std::shared_ptr<Armory::Wallets::AssetWallet>;
+      class CppBridgeSignerStruct
       {
-         Armory::Signer::Signer signer_;
-         std::unique_ptr<Armory::Signer::TxEvalState> signState_;
-      };
-
-      //////////////////////////////////////////////////////////////////////////
-      using CommandQueue = std::shared_ptr<Armory::Threading::BlockingQueue<
-         ::BridgeProto::Request>>;
-
-      ////
-      class CppBridge;
-
-      ////
-      class MethodCallbacksHandler
-      {
-         friend class CppBridge;
-
       private:
-         unsigned counter_ = 0;
-         const BinaryData id_;
-         std::thread methodThr_;
-         std::map<unsigned, std::function<void(BinaryData)>> callbacks_;
-
-         CommandQueue parentCommandQueue_;
+         std::unique_ptr<Armory::Signer::TxEvalState> signState_{};
+         const std::function<WalletPtr(const std::string&)> getWalletFunc_;
+         const std::function<void(ServerPushWrapper)> writeFunc_;
 
       public:
-         MethodCallbacksHandler(const BinaryData& id, CommandQueue queue) :
-            id_(id), parentCommandQueue_(queue)
-         {}
+         Armory::Signer::Signer signer_{};
 
-         ~MethodCallbacksHandler(void)
-         {
-            flagForCleanup();
-            if (methodThr_.joinable())
-               methodThr_.join();
-         }
+      public:
+         CppBridgeSignerStruct(std::function<WalletPtr(const std::string&)>,
+            std::function<void(ServerPushWrapper)>);
 
-         const BinaryData& id(void) const { return id_; }
-         unsigned addCallback(const std::function<void(BinaryData)>&);
-
-         //startThread
-         void flagForCleanup(void);
-         void processCallbackReply(unsigned, BinaryDataRef&);
+         void signTx(const std::string&, const std::string&, unsigned);
+         bool resolve(const std::string&);
+         BridgePayload getSignedStateForInput(unsigned);
       };
 
       //////////////////////////////////////////////////////////////////////////
+      using CallbackHandler = std::function<bool(const BridgeProto::CallbackReply&)>;
       struct ProtobufCommandParser;
-      using BridgePayload = std::unique_ptr<BridgeProto::Payload>;
 
       class CppBridge
       {
@@ -142,29 +123,18 @@ namespace Armory
 
          PRNG_Fortuna fortuna_;
 
-         std::mutex passPromptMutex_;
-         std::map<std::string,
-            std::shared_ptr<BridgePassphrasePrompt>> promptMap_;
-
          std::function<void(
             std::unique_ptr<WritePayload_Bridge>)> writeLambda_;
 
          const bool dbOneWayAuth_;
          const bool dbOffline_;
 
-         std::map<BinaryData, std::shared_ptr<MethodCallbacksHandler>>
-            callbackHandlerMap_;
-         CommandQueue commandWithCallbackQueue_;
-
-         std::thread commandWithCallbackProcessThread_;
+         std::mutex callbackHandlerMu_;
+         std::map<uint32_t, CallbackHandler> callbackHandlers_;
 
       private:
-         //commands with callback
-         void queueCommandWithCallback(BridgeProto::Request);
-         void processCommandWithCallbackThread(void);
-
          //wallet setup
-         void loadWallets(unsigned id);
+         void loadWallets(const std::string&, unsigned);
          BridgePayload createWalletsPacket(void);
          bool deleteWallet(const std::string&);
          BridgePayload getWalletPacket(const std::string&) const;
@@ -187,10 +157,10 @@ namespace Armory
          BridgePayload getNewAddress(const std::string&, unsigned);
          BridgePayload getChangeAddress(const std::string&, unsigned);
          BridgePayload peekChangeAddress(const std::string&, unsigned);
-         std::string createWallet(const BridgeProto::Utils::CreateWallet&);
-         void createBackupStringForWallet(const std::string&, unsigned);
-         void restoreWallet(const BinaryDataRef&,
-            std::shared_ptr<MethodCallbacksHandler>);
+         std::string createWallet(const BridgeProto::Utils::CreateWalletStruct&);
+         void createBackupStringForWallet(const std::string&,
+            const std::string&, unsigned);
+         void restoreWallet(const BinaryDataRef&);
 
          //ledgers
          const std::string& getLedgerDelegateIdForWallets(void);
@@ -224,13 +194,9 @@ namespace Armory
          //signer
          BridgePayload initNewSigner(void);
          void destroySigner(const std::string&);
-         std::shared_ptr<CppBridgeSignerStruct>
-            signerInstance(const std::string&) const;
-
-         void signer_signTx(const std::string&, const std::string&, unsigned);
-         BridgePayload getSignedStateForInput(
-            const std::string&, unsigned);
-         bool signer_resolve(const std::string&, const std::string&) const;
+         std::shared_ptr<CppBridgeSignerStruct> signerInstance(
+            const std::string&) const;
+         WalletPtr getWalletPtr(const std::string&) const;
 
          //utils
          BridgePayload getTxInScriptType(
@@ -249,10 +215,10 @@ namespace Armory
          void getBlockTimeByHeight(uint32_t, uint32_t) const;
          void estimateFee(uint32_t, const std::string&, uint32_t) const;
 
-         //passphrase prompt
-         PassphraseLambda createPassphrasePrompt(
-            ::BridgeProto::UnlockPromptType);
-         bool returnPassphrase(const std::string&, const std::string&);
+         //custom callback handlers
+         void callbackWriter(ServerPushWrapper&);
+         void setCallbackHandler(ServerPushWrapper&);
+         CallbackHandler getCallbackHandler(uint32_t);
 
       public:
          CppBridge(const std::string&, const std::string&,
@@ -266,9 +232,6 @@ namespace Armory
          {
             writeLambda_ = lbd;
          }
-
-         void startThreads(void);
-         void stopThreads(void);
       };
    }; //namespace Bridge
 }; //namespace Armory

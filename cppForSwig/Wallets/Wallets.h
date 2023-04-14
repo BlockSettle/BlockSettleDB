@@ -45,7 +45,7 @@ namespace Armory
       namespace IO
       {
          class WalletDBInterface;
-         class WalletHeader;
+         struct WalletHeader;
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -211,6 +211,9 @@ namespace Armory
          void deleteComment(const BinaryData&);
 
          const AddressAccountId& getMainAccountID(void) const;
+         const EncryptionKeyId& getDefaultEncryptionKeyId(void) const;
+         std::shared_ptr<Encryption::KeyDerivationFunction>
+            getDefaultKdf(void) const;
 
          void setLabel(const std::string&);
          void setDescription(const std::string&);

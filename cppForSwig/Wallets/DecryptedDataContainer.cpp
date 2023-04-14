@@ -73,6 +73,30 @@ void DecryptedDataContainer::lockOther(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void DecryptedDataContainer::addKdf(
+   std::shared_ptr<KeyDerivationFunction> kdfPtr)
+{
+   kdfMap_.insert(std::make_pair(kdfPtr->getId(), kdfPtr));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+std::shared_ptr<KeyDerivationFunction> DecryptedDataContainer::getKdf(
+   const SecureBinaryData& kdfId) const
+{
+   auto iter = kdfMap_.find(kdfId);
+   if (iter == kdfMap_.end())
+      return nullptr;
+   return iter->second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void DecryptedDataContainer::addEncryptionKey(
+   std::shared_ptr<EncryptionKey> keyPtr)
+{
+   encryptedKeys_.insert(std::make_pair(keyPtr->getId(), keyPtr));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 unique_ptr<ClearTextEncryptionKey> DecryptedDataContainer::deriveEncryptionKey(
    unique_ptr<ClearTextEncryptionKey> decrKey,
    const BinaryData& kdfid) const
@@ -249,12 +273,12 @@ EncryptionKeyId DecryptedDataContainer::populateEncryptionKey(
 {
    /*
    This method looks for existing encryption keys in the container. It will
-   return the clear text encryption key if present, or populate the
+   return if the clear text encryption key is present, or populate the
    container until it cannot find precursors (an encryption key may be
    encrypted by another encryption key). At which point, it will prompt the
    user for a passphrase.
 
-   keyMap: <keyId, kdfId> for all eligible key|kdf pairs. These are listed by
+   keyMap: <keyId, kdfId> for all eligible {key, kdf} pairs. These are listed by
    the encrypted data object that you're looking to decrypt.
 
    Returns the id of the key from the keyMap used for decryption.

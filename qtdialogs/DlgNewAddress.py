@@ -20,10 +20,10 @@ from armoryengine.ArmoryUtils import DEFAULT_RECEIVE_TYPE
 from armoryengine.BDM import TheBDM, BDM_OFFLINE
 
 from armorycolors import Colors
-from qtdialogs.qtdefines import determineWalletType, \
+from qtdialogs.qtdefines import determineWalletType, STRETCH, \
    STYLE_RAISED, QRichLabel, tightSizeStr, makeHorizFrame, \
-   makeVertFrame, WLTTYPES, tightSizeNChar, STYLE_SUNKEN, MSGBOX
-from qtdialogs.qtdialogs import STRETCH
+   makeVertFrame, WLTTYPES, tightSizeNChar, STYLE_SUNKEN, MSGBOX, \
+   createToolTipWidget
 from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.QRCodeWidget import QRCodeWidget
 from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
@@ -70,7 +70,7 @@ class DlgNewAddressDisp(ArmoryDialog):
       btnLink.clicked.connect(openPaymentRequest)
 
 
-      tooltip1 = self.main.createToolTipWidget(self.tr(
+      tooltip1 = createToolTipWidget(self.tr(
             'You can securely use this address as many times as you want. '
             'However, all people to whom you give this address will '
             'be able to see the number and amount of bitcoins <b>ever</b> '

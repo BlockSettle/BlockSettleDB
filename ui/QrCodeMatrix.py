@@ -24,7 +24,7 @@ def CreateQRMatrix(dataToEncode, errLevel=QRErrorCorrectLevel.L):
    while sz<20:
       try:
          errCorrectEnum = getattr(QRErrorCorrectLevel, errLevel.upper())
-         qr = QRCode(sz, errCorrectEnum)
+         qr = QRCode(int(sz), errCorrectEnum)
          qr.addData(dataToEncode)
          qr.make()
          success=True

@@ -33,7 +33,8 @@ bool ProtobufCommandParser::processBlockchainServiceCommands(CppBridge* bridge,
 
       case BridgeProto::BlockchainService::kLoadWallets:
       {
-         bridge->loadWallets(referenceId);
+         bridge->loadWallets(msg.load_wallets().callback_id(),
+            referenceId);
          break;
       }
 
@@ -83,9 +84,7 @@ bool ProtobufCommandParser::processBlockchainServiceCommands(CppBridge* bridge,
          auto reply = payload->mutable_reply();
          reply->set_success(true);
 
-         auto service = reply->mutable_service();
-         auto idReply = service->mutable_ledger_delegate_id();
-         idReply->set_id(delegateId);
+         reply->mutable_service()->set_ledger_delegate_id(delegateId);
          response = move(payload);
          break;
       }
@@ -190,7 +189,8 @@ bool ProtobufCommandParser::processWalletCommands(CppBridge* bridge,
    {
       case BridgeProto::Wallet::kCreateBackupString:
       {
-         bridge->createBackupStringForWallet(msg.id(), referenceId);
+         bridge->createBackupStringForWallet(msg.id(),
+            msg.create_backup_string().callback_id(), referenceId);
          break;
       }
 
@@ -198,16 +198,14 @@ bool ProtobufCommandParser::processWalletCommands(CppBridge* bridge,
       {
          auto addrHashRef = BinaryDataRef::fromString(
             msg.get_ledger_delegate_id_for_scraddr().hash());
-         auto& delegateId = bridge->getLedgerDelegateIdForScrAddr(
+         const auto& delegateId = bridge->getLedgerDelegateIdForScrAddr(
             msg.id(), addrHashRef);
 
          auto payload = make_unique<BridgeProto::Payload>();
          auto reply = payload->mutable_reply();
          reply->set_success(true);
 
-         auto walletMsg = reply->mutable_wallet();
-         auto delegateMsg = walletMsg->mutable_ledger_delegate_id();
-         delegateMsg->set_id(delegateId);
+         reply->mutable_wallet()->set_ledger_delegate_id(delegateId);
          response = move(payload);
          break;
       }
@@ -265,7 +263,7 @@ bool ProtobufCommandParser::processWalletCommands(CppBridge* bridge,
       {
          const auto& setAddrMsg = msg.set_address_type_for();
          response = bridge->setAddressTypeFor(
-            msg.id(), setAddrMsg.address(), setAddrMsg.address_type());
+            msg.id(), setAddrMsg.asset_id(), setAddrMsg.address_type());
          response->mutable_reply()->set_reference_id(referenceId);
          break;
       }
@@ -430,9 +428,7 @@ bool ProtobufCommandParser::processCoinSelectionCommands(CppBridge* bridge,
          auto reply = payload->mutable_reply();
          reply->set_success(true);
 
-         auto cs = reply->mutable_coin_selection();
-         auto fee = cs->mutable_flat_fee();
-         fee->set_fee(flatFee);
+         reply->mutable_coin_selection()->set_flat_fee(flatFee);
          response = move(payload);
          break;
       }
@@ -445,9 +441,7 @@ bool ProtobufCommandParser::processCoinSelectionCommands(CppBridge* bridge,
          auto reply = payload->mutable_reply();
          reply->set_success(true);
 
-         auto cs = reply->mutable_coin_selection();
-         auto fee = cs->mutable_fee_byte();
-         fee->set_fee(feeByte);
+         reply->mutable_coin_selection()->set_fee_byte(feeByte);
          response = move(payload);
          break;
       }
@@ -460,9 +454,7 @@ bool ProtobufCommandParser::processCoinSelectionCommands(CppBridge* bridge,
          auto reply = payload->mutable_reply();
          reply->set_success(true);
 
-         auto cs = reply->mutable_coin_selection();
-         auto size = cs->mutable_size_estimate();
-         size->set_size(sizeEstimate);
+         reply->mutable_coin_selection()->set_size_estimate(sizeEstimate);
          response = move(payload);
          break;
       }
@@ -548,9 +540,7 @@ bool ProtobufCommandParser::processCoinSelectionCommands(CppBridge* bridge,
          auto reply = payload->mutable_reply();
          reply->set_success(true);
 
-         auto cs = reply->mutable_coin_selection();
-         auto fee = cs->mutable_flat_fee();
-         fee->set_fee(flatFee);
+         reply->mutable_coin_selection()->set_flat_fee(flatFee);
          response = move(payload);
          break;
       }
@@ -572,6 +562,15 @@ bool ProtobufCommandParser::processSignerCommands(CppBridge* bridge,
    auto signer = bridge->signerInstance(msg.id());
    if (signer == nullptr)
    {
+      if (msg.id().empty())
+      {
+         auto response = bridge->initNewSigner();
+         response->mutable_reply()->set_reference_id(referenceId);
+
+         bridge->writeToClient(move(response));
+         return true;
+      }
+
       auto payload = make_unique<BridgeProto::Payload>();
       auto reply = payload->mutable_reply();
       reply->set_success(false);
@@ -586,9 +585,7 @@ bool ProtobufCommandParser::processSignerCommands(CppBridge* bridge,
    {
       case BridgeProto::Signer::kGetNew:
       {
-         response = bridge->initNewSigner();
-         response->mutable_reply()->set_reference_id(referenceId);
-         break;
+         throw runtime_error("invalid get_new request");
       }
 
       case BridgeProto::Signer::kCleanup:
@@ -687,10 +684,7 @@ bool ProtobufCommandParser::processSignerCommands(CppBridge* bridge,
          auto payload = make_unique<BridgeProto::Payload>();
          auto reply = payload->mutable_reply();
          reply->set_success(true);
-
-         auto sigCollectReply =
-            reply->mutable_signer()->mutable_tx_sig_collect();
-         sigCollectReply->set_data(txSigCollect);
+         reply->mutable_signer()->set_tx_sig_collect(txSigCollect);
          response = move(payload);
          break;
       }
@@ -709,55 +703,54 @@ bool ProtobufCommandParser::processSignerCommands(CppBridge* bridge,
 
       case BridgeProto::Signer::kSignTx:
       {
-         bridge->signer_signTx(msg.id(),
-            msg.sign_tx().wallet_id(), referenceId);
+         signer->signTx(msg.sign_tx().wallet_id(),
+            msg.sign_tx().callback_id(), referenceId);
          break;
       }
 
       case BridgeProto::Signer::kGetSignedTx:
       {
-         BinaryDataRef data;
-         try
-         {
-            data = signer->signer_.serializeSignedTx();
-         }
-         catch (const exception&)
-         {}
-
          auto payload = make_unique<BridgeProto::Payload>();
          auto reply = payload->mutable_reply();
-         reply->set_success(true);
+         try
+         {
+            auto data = signer->signer_.serializeSignedTx();
+            reply->mutable_signer()->set_tx_data(
+               data.toCharPtr(), data.getSize());
+            reply->set_success(true);
+         }
+         catch (const exception&)
+         {
+            reply->set_success(false);
+         }
 
-         auto txData = reply->mutable_signer()->mutable_tx_data();
-         txData->set_data(data.toCharPtr(), data.getSize());
          response = move(payload);
          break;
       }
 
       case BridgeProto::Signer::kGetUnsignedTx:
       {
-         BinaryDataRef data;
-         try
-         {
-            data = signer->signer_.serializeUnsignedTx();
-         }
-         catch (const exception&)
-         {}
-
          auto payload = make_unique<BridgeProto::Payload>();
          auto reply = payload->mutable_reply();
-         reply->set_success(true);
+         try
+         {
+            auto data = signer->signer_.serializeUnsignedTx();
+            reply->mutable_signer()->set_tx_data(
+               data.toCharPtr(), data.getSize());
+            reply->set_success(true);
+         }
+         catch (const exception&)
+         {
+            reply->set_success(false);
+         }
 
-         auto txData = reply->mutable_signer()->mutable_tx_data();
-         txData->set_data(data.toCharPtr(), data.getSize());
          response = move(payload);
          break;
       }
 
       case BridgeProto::Signer::kResolve:
       {
-         auto result = bridge->signer_resolve(msg.id(),
-            msg.resolve().wallet_id());
+         auto result = signer->resolve(msg.resolve().wallet_id());
 
          auto payload = make_unique<BridgeProto::Payload>();
          auto reply = payload->mutable_reply();
@@ -768,8 +761,8 @@ bool ProtobufCommandParser::processSignerCommands(CppBridge* bridge,
 
       case BridgeProto::Signer::kGetSignedStateForInput:
       {
-         response = bridge->getSignedStateForInput(
-            msg.id(), msg.get_signed_state_for_input().input_id());
+         response = signer->getSignedStateForInput(
+            msg.get_signed_state_for_input().input_id());
          break;
       }
 
@@ -781,9 +774,7 @@ bool ProtobufCommandParser::processSignerCommands(CppBridge* bridge,
          auto reply = payload->mutable_reply();
          reply->set_success(true);
 
-         auto signer = reply->mutable_signer();
-         auto type = signer->mutable_from_type();
-         type->set_type((int)result);
+         reply->mutable_signer()->set_from_type((int)result);
          response = move(payload);
          break;
       }
@@ -822,8 +813,7 @@ bool ProtobufCommandParser::processUtilsCommands(CppBridge* bridge,
          auto reply = payload->mutable_reply();
          reply->set_success(true);
 
-         auto idMsg = reply->mutable_utils()->mutable_wallet_id();
-         idMsg->set_id(wltId);
+         reply->mutable_utils()->set_wallet_id(wltId);
          response = move(payload);
          break;
       }
@@ -837,8 +827,7 @@ bool ProtobufCommandParser::processUtilsCommands(CppBridge* bridge,
          auto reply = payload->mutable_reply();
          reply->set_success(true);
 
-         auto hexMsg = reply->mutable_utils()->mutable_random_hex();
-         hexMsg->set_data(str);
+         reply->mutable_utils()->set_random_hex(str);
          response = move(payload);
          break;
       }
@@ -848,7 +837,6 @@ bool ProtobufCommandParser::processUtilsCommands(CppBridge* bridge,
          const auto& getHashMsg = msg.get_hash_160();
          const auto& data = BinaryDataRef::fromString(getHashMsg.data());
          response = bridge->getHash160(data);
-         response->mutable_reply()->set_reference_id(referenceId);
          break;
       }
 
@@ -856,7 +844,6 @@ bool ProtobufCommandParser::processUtilsCommands(CppBridge* bridge,
       {
          response = bridge->getScrAddrForAddrStr(
             msg.get_scraddr_for_addrstr().address());
-         response->mutable_reply()->set_reference_id(referenceId);
          break;
       }
 
@@ -869,8 +856,7 @@ bool ProtobufCommandParser::processUtilsCommands(CppBridge* bridge,
          auto reply = payload->mutable_reply();
          reply->set_success(true);
 
-         auto nameReply = reply->mutable_utils()->mutable_address_type_name();
-         nameReply->set_name(typeName);
+         reply->mutable_utils()->set_address_type_name(typeName);
          response = move(payload);
          break;
       }
@@ -944,10 +930,18 @@ bool ProtobufCommandParser::processScriptUtilsCommands(CppBridge* bridge,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool ProtobufCommandParser::processMethodsWithCallback(CppBridge*,
-   unsigned, const BridgeProto::MethodsWithCallback&)
+bool ProtobufCommandParser::processCallbackReply(CppBridge* bridge,
+   const BridgeProto::CallbackReply& msg)
 {
-   return true;
+   try
+   {
+      auto handler = bridge->getCallbackHandler(msg.reference_id());
+      return handler(msg);
+   }
+   catch (const std::runtime_error&)
+   {
+      return false;
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -976,42 +970,19 @@ bool ProtobufCommandParser::processData(
          return processUtilsCommands(bridge, id, msg.utils());
       case BridgeProto::Request::kScriptUtils:
          return processScriptUtilsCommands(bridge, id, msg.script_utils());
-      case BridgeProto::Request::kCallback:
-         return processMethodsWithCallback(bridge, id, msg.callback());
+      case BridgeProto::Request::kCallbackReply:
+         return processCallbackReply(bridge, msg.callback_reply());
+
+      case BridgeProto::Request::METHOD_NOT_SET:
+      {
+         auto payload = make_unique<BridgeProto::Payload>();
+         auto reply = payload->mutable_reply();
+         reply->set_success(false);
+         reply->set_reference_id(id);
+         bridge->writeToClient(move(payload));
+         return false;
+      }
    }
 
    return true;
-
-   /*case Methods::methodWithCallback:
-   {
-      try
-      {
-         bridge->queueCommandWithCallback(move(msg));
-      }
-      catch (const exception& e)
-      {
-         LOGERR << "[methodWithCallback] " << e.what();
-         auto errMsg = make_unique<ReplyError>();
-         errMsg->set_iserror(true);
-         errMsg->set_error(e.what());
-
-         response = move(errMsg);
-      }
-
-      break;
-   }*/
-
-
-   /*case Methods::returnPassphrase:
-   {
-      if (msg.stringargs_size() != 2)
-         throw runtime_error("invalid command: returnPassphrase");
-
-      auto result = bridge->returnPassphrase(msg.stringargs(0), msg.stringargs(1));
-
-      auto resultProto = make_unique<ReplyNumbers>();
-      resultProto->add_ints(result);
-      response = move(resultProto);
-      break;
-   }*/
 }

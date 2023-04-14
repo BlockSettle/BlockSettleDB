@@ -8,6 +8,7 @@
 
 #include "ProtobufConversions.h"
 #include "../Wallets/WalletIdTypes.h"
+#include "../Wallets/AssetEncryption.h"
 
 #include "DBClientClasses.h"
 #include "TxEvalState.h"
@@ -50,8 +51,9 @@ void CppToProto::ledger(Ledger* ledgerProto,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppToProto::addr(WalletReply::Asset* assetPtr,
-   shared_ptr<AddressEntry> addrPtr, shared_ptr<AddressAccount> accPtr)
+bool CppToProto::addr(WalletReply::AddressData* assetPtr,
+   shared_ptr<AddressEntry> addrPtr, shared_ptr<AddressAccount> accPtr,
+   const EncryptionKeyId& defaultEncryptionKeyId)
 {
    if (accPtr == nullptr)
       throw runtime_error("[CppToProto::addr] null acc ptr");
@@ -65,16 +67,22 @@ void CppToProto::addr(WalletReply::Asset* assetPtr,
 
    //address type & pubkey
    BinaryDataRef pubKeyRef;
+   std::shared_ptr<AddressEntry_WithAsset> addrWithAssetPtr = nullptr;
    uint32_t addrType = (uint32_t)addrPtr->getType();
+
    auto addrNested = dynamic_pointer_cast<AddressEntry_Nested>(addrPtr);
    if (addrNested != nullptr)
    {
       addrType |= (uint32_t)addrNested->getPredecessor()->getType();
-      pubKeyRef = addrNested->getPredecessor()->getPreimage().getRef();
+      auto pred = addrNested->getPredecessor();
+      pubKeyRef = pred->getPreimage().getRef();
+
+      addrWithAssetPtr = dynamic_pointer_cast<AddressEntry_WithAsset>(pred);
    }
    else
    {
       pubKeyRef = addrPtr->getPreimage().getRef();
+      addrWithAssetPtr = dynamic_pointer_cast<AddressEntry_WithAsset>(addrPtr);
    }
 
    assetPtr->set_addr_type(addrType);
@@ -96,12 +104,43 @@ void CppToProto::addr(WalletReply::Asset* assetPtr,
    bool isChange = accPtr->isAssetChange(addrPtr->getID());
    assetPtr->set_is_change(isChange);
 
+   //priv key & encryption status
+   bool isLocked = false;
+   bool hasPrivKey = false;
+   if (addrWithAssetPtr != nullptr)
+   {
+      auto theAsset = addrWithAssetPtr->getAsset();
+      if (theAsset != nullptr)
+      {
+         if (theAsset->hasPrivateKey())
+         {
+            hasPrivKey = true;
+            try
+            {
+               //the privkey is considered locked if it's encrypted by
+               //something else than the default encryption key, which
+               //lays in clear text in the wallet header
+               auto encryptionKeyId = theAsset->getPrivateEncryptionKeyId();
+               isLocked = (encryptionKeyId != defaultEncryptionKeyId);
+            }
+            catch (const runtime_error&)
+            {
+               //nothing to do, address has no encryption key
+            }
+         }
+      }
+   }
+   assetPtr->set_has_priv_key(hasPrivKey);
+   assetPtr->set_use_encryption(isLocked);
+
    //precursor, if any
    if (addrNested == nullptr)
-      return;
+      return isLocked;
 
    auto& precursor = addrNested->getPredecessor()->getScript();
    assetPtr->set_precursor_script(precursor.getCharPtr(), precursor.getSize());
+
+   return isLocked;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,11 +175,24 @@ void CppToProto::wallet(WalletReply::WalletData* wltProto,
 
    //address map
    auto addrMap = accPtr->getUsedAddressMap();
+   bool useEncryption = true;
    for (auto& addrPair : addrMap)
    {
-      auto assetPtr = wltProto->add_asset();
-      CppToProto::addr(assetPtr, addrPair.second, accPtr);
+      auto assetPtr = wltProto->add_address_data();
+      useEncryption &= CppToProto::addr(assetPtr, addrPair.second, accPtr,
+         wltPtr->getDefaultEncryptionKeyId());
    }
+
+   //encryption info
+   wltProto->set_use_encryption(useEncryption);
+
+   uint32_t kdfMem = 0;
+   auto kdfPtr = wltPtr->getDefaultKdf();
+   auto kdfRomix = dynamic_pointer_cast<
+      Encryption::KeyDerivationFunction_Romix>(kdfPtr);
+   if (kdfRomix != nullptr)
+      kdfMem = kdfRomix->memTarget();
+   wltProto->set_kdf_mem_req(kdfMem);
 
    //labels
    wltProto->set_label(wltPtr->getLabel());
@@ -199,17 +251,17 @@ void CppToProto::signatureState(
    SignerReply::InputSignedState* ssProto,
    const Armory::Signer::TxInEvalState& ssCpp)
 {
-   ssProto->set_isvalid(ssCpp.isValid());
+   ssProto->set_is_valid(ssCpp.isValid());
    ssProto->set_m(ssCpp.getM());
    ssProto->set_n(ssCpp.getN());
-   ssProto->set_sigcount(ssCpp.getSigCount());
+   ssProto->set_sig_count(ssCpp.getSigCount());
    
    const auto& pubKeyMap = ssCpp.getPubKeyMap();
    for (auto& pubKeyPair : pubKeyMap)
    {
-      auto keyData = ssProto->add_signstatelist();
-      keyData->set_pubkey(
+      auto keyData = ssProto->add_sign_state();
+      keyData->set_pub_key(
          pubKeyPair.first.getCharPtr(), pubKeyPair.first.getSize());
-      keyData->set_hassig(pubKeyPair.second);
+      keyData->set_has_sig(pubKeyPair.second);
    }
 }

@@ -1,6 +1,6 @@
 ################################################################################
 #                                                                              #
-# Copyright (C) 2019-2021, goatpig.                                            #
+# Copyright (C) 2019-2023, goatpig.                                            #
 #  Distributed under the MIT license                                           #
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                      #
 #                                                                              #
@@ -8,17 +8,17 @@
 
 from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
+import os
 import errno
 import socket
-from armoryengine import ClientProto_pb2
+from armoryengine import BridgeProto_pb2
 from armoryengine.ArmoryUtils import LOGDEBUG, LOGERROR, hash256
-from armoryengine.BDM import TheBDM
 from armoryengine.BinaryPacker import BinaryPacker, \
    UINT32, UINT8, BINARY_CHUNK, VAR_INT
 from struct import unpack
 import atexit
 import threading
-import binascii
+import base64
 import subprocess
 
 from concurrent.futures import ThreadPoolExecutor
@@ -27,21 +27,25 @@ from armoryengine.ArmoryUtils import PassphraseError
 from armoryengine.BIP15x import \
     BIP15xConnection, AEAD_THRESHOLD_BEGIN, AEAD_Error, \
     CHACHA20POLY1305MAXPACKETSIZE
-
-CPP_BDM_NOTIF_ID = 2**32 -1
-CPP_PROGRESS_NOTIF_ID = 2**32 -2
-CPP_PROMPT_USER_ID = 2**32 -3
 BRIDGE_CLIENT_HEADER = 1
 
-#################################################################################
+################################################################################
+##
+#### Exceptions
+##
+################################################################################
 class BridgeError(Exception):
    pass
 
-#################################################################################
+################################################################################
 class BridgeSignerError(Exception):
    pass
 
-#################################################################################
+################################################################################
+##
+#### Tools
+##
+################################################################################
 class PyPromFut(object):
 
    #############################################################################
@@ -69,30 +73,43 @@ class PyPromFut(object):
 
 
 ################################################################################
-class ArmoryBridge(object):
+##
+#### bridge socket
+##
+################################################################################
+class BridgeSocket(object):
+   recvLen = 4
 
    #############################################################################
+   ## setup
    def __init__(self):
-      self.blockTimeByHeightCache = {}
-      self.addrTypeStrByType = {}
-      self.bip15xConnection = BIP15xConnection(\
-         self.sendToBridgeRaw)
+      self.idCounter = 0
+      self.responseDict = {}
+      self.callbackDict = {}
+      self.bip15xConnection = BIP15xConnection(self.sendToBridgeRaw)
+      self.run = False
+      self.rwLock = None
+
+   ####
+   def setCallback(self, key, func):
+      self.callbackDict[key] = func
+
+   def unsetCallback(self, key):
+      del self.callbackDict[key]
 
    #############################################################################
+   ## listen socket setup
    def start(self, stringArgs, notifyReadyLbd):
       self.bip15xConnection.setNotifyReadyLbd(notifyReadyLbd)
 
       self.run = True
       self.rwLock = threading.Lock()
 
-      self.idCounter = 0
-      self.responseDict = {}
-
       self.executor = ThreadPoolExecutor(max_workers=2)
       listenFut = self.executor.submit(self.listenOnBridge)
 
       #append gui pubkey to arg list and spawn bridge
-      stringArgs += " --uiPubKey=" + self.bip15xConnection.getPubkeyHex()
+      os.environ['SERVER_PUBKEY'] = self.bip15xConnection.getPubkeyHex()
       self.processFut = self.executor.submit(self.spawnBridge, stringArgs)
 
       #block until listen socket receives bridge connection
@@ -104,12 +121,19 @@ class ArmoryBridge(object):
       #initiate AEAD handshake (server has to start it)
       self.bip15xConnection.serverStartHandshake()
 
-   #############################################################################
+   ####
    def stop(self):
-      self.listenSocket.close()
+      self.rwLock.acquire(True)
+
+      self.run = False
       self.clientSocket.close()
+      self.listenSocket.close()
+
+      self.rwLock.release()
+      self.clientFut.result()
 
    #############################################################################
+   ## bridge management
    def listenOnBridge(self):
       #setup listener
 
@@ -122,11 +146,12 @@ class ArmoryBridge(object):
       clientSocket, clientIP = self.listenSocket.accept()
       return clientSocket
 
-   #############################################################################
+   ####
    def spawnBridge(self, stringArgs):
-      subprocess.run(["./CppBridge", stringArgs])
+      subprocess.run(["./build/CppBridge", stringArgs])
 
    #############################################################################
+   ## socket write
    def encryptPayload(self, clearText):
       if not self.bip15xConnection.encrypted():
          raise AEAD_Error("channel is not encrypted")
@@ -139,24 +164,23 @@ class ArmoryBridge(object):
 
       return cipherText
 
-   #############################################################################
-   def sendToBridgeProto(self, msg, \
-      needsReply=True, callback=None, cbArgs=[], \
-      msgType = BRIDGE_CLIENT_HEADER):
+   ####
+   def sendToBridgeProto(self, msg, needsReply,
+      callbackFunc, callbackArgs, msgType):
 
-      msg.payloadId = self.idCounter
+      msg.reference_id = self.idCounter
       self.idCounter = self.idCounter + 1
 
       payload = msg.SerializeToString()
-      result = self.sendToBridgeBinary(payload, msg.payloadId, \
-         needsReply, callback, cbArgs, msgType)
+      result = self.sendToBridgeBinary(payload, msg.reference_id,
+         needsReply, callbackFunc, callbackArgs, msgType)
 
       if needsReply:
          return result
 
-   #############################################################################
-   def sendToBridgeBinary(self, payload, payloadId, \
-      needsReply=True, callback=None, cbArgs=[], \
+   ####
+   def sendToBridgeBinary(self, payload, payloadId,
+      needsReply=True, callback=None, cbArgs=[],
       msgType = BRIDGE_CLIENT_HEADER):
 
       #grab id from msg counter
@@ -178,14 +202,15 @@ class ArmoryBridge(object):
       #encrypt
       encryptedPayloads = self.encryptPayload(bp.getBinaryString())
 
-      if needsReply:
+      if callback != None:
+         #set callable in response dict
+         wrapper = CallbackWrapper(callback, cbArgs)
+         self.responseDict[payloadId] = wrapper
+
+      elif needsReply:
          #instantiate prom/future object and set in response dict
          fut = PyPromFut()
          self.responseDict[payloadId] = fut
-
-      elif callback != None:
-         #set callable in response dict
-         self.responseDict[payloadId] = [callback, cbArgs]
 
       #send over the wire, may have 2 payloads if we triggered a rekey
       for p in encryptedPayloads:
@@ -194,16 +219,17 @@ class ArmoryBridge(object):
       #return future to caller
       self.rwLock.release()
 
-      if needsReply:
+      if callback == None and needsReply:
          return fut
 
-   #############################################################################
+   ####
    def sendToBridgeRaw(self, msg):
       self.rwLock.acquire(True)
       self.clientSocket.sendall(msg)
       self.rwLock.release()
 
    #############################################################################
+   ## socket read
    def pollRecv(self, payloadSize):
       payload = bytearray()
       fullSize = payloadSize
@@ -222,15 +248,14 @@ class ArmoryBridge(object):
 
       return payload
 
-   #############################################################################
+   ####
    def readBridgeSocket(self):
-      recvLen = 4
       while self.run is True:
          #wait for data on the socket
          try:
-            response = self.clientSocket.recv(recvLen)
+            response = self.clientSocket.recv(self.recvLen)
 
-            if len(response) < recvLen:
+            if len(response) < self.recvLen:
                break
          except socket.error as e:
             err = e.args[0]
@@ -284,802 +309,931 @@ class ArmoryBridge(object):
             raise BridgeError("Received user data before AEAD is ready")
 
          #grab packet id
-         fullPacket = response[5:]
+         fullPacket = response[1:]
 
-         packetId = unpack('<I', response[1:5])[0]
-         if packetId == CPP_BDM_NOTIF_ID:
-            self.pushNotification(fullPacket)
-            continue
-         elif packetId == CPP_PROGRESS_NOTIF_ID:
-            self.pushProgressNotification(fullPacket)
-            continue
-         elif packetId == CPP_PROMPT_USER_ID:
-            self.promptUser(fullPacket)
-            continue
+         #deser protobuf reply
+         protoPayload = BridgeProto_pb2.Payload()
+         if not protoPayload.ParseFromString(fullPacket):
+            raise BridgeError("failed to parse proto payload")
 
-         #lock and look for future object in response dict
-         self.rwLock.acquire(True)
-         if packetId not in self.responseDict:
+         #payloads are either replies or callbacks
+         if protoPayload.HasField('reply'):
+            reply = protoPayload.reply
+            referenceId = reply.reference_id
+
+            #lock and look for future object in response dict
+            self.rwLock.acquire(True)
+            if referenceId not in self.responseDict:
+               LOGWARN(f"unknown reply referenceId: {referenceId}")
+               self.rwLock.release()
+               continue
+
+            #TODO: general error handling on reply.success == False
+
+            #grab the future, delete it from dict
+            replyHandler = self.responseDict[referenceId]
+            del self.responseDict[referenceId]
+
+            #fill the promise & release lock
             self.rwLock.release()
-            continue
 
-         #grab the future, delete it from dict
-         replyObj = self.responseDict[packetId]
-         del self.responseDict[packetId]
+            if isinstance(replyHandler, PyPromFut):
+               replyHandler.setVal(reply)
 
-         self.clientSocket.setblocking(1)
+            elif isinstance(replyHandler, CallbackWrapper):
+               replyHandler.execute(reply)
 
-         #fill the promise & release lock
-         self.rwLock.release()
+         elif protoPayload.HasField('callback'):
+            callbackData = protoPayload.callback
+            callbackId = callbackData.callback_id
 
-         if isinstance(replyObj, PyPromFut):
-            replyObj.setVal(fullPacket)
+            #find the callback listener
+            self.rwLock.acquire(True)
+            if callbackId not in self.callbackDict:
+               LOGWARN(f"ignoring callback id: {callbackId}")
+               self.rwLock.release()
+               continue
 
-         elif replyObj != None and replyObj[0] != None:
-            replyObj[0](fullPacket, replyObj[1])
+            #call it with the payload
+            callbackFunc = self.callbackDict[callbackId]
+            self.rwLock.release()
+            callbackFunc.process(callbackData)
+
+################################################################################
+##
+#### proto wrappers
+##
+################################################################################
+class ProtoWrapper(object):
+   ##
+   def __init__(self, bridgeSocket):
+      self.bridgeSocket = bridgeSocket
+
+   ##
+   def send(self, msg, needsReply=True, callback=None, cbArgs=[],
+      msgType=BRIDGE_CLIENT_HEADER):
+      return self.bridgeSocket.sendToBridgeProto(msg,
+         needsReply, callback, cbArgs, msgType)
+
+################################################################################
+class BlockchainService(ProtoWrapper):
+   #############################################################################
+   ## setup ##
+   def __init__(self, bridgeSocket):
+      super().__init__(bridgeSocket)
 
    #############################################################################
-   def pushNotification(self, data):
-      payload = ClientProto_pb2.CppBridgeCallbackMsg()
-      payload.ParseFromString(data)
+   ## commands ##
+   def loadWallets(self, callbackFunc, pushObj):
+      #create protobuf packet
+      packet = BridgeProto_pb2.Request()
+      packet.service.load_wallets.callback_id = pushObj.callbackId
 
+      #send to the socket
+      self.send(packet, callback=callbackFunc)
+
+   ####
+   def shutdown(self):
+      packet = BridgeProto_pb2.Request()
+      packet.service.shutdown = True
+      self.send(packet)
+      self.bridgeSocket.stop()
+
+   ####
+   def setupDB(self):
+      packet = BridgeProto_pb2.Request()
+      packet.service.setup_db = True
+      self.send(packet, needsReply=False)
+
+   ####
+   def registerWallets(self):
+      packet = BridgeProto_pb2.Request()
+      packet.service.register_wallets = True
+      self.send(packet, needsReply=False)
+
+   ####
+   def goOnline(self):
+      packet = BridgeProto_pb2.Request()
+      packet.service.go_online = True
+      self.send(packet, needsReply=False)
+
+   ####
+   def getLedgerDelegateIdForWallets(self):
+      packet = BridgeProto_pb2.Request()
+      packet.service.get_ledger_delegate_id_for_wallets = True
+
+      fut = self.send(packet)
+      response = fut.getVal()
+      return response.service.ledger_delegate_id
+
+   ####
+   def updateWalletsLedgerFilter(self, ids):
+      packet = BridgeProto_pb2.Request()
+      method = packet.service.update_wallets_ledger_filter
+      for id in ids:
+         method.wallet_id.append(id)
+
+      self.send(packet, needsReply=False)
+
+   ####
+   def getNodeStatus(self):
+      packet = BridgeProto_pb2.Request()
+      packet.service.get_node_status = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.service.node_status
+
+   ####
+   def registerWallet(self, walletId, isNew):
+      packet = BridgeProto_pb2.Request()
+      method = packet.service.register_wallet
+      method.id = walletId
+      method.is_new = isNew
+
+      self.send(packet, needsReply=False)
+
+   ####
+   def getHistoryPageForDelegate(self, delegateId, pageId):
+      packet = BridgeProto_pb2.Request()
+      method = packet.service.get_history_page_for_delegate
+      method.delegate_id = delegateId
+      method.page_id = pageId
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.service.ledger_history
+
+   ####
+   def getTxByHash(self, hashVal):
+      packet = BridgeProto_pb2.Request()
+      packet.service.get_tx_by_hash.tx_hash = hashVal
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         return None
+      return reply.service.tx
+
+   ####
+   def getHeaderByHeight(self, height):
+      packet = BridgeProto_pb2.Request()
+      method = packet.service.get_header_by_height.height = height
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.service.header_data
+
+   ####
+   def estimateFee(self, blocks, strat):
+      packet = BridgeProto_pb2.Request()
+      method = packet.service.estimate_fee
+      method.blocks = blocks
+      method.strat = strat
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         raise Exception(reply.error)
+      return reply.service.fee_estimate
+
+   ####
+   def broadcastTx(self, rawTx):
+      packet = BridgeProto_pb2.Request()
+      method = packet.service.broadcast_tx
+      method.raw_tx.append(rawTx)
+      self.send(packet, needsReply=False)
+
+################################################################################
+class BlockchainUtils(ProtoWrapper):
+   #############################################################################
+   ## setup ##
+   def __init__(self, bridgeSocket):
+      super().__init__(bridgeSocket)
+      self.addrTypeStrByType = {}
+
+   #############################################################################
+   ## commands ##
+   def getNameForAddrType(self, addrType):
+      if addrType in self.addrTypeStrByType:
+         return self.addrTypeStrByType[addrType]
+
+      packet = BridgeProto_pb2.Request()
+      packet.utils.get_name_for_addr_type.address_type = addrType
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if not reply.success:
+         raise BridgeError(
+            f"[getNameForAddrType] failed with error: {reply.error}")
+
+      addrTypeStr = reply.utils.address_type_name
+      self.addrTypeStrByType[addrType] = addrTypeStr
+      return addrTypeStr
+
+   ####
+   def getHash160(self, data):
+      packet = BridgeProto_pb2.Request()
+      packet.utils.get_hash_160.data = data
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.utils.hash
+
+   ####
+   def generateRandomHex(self, size):
+      packet = BridgeProto_pb2.Request()
+      packet.utils.generate_random_hex.length = size
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.utils.random_hex
+
+   ####
+   def getScrAddrForAddrStr(self, addrStr):
+      packet = BridgeProto_pb2.Request()
+      packet.utils.get_scraddr_for_addrstr.address = addrStr
+      fut = self.send(packet)
+      reply = fut.getVal()
+
+      if reply.success == False:
+         raise BridgeError(
+            f"[getScrAddrForAddrStr] failed with error: {reply.error}")
+      return reply.utils.scraddr
+
+   ####
+   def createWallet(self, addrPoolSize, passphrase, controlPassphrase,
+      shortLabel, longLabel, extraEntropy):
+      packet = BridgeProto_pb2.Request()
+      method = packet.utils.create_wallet
+
+      method.lookup = addrPoolSize
+      method.passphrase = passphrase
+      method.control_passphrase = controlPassphrase
+      method.label = shortLabel
+      method.description = longLabel
+
+      if extraEntropy is not None:
+         method.extra_entropy = extraEntropy
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         raise BridgeError(
+            f"[createWallet] failed with error: {reply.error}")
+      return reply.utils.wallet_id
+
+################################################################################
+class BridgeWalletWrapper(ProtoWrapper):
+   #############################################################################
+   ## setup ##
+   def __init__(self, walletId):
+      super().__init__(TheBridge.bridgeSocket)
+      self.walletId = walletId
+
+   ####
+   def getPacket(self):
+      packet = BridgeProto_pb2.Request()
+      packet.wallet.id = self.walletId
+      return packet
+
+   #############################################################################
+   ## commands ##
+   def getBalanceAndCount(self):
+      packet = self.getPacket()
+      packet.wallet.get_balance_and_count = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.wallet.balance_and_count
+
+   ####
+   def getAddrCombinedList(self):
+      packet = self.getPacket()
+      packet.wallet.get_addr_combined_list = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.wallet.address_and_balance_data
+
+   ####
+   def getHighestUsedIndex(self):
+      packet = self.getPacket()
+      packet.wallet.get_highest_used_index = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.wallet.highest_used_index
+
+   ####
+   def extendAddressPool(self, progressId, count, callback):
+      def finishExtension(reply, args):
+         callbackThread = threading.Thread(
+            group=None, target=args[0],
+            name=None, args=[reply], kwargs={})
+         callbackThread.start()
+
+      packet = self.getPacket()
+      method = packet.wallet.extend_address_pool
+      method.count = count
+      method.callback_id = progressId
+      self.send(packet, False, finishExtension, [callback])
+
+   ####
+   def createBackupStringForWallet(self,
+      serverPushObj, callbackFunc, callbackArgs=[]):
+      packet = self.getPacket()
+      method = packet.wallet.create_backup_string
+      method.callback_id = serverPushObj.callbackId
+      self.send(packet, callback=callbackFunc, cbArgs=callbackArgs)
+
+   ####
+   def setAddressTypeFor(self, assetId, addrType):
+      packet = self.getPacket()
+      method = packet.wallet.set_address_type_for
+      method.asset_id = assetId
+      method.address_type = addrType
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.wallet.address_data
+
+   ####
+   def setComment(self, key, val):
+      packet = self.getPacket()
+      method = packet.wallet.set_comment
+      method.hash_key = key
+      method.comment = val
+      self.send(packet, False)
+
+   ####
+   def setLabels(self, title, desc):
+      packet = self.getPacket()
+      method = packet.wallet.set_labels
+      method.title = title
+      method.description = desc
+      self.send(packet, False)
+
+   ####
+   def initCoinSelectionInstance(self, height):
+      packet = self.getPacket()
+      method = packet.wallet.setup_new_coin_selection_instance
+      method.height = height
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return BridgeCoinSelectionWrapper(reply.wallet.coin_selection_id)
+
+   ####
+   def createAddressBook(self):
+      packet = self.getPacket()
+      packet.wallet.create_address_book = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.wallet.address_book
+
+   ####
+   def getUtxosForValue(self, value):
+      packet = self.getPacket()
+      method = packet.wallet.get_utxos_for_value
+      method.value = value
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.wallet.utxo_list
+
+   ####
+   def getSpendableZCList(self):
+      packet = self.getPacket()
+      packet.wallet.get_spendable_zc_list = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.wallet.utxo_list
+
+   ####
+   def getRBFTxOutList(self):
+      packet = self.getPacket()
+      packet.wallet.get_rbf_txout_list = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.wallet.utxo_list
+
+   ####
+   def getNewAddress(self, addrType):
+      packet = self.getPacket()
+      packet.wallet.get_new_address.type = addrType
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.wallet.address_data
+
+   ####
+   def getNewChangeAddr(self, addrType):
+      packet = self.getPacket()
+      packet.wallet.get_change_address.type = addrType
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.wallet.address_data
+
+   ####
+   def peekChangeAddress(self, addrType):
+      packet = self.getPacket()
+      packet.wallet.peek_change_address.type = addrType
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.wallet.address_data
+
+   ####
+   def getData(self):
+      packet = self.getPacket()
+      packet.wallet.get_data = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.wallet.wallet_data
+
+   ####
+   def delete(self, wltId):
+      packet = self.getPacket()
+      packet.wallet.delete = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.success
+
+   ####
+   def getLedgerDelegateIdForScrAddr(self, scrAddr):
+      packet = self.getPacket()
+      packet.wallet.get_ledger_delegate_id_for_scraddr.hash = scrAddr
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.wallet.ledger_delegate_id
+
+################################################################################
+class BridgeCoinSelectionWrapper(ProtoWrapper):
+   #############################################################################
+   ## setup ##
+   def __init__(self, csId):
+      super().__init__(TheBridge.bridgeSocket)
+      self.coinSelectionId = csId
+
+   ####
+   def getPacket(self):
+      packet = BridgeProto_pb2.Request()
+      packet.coin_selection.id = self.coinSelectionId
+      return packet
+
+   #############################################################################
+   ## commands ##
+   def destroyCoinSelectionInstance(self):
+      packet = self.getPacket()
+      packet.coin_selection.cleanup = True
+      self.send(packet, False)
+
+   #############################################################################
+   def setCoinSelectionRecipient(self, addrStr, value, recId):
+      packet = self.getPacket()
+      method = packet.coin_selection.set_recipient
+      method.address = addrStr
+      method.value = value
+      method.id = recId
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         raise BridgeError(
+            f"[setCoinSelectionRecipient] failed with error: {reply.error}")
+
+   #############################################################################
+   def reset(self):
+      packet = self.getPacket()
+      packet.coin_selection.reset = True
+      self.send(packet, False)
+
+   #############################################################################
+   def selectUTXOs(self, fee, feePerByte, processFlags):
+      packet = self.getPacket()
+      method = packet.coin_selection.select_utxos
+      method.flags = processFlags
+
+      if fee != 0:
+         method.flat_fee = fee
+      else:
+         method.fee_byte = feePerByte
+
+      fut = self.send(packet)
+      relpy = fut.getVal()
+      if relpy.success == False:
+         raise BridgeError(f"[selectUTXOs] failed with error: {reply.error}")
+
+   #############################################################################
+   def getUtxoSelection(self):
+      packet = self.getPacket()
+      packet.coin_selection.get_utxo_selection = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.coin_selection.utxo_list
+
+   #############################################################################
+   def getFlatFee(self):
+      packet = self.getPacket()
+      packet.coin_selection.get_flat_fee = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.coin_selection.flat_fee
+
+   #############################################################################
+   def getFeeByte(self):
+      packet = self.getPacket()
+      packet.coin_selection.get_fee_byte = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.coin_selection.fee_byte
+
+   #############################################################################
+   def getSizeEstimate(self):
+      packet = self.getPacket()
+      packet.coin_selection.get_size_estimate = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.coin_selection.size_estimate
+
+   #############################################################################
+   def processCustomUtxoList(self, utxoList, fee, feePerByte, processFlags):
+      packet = self.getPacket()
+      method = packet.coin_selection.process_custom_utxo_list
+
+      method.flags = processFlags
+      for utxo in utxoList:
+         method.utxos.append(utxo.toBridgeUtxo())
+
+      if fee != 0:
+         method.flat_fee = fee
+      else:
+         method.fee_byte = feePerByte
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         raise BridgeError("ProcessCustomUtxoList failed")
+
+   #############################################################################
+   def getFeeForMaxVal(self, feePerByte):
+      packet = self.getPacket()
+      method = packet.coin_selection.get_fee_for_max_val
+      method.fee_byte = feePerByte
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.coin_selection.flat_fee
+
+   #############################################################################
+   def getFeeForMaxValUtxoVector(self, utxoList, feePerByte):
+      packet = self.getPacket()
+      method = packet.coin_selection.get_fee_for_max_val
+      method.fee_byte = feePerByte
+
+      for utxo in utxoList:
+         method.utxos.append(utxo.toBridgeUtxo())
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.coin_selection.flat_fee
+
+################################################################################
+class ScriptUtils(ProtoWrapper):
+   #############################################################################
+   ## setup ##
+   def __init__(self, bridgeSocket):
+      super().__init__(bridgeSocket)
+
+   ####
+   def getPacket(self, script):
+      packet = BridgeProto_pb2.Request()
+      packet.script_utils.script = script
+      return packet
+
+   #############################################################################
+   ## commands ##
+   def getTxOutScriptType(self, script):
+      packet = self.getPacket(script)
+      packet.script_utils.get_txout_script_type = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.script_utils.txout_script_type
+
+   ####
+   def getTxInScriptType(self, script, hashVal):
+      packet = self.getPacket(script)
+      packet.script_utils.get_txin_script_type.hash = hashVal
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.script_utils.txin_script_type
+
+   ####
+   def getLastPushDataInScript(self, script):
+      packet = self.getPacket(script)
+      packet.script_utils.get_last_push_data_in_script = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.script_utils.push_data
+
+   ####
+   def getTxOutScriptForScrAddr(self, script):
+      packet = self.getPacket(script)
+      packet.script_utils.get_txout_script_for_scraddr = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.script_utils.script_data
+
+   ####
+   def getScrAddrForScript(self, script):
+      packet = self.getPacket(script)
+      packet.script_utils.get_scraddr_for_script = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.script_utils.scraddr
+
+   ####
+   def getAddrStrForScrAddr(self, scrAddr):
+      packet = self.getPacket(scrAddr)
+      packet.script_utils.get_addrstr_for_scraddr = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+
+      if reply.success == False:
+         raise BridgeError(f"error in getAddrStrForScrAddr: {reply.error}")
+      else:
+         return reply.script_utils.address_string
+
+################################################################################
+class BridgeSigner(ProtoWrapper):
+   #############################################################################
+   ## setup ##
+   def __init__(self):
+      super().__init__(TheBridge.bridgeSocket)
+      self.signerId = None
+
+   ####
+   def __del__(self):
+      self.cleanup()
+
+   ####
+   def getPacket(self):
+      if self.signerId == None or not self.signerId:
+         raise BridgeSignerError("[BridgeSigner] missing signerId")
+
+      packet = BridgeProto_pb2.Request()
+      packet.signer.id = self.signerId
+      return packet
+
+   #############################################################################
+   def initNew(self):
+      if self.signerId != None:
+         raise BridgeSignerError("[initNew] signer already has an id")
+
+      packet = BridgeProto_pb2.Request()
+      packet.signer.id = ""
+      packet.signer.get_new = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      self.signerId = reply.signer.signer_id
+
+   #############################################################################
+   def cleanup(self):
+      packet = self.getPacket()
+      packet.signer.cleanup = True
+
+      self.send(packet, False)
+      self.signerId = None
+
+   #############################################################################
+   def setVersion(self, version):
+      packet = self.getPacket()
+      packet.signer.set_version.version = version
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         raise BridgeSignerError(
+            f"[setVersion] failed with error: {reply.error}")
+
+   #############################################################################
+   def setLockTime(self, locktime):
+      packet = self.getPacket()
+      packet.signer.set_lock_time.lock_time = locktime
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         raise BridgeSignerError(
+            f"[setLockTime] failed with error: {reply.error}")
+
+   #############################################################################
+   def addSpenderByOutpoint(self, hashVal, txoutid, seq):
+      packet = self.getPacket()
+      method = packet.signer.add_spender_by_outpoint
+      method.hash = hashVal
+      method.tx_out_id = txoutid
+      method.sequence = seq
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         raise BridgeSignerError(
+            f"[addSpenderByOutpoint] failed with error: {reply.error}")
+
+   #############################################################################
+   def populateUtxo(self, hashVal, txoutid, value, script):
+      packet = self.getPacket()
+      method = packet.signer.populate_utxo
+      method.hash = hashVal
+      method.tx_out_id = txoutid
+      method.value = value
+      method.script = script
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         raise BridgeSignerError(
+            f"[addSpenderByOutpoint] failed with error: {reply.error}")
+
+   #############################################################################
+   def addSupportingTx(self, rawTxData):
+      packet = self.getPacket()
+      packet.signer.add_supporting_tx.raw_tx = rawTxData
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         raise BridgeSignerError(
+            f"[addSupportingTx] failed with error: {reply.error}")
+
+   #############################################################################
+   def addRecipient(self, value, script):
+      packet = self.getPacket()
+      method = packet.signer.add_recipient
+      method.value = value
+      method.script = script
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         raise BridgeSignerError(
+            f"[addRecipient] failed with error: {reply.error}")
+
+   #############################################################################
+   def toTxSigCollect(self, ustxType):
+      packet = self.getPacket()
+      packet.signer.to_tx_sig_collect.ustx_type = ustxType
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.signer.tx_sig_collect
+
+   #############################################################################
+   def fromTxSigCollect(self, txSigCollect):
+      packet = self.getPacket()
+      packet.signer.from_tx_sig_collect.tx_sig_collect = txSigCollect
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         raise BridgeSignerError(
+            f"[fromTxSigCollect] failed with error: {reply.error}")
+
+   #############################################################################
+   def resolve(self, wltId):
+      packet = self.getPacket()
+      packet.signer.resolve.wallet_id = wltId
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         raise BridgeSignerError(f"[resolve] failed with error: {reply.error}")
+
+   #############################################################################
+   def signTx(self, wltId, serverPushObj, callbackFunc, callbackArgs=[]):
+      packet = self.getPacket()
+      packet.signer.sign_tx.wallet_id = wltId
+      packet.signer.sign_tx.callback_id = serverPushObj.callbackId
+      self.send(packet, callback=callbackFunc, cbArgs=callbackArgs)
+
+   #############################################################################
+   def getSignedTx(self):
+      packet = self.getPacket()
+      packet.signer.get_signed_tx = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         return None
+      return reply.signer.tx_data
+
+   #############################################################################
+   def getUnsignedTx(self):
+      packet = self.getPacket()
+      packet.signer.get_unsigned_tx = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      if reply.success == False:
+         return None
+      return reply.signer.tx_data
+
+   #############################################################################
+   def getSignedStateForInput(self, inputId):
+      packet = self.getPacket()
+      packet.signer.get_signed_state_for_input.input_id = inputId
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.signer.input_signed_state
+
+   #############################################################################
+   def fromType(self):
+      packet = self.getPacket()
+      packet.signer.get_unsigned_tx = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.signer.from_type
+
+   #############################################################################
+   def canLegacySerialize(self):
+      packet = self.getPacket()
+      packet.signer.can_legacy_serialize = True
+
+      fut = self.send(packet)
+      reply = fut.getVal()
+      return reply.success
+
+################################################################################
+class ArmoryBridge(object):
+
+   #############################################################################
+   def __init__(self):
+      self.blockTimeByHeightCache = {}
+      self.bridgeSocket = BridgeSocket()
+
+      self.service      = BlockchainService(self.bridgeSocket)
+      self.utils        = BlockchainUtils(self.bridgeSocket)
+      self.scriptUtils  = ScriptUtils(self.bridgeSocket)
+
+   #############################################################################
+   def start(self, stringArgs, notifyReadyLbd):
+      self.bridgeSocket.start(stringArgs, notifyReadyLbd)
+
+   #############################################################################
+   def send(self, msg, needsReply=True, callback=None, cbArgs=[],
+      msgType=BRIDGE_CLIENT_HEADER):
+      self.bridgeSocket.sendToBridgeProto(msg,
+         needsReply, callback, cbArgs, msgType)
+
+   #############################################################################
+   def pushNotification(self, callbackData):
       notifThread = threading.Thread(\
          group=None, target=TheBDM.pushNotification, \
-         name=None, args=[payload], kwargs={})
+         name=None, args=[callbackData], kwargs={})
       notifThread.start()
 
    #############################################################################
    def pushProgressNotification(self, data):
-      payload = ClientProto_pb2.CppProgressCallbackMsg()
+      payload = BridgeProto_pb2.CppProgressCallbackMsg()
       payload.ParseFromString(data)
 
       TheBDM.reportProgress(payload)
-
-   #############################################################################
-   def promptUser(self, data):
-      payload = ClientProto_pb2.OpaquePayload()
-      payload.ParseFromString(data)
-
-      TheBDM.pushFromBridge(\
-         payload.payloadType, payload.payload, payload.uniqueId, payload.intId)
-
-   #############################################################################
-   def returnPassphrase(self, id, passphrase):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.returnPassphrase
-
-      packet.stringArgs.append(id)
-      packet.stringArgs.append(passphrase)
-
-      self.sendToBridgeProto(packet, False)
-
-   #############################################################################
-   def loadWallets(self, func):
-      #create protobuf packet
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.loadWallets
-
-      #send to the socket
-      self.sendToBridgeProto(packet, False, self.walletsLoaded, [func])
-
-   #############################################################################
-   def walletsLoaded(self, socketResponse, args):
-      #deser protobuf reply
-      response = ClientProto_pb2.WalletPayload()
-      response.ParseFromString(bytearray(socketResponse))
-
-      #fire callback
-      callbackThread = threading.Thread(\
-         group=None, target=args[0], \
-         name=None, args=[response], kwargs={})
-      callbackThread.start()
-
-   #############################################################################
-   def shutdown(self):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.shutdown
-      self.sendToBridgeProto(packet)
-
-      self.rwLock.acquire(True)
-
-      self.run = False
-      self.clientSocket.close()
-      self.listenSocket.close()
-
-      self.rwLock.release()
-      self.clientFut.result()
-
-   #############################################################################
-   def setupDB(self):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.setupDB
-
-      self.sendToBridgeProto(packet, False)
-
-   #############################################################################
-   def registerWallets(self):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.registerWallets
-
-      self.sendToBridgeProto(packet, False)
-
-   #############################################################################
-   def goOnline(self):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.goOnline
-
-      self.sendToBridgeProto(packet, False)
-
-   #############################################################################
-   def getLedgerDelegateIdForWallets(self):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getLedgerDelegateIdForWallets
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyStrings()
-      response.ParseFromString(socketResponse)
-
-      if len(response.reply) != 1:
-         raise BridgeError("invalid reply")
-
-      return response.reply[0]
-
-   #############################################################################
-   def getLedgerDelegateIdForScrAddr(self, walletId, addr160):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getLedgerDelegateIdForScrAddr
-      packet.stringArgs.append(walletId)
-      packet.byteArgs.append(addr160)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyStrings()
-      response.ParseFromString(socketResponse)
-
-      if len(response.reply) != 1:
-         raise BridgeError("invalid reply")
-
-      return response.reply[0]
-
-   #############################################################################
-   def updateWalletsLedgerFilter(self, ids):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.updateWalletsLedgerFilter
-
-      for id in ids:
-         packet.stringArgs.append(id)
-
-      self.sendToBridgeProto(packet, False)
-
-   #############################################################################
-   def getHistoryPageForDelegate(self, delegateId, pageId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getHistoryPageForDelegate
-
-      packet.stringArgs.append(delegateId)
-      packet.intArgs.append(pageId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.BridgeLedgers()
-      response.ParseFromString(socketResponse)
-
-      return response
-
-   #############################################################################
-   def getNodeStatus(self):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getNodeStatus
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.BridgeNodeStatus()
-      response.ParseFromString(socketResponse)
-
-      return response
-
-   #############################################################################
-   def getBalanceAndCount(self, wltId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getBalanceAndCount
-      packet.stringArgs.append(wltId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.BridgeBalanceAndCount()
-      response.ParseFromString(socketResponse)
-
-      return response
-
-   #############################################################################
-   def getAddrCombinedList(self, wltId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getAddrCombinedList
-      packet.stringArgs.append(wltId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.BridgeMultipleBalanceAndCount()
-      response.ParseFromString(socketResponse)
-
-      return response
-
-   #############################################################################
-   def getHighestUsedIndex(self, wltId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getHighestUsedIndex
-      packet.stringArgs.append(wltId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      return response.ints[0]
-
-   #############################################################################
-   def getTxByHash(self, hashVal):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getTxByHash
-      packet.byteArgs.append(hashVal)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.BridgeTx()
-      response.ParseFromString(socketResponse)
-
-      return response
-
-   #############################################################################
-   def getTxOutScriptType(self, script):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getTxOutScriptType
-      packet.byteArgs.append(script)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      return response.ints[0]
-
-   #############################################################################
-   def getTxInScriptType(self, script, hashVal):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getTxInScriptType
-      packet.byteArgs.append(script)
-      packet.byteArgs.append(hashVal)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      return response.ints[0]
-
-   #############################################################################
-   def getLastPushDataInScript(self, script):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getLastPushDataInScript
-      packet.byteArgs.append(script)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyBinary()
-      response.ParseFromString(socketResponse)
-
-      if len(response.reply) > 0:
-         return response.reply[0]
-      else:
-         return ""
-
-   #############################################################################
-   def getTxOutScriptForScrAddr(self, script):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getTxOutScriptForScrAddr
-      packet.byteArgs.append(script)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyBinary()
-      response.ParseFromString(socketResponse)
-
-      return response.reply[0]
-
-   #############################################################################
-   def getHeaderByHeight(self, height):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getHeaderByHeight
-      packet.intArgs.append(height)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyBinary()
-      response.ParseFromString(socketResponse)
-
-      return response.reply[0]
-
-   #############################################################################
-   def getScrAddrForScript(self, script):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getScrAddrForScript
-      packet.byteArgs.append(script)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyBinary()
-      response.ParseFromString(socketResponse)
-
-      return response.reply[0]
-
-   #############################################################################
-   def getScrAddrForAddrStr(self, addrStr):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getScrAddrForAddrStr
-      packet.stringArgs.append(addrStr)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      errorResponse = ClientProto_pb2.ReplyError()
-      errorResponse.ParseFromString(socketResponse)
-      if errorResponse.isError == False:
-         response = ClientProto_pb2.ReplyBinary()
-         response.ParseFromString(socketResponse)
-         return response.reply[0]
-      raise BridgeError("error in getScrAddrForAddrStr: " + errorResponse.error)
-
-   #############################################################################
-   def getAddrStrForScrAddr(self, scrAddr):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getAddrStrForScrAddr
-      packet.byteArgs.append(scrAddr)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      errorResponse = ClientProto_pb2.ReplyError()
-      errorResponse.ParseFromString(socketResponse)
-      if errorResponse.isError == False:
-         response = ClientProto_pb2.ReplyStrings()
-         response.ParseFromString(socketResponse)
-         return response.reply[0]
-      raise BridgeError("error in getAddrStrForScrAddr: " + errorResponse.error)
-
-   #############################################################################
-   def initCoinSelectionInstance(self, wltId, height):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.setupNewCoinSelectionInstance
-      packet.stringArgs.append(wltId)
-      packet.intArgs.append(height)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyStrings()
-      response.ParseFromString(socketResponse)
-
-      return response.reply[0]
-
-   #############################################################################
-   def destroyCoinSelectionInstance(self, csId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.destroyCoinSelectionInstance
-      packet.stringArgs.append(csId)
-
-      self.sendToBridgeProto(packet, False)
-
-   #############################################################################
-   def setCoinSelectionRecipient(self, csId, addrStr, value, recId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.setCoinSelectionRecipient
-      packet.stringArgs.append(csId)
-      packet.stringArgs.append(addrStr)
-      packet.intArgs.append(recId)
-      packet.longArgs.append(value)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeError("setCoinSelectionRecipient failed")
-
-   #############################################################################
-   def resetCoinSelection(self, csId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.resetCoinSelection
-      packet.stringArgs.append(csId)
-
-      self.sendToBridgeProto(packet, False)
-
-   #############################################################################
-   def cs_SelectUTXOs(self, csId, fee, feePerByte, processFlags):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.cs_SelectUTXOs
-      packet.stringArgs.append(csId)
-      packet.longArgs.append(fee)
-      packet.floatArgs.append(feePerByte)
-      packet.intArgs.append(processFlags)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeError("selectUTXOs failed")
-
-   #############################################################################
-   def cs_getUtxoSelection(self, csId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.cs_getUtxoSelection
-      packet.stringArgs.append(csId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.BridgeUtxoList()
-      response.ParseFromString(socketResponse)
-
-      return response.data
-
-   #############################################################################
-   def cs_getFlatFee(self, csId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.cs_getFlatFee
-      packet.stringArgs.append(csId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      return response.longs[0]
-
-   #############################################################################
-   def cs_getFeeByte(self, csId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.cs_getFeeByte
-      packet.stringArgs.append(csId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      return response.floats[0]
-
-   #############################################################################
-   def cs_getSizeEstimate(self, csId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.cs_getSizeEstimate
-      packet.stringArgs.append(csId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      return response.longs[0]
-
-   #############################################################################
-   def cs_ProcessCustomUtxoList(self, csId, \
-      utxoList, fee, feePerByte, processFlags):
-
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.cs_ProcessCustomUtxoList
-      packet.stringArgs.append(csId)
-      packet.longArgs.append(fee)
-      packet.floatArgs.append(feePerByte)
-      packet.intArgs.append(processFlags)
-
-      for utxo in utxoList:
-         bridgeUtxo = utxo.toBridgeUtxo()
-         packet.byteArgs.append(bridgeUtxo.SerializeToString())
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeError("ProcessCustomUtxoList failed")
-
-   #############################################################################
-   def cs_getFeeForMaxVal(self, csId, feePerByte):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.cs_getFeeForMaxVal
-      packet.stringArgs.append(csId)
-      packet.floatArgs.append(feePerByte)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      return response.longs[0]
-
-   #############################################################################
-   def cs_getFeeForMaxValUtxoVector(self, csId, utxoList, feePerByte):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.cs_getFeeForMaxValUtxoVector
-      packet.stringArgs.append(csId)
-      packet.floatArgs.append(feePerByte)
-
-      for utxo in utxoList:
-         bridgeUtxo = utxo.toBridgeUtxo()
-         packet.byteArgs.append(bridgeUtxo.SerializeToString())
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      return response.longs[0]
-
-   #############################################################################
-   def generateRandomHex(self, size):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.generateRandomHex
-      packet.intArgs.append(size)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyStrings()
-      response.ParseFromString(socketResponse)
-
-      return response.reply[0]
-
-   #############################################################################
-   def createAddressBook(self, wltId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.createAddressBook
-      packet.stringArgs.append(wltId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.BridgeAddressBook()
-      response.ParseFromString(socketResponse)
-
-      return response.data
-
-   #############################################################################
-   def getUtxosForValue(self, wltId, value):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getUtxosForValue
-      packet.stringArgs.append(wltId)
-      packet.longArgs.append(value)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.BridgeUtxoList()
-      response.ParseFromString(socketResponse)
-
-      return response.data
-
-   #############################################################################
-   def getSpendableZCList(self, wltId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getSpendableZCList
-      packet.stringArgs.append(wltId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.BridgeUtxoList()
-      response.ParseFromString(socketResponse)
-
-      return response.data
-
-   #############################################################################
-   def getRBFTxOutList(self, wltId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getRBFTxOutList
-      packet.stringArgs.append(wltId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.BridgeUtxoList()
-      response.ParseFromString(socketResponse)
-
-      return response.data
-
-   #############################################################################
-   def getNewAddress(self, wltId, addrType):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getNewAddress
-      packet.stringArgs.append(wltId)
-      packet.intArgs.append(addrType)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.WalletAsset()
-      response.ParseFromString(socketResponse)
-
-      return response
-
-   #############################################################################
-   def getNewChangeAddr(self, wltId, addrType):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getNewChangeAddr
-      packet.stringArgs.append(wltId)
-      packet.intArgs.append(addrType)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.WalletAsset()
-      response.ParseFromString(socketResponse)
-
-      return response
-
-   #############################################################################
-   def peekChangeAddress(self, wltId, addrType):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.peekChangeAddress
-      packet.stringArgs.append(wltId)
-      packet.intArgs.append(addrType)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.WalletAsset()
-      response.ParseFromString(socketResponse)
-
-      return response
-
-   #############################################################################
-   def getHash160(self, data):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getHash160
-      packet.byteArgs.append(data)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyBinary()
-      response.ParseFromString(socketResponse)
-
-      return response.reply[0]
-
-   #############################################################################
-   def broadcastTx(self, rawTxList):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.broadcastTx
-      packet.byteArgs.extend(rawTxList)
-
-      self.sendToBridgeProto(packet, False)
-
-   #############################################################################
-   def extendAddressPool(self, wltId, progressId, count, callback):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.extendAddressPool
-      packet.stringArgs.append(wltId)
-      packet.stringArgs.append(progressId)
-      packet.intArgs.append(count)
-
-      self.sendToBridgeProto(packet, False,
-         self.finishExtendAddressPool, [callback])
-
-   #############################################################################
-   def finishExtendAddressPool(self, socketResponse, args):
-      response = ClientProto_pb2.WalletData()
-      response.ParseFromString(socketResponse)
-
-      #fire callback
-      callbackThread = threading.Thread(\
-         group=None, target=args[0], \
-         name=None, args=[response], kwargs={})
-      callbackThread.start()
-
-   #############################################################################
-   def createWallet(self, addrPoolSize, passphrase, controlPassphrase, \
-      shortLabel, longLabel, extraEntropy):
-      walletCreationStruct = ClientProto_pb2.BridgeCreateWalletStruct()
-      walletCreationStruct.lookup = addrPoolSize
-      walletCreationStruct.passphrase = passphrase
-      walletCreationStruct.controlPassphrase = controlPassphrase
-      walletCreationStruct.label = shortLabel
-      walletCreationStruct.description = longLabel
-
-      if extraEntropy is not None:
-         walletCreationStruct.extraEntropy = extraEntropy
-
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.createWallet
-      packet.byteArgs.append(walletCreationStruct.SerializeToString())
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyStrings()
-      response.ParseFromString(socketResponse)
-
-      if len(response.reply) != 1:
-         raise BridgeError("string reply count mismatch")
-
-      return response.reply[0]
-
-   #############################################################################
-   def deleteWallet(self, wltId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.deleteWallet
-      packet.stringArgs.append(wltId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      return response.ints[0]
-
-   #############################################################################
-   def getWalletData(self, wltId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getWalletData
-      packet.stringArgs.append(wltId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.WalletData()
-      response.ParseFromString(socketResponse)
-
-      return response
-
-   #############################################################################
-   def registerWallet(self, walletId, isNew):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.registerWallet
-      packet.stringArgs.append(walletId)
-      packet.intArgs.append(isNew)
-
-      self.sendToBridgeProto(packet, False)
 
    #############################################################################
    def getBlockTimeByHeight(self, height):
       if height in self.blockTimeByHeightCache:
          return self.blockTimeByHeightCache[height]
 
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getBlockTimeByHeight
+      packet = BridgeProto_pb2.Request()
+      packet.method = BridgeProto_pb2.getBlockTimeByHeight
       packet.intArgs.append(height)
 
       fut = self.sendToBridgeProto(packet)
       socketResponse = fut.getVal()
 
-      response = ClientProto_pb2.ReplyNumbers()
+      response = BridgeProto_pb2.ReplyNumbers()
       response.ParseFromString(socketResponse)
 
       blockTime = response.ints[0]
@@ -1091,36 +1245,15 @@ class ArmoryBridge(object):
       return blockTime
 
    #############################################################################
-   def createBackupStringForWalletCallback(self, socketResponse, args):
-      rootData = ClientProto_pb2.BridgeBackupString()
-      rootData.ParseFromString(socketResponse)
-
-      callbackArgs = [rootData]
-      callbackThread = threading.Thread(\
-         group=None, target=args[0], \
-         name=None, args=callbackArgs, kwargs={})
-      callbackThread.start()
-
-   #############################################################################
-   def createBackupStringForWallet(self, wltId, callback):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.createBackupStringForWallet
-      packet.stringArgs.append(wltId)
-
-      callbackArgs = [callback]
-      self.sendToBridgeProto(\
-         packet, False, self.createBackupStringForWalletCallback, callbackArgs)
-
-   #############################################################################
    def restoreWallet(self, root, chaincode, sppass, callbackId):
-      opaquePayload = ClientProto_pb2.RestoreWalletPayload()
+      opaquePayload = BridgeProto_pb2.RestoreWalletPayload()
       opaquePayload.root.extend(root)
       opaquePayload.secondary.extend(chaincode)
       opaquePayload.spPass = sppass
 
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.methodWithCallback
-      packet.methodWithCallback = ClientProto_pb2.restoreWallet
+      packet = BridgeProto_pb2.Request()
+      packet.method = BridgeProto_pb2.methodWithCallback
+      packet.methodWithCallback = BridgeProto_pb2.restoreWallet
 
       packet.byteArgs.append(callbackId)
       packet.byteArgs.append(opaquePayload.SerializeToString())
@@ -1128,94 +1261,9 @@ class ArmoryBridge(object):
       self.sendToBridgeProto(packet, False)
 
    #############################################################################
-   def callbackFollowUp(self, payload, callbackId, callerId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.methodWithCallback
-      packet.methodWithCallback = ClientProto_pb2.followUp
-
-      packet.byteArgs.append(callbackId)
-      packet.byteArgs.append(payload.SerializeToString())
-
-      packet.intArgs.append(callerId)
-
-      self.sendToBridgeProto(packet, False)
-
-   #############################################################################
-   def getNameForAddrType(self, addrType):
-      if addrType in self.addrTypeStrByType:
-         return self.addrTypeStrByType[addrType]
-
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getNameForAddrType
-      packet.intArgs.append(addrType)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyStrings()
-      response.ParseFromString(socketResponse)
-
-      addrTypeStr = response.reply[0]
-      self.addrTypeStrByType[addrType] = addrTypeStr
-      return addrTypeStr
-
-   #############################################################################
-   def setAddressTypeFor(self, walletId, assetId, addrType):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.setAddressTypeFor
-
-      packet.stringArgs.append(walletId)
-      packet.byteArgs.append(assetId)
-      packet.intArgs.append(addrType)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.WalletAsset()
-      response.ParseFromString(socketResponse)
-      return response
-
-   #############################################################################
-   def setComment(self, wltId, key, val):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.setComment
-
-      packet.stringArgs.append(wltId)
-      packet.byteArgs.append(key)
-      packet.stringArgs.append(val)
-
-      self.sendToBridgeProto(packet, False)
-
-   #############################################################################
-   def setWalletLabels(self, wltId, title, desc):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.setWalletLabels
-
-      packet.stringArgs.append(wltId)
-      packet.stringArgs.append(title)
-      packet.stringArgs.append(desc)
-
-      self.sendToBridgeProto(packet, False)
-
-   #############################################################################
-   def estimateFee(self, blocks, strat):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.estimateFee
-      packet.intArgs.append(blocks)
-      packet.stringArgs.append(strat)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.BridgeFeeEstimate()
-      response.ParseFromString(socketResponse)
-
-      return response
-
-   #############################################################################
    def getHistoryForWalletSelection(self, wltIDList, order):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getHistoryForWalletSelection
+      packet = BridgeProto_pb2.Request()
+      packet.method = BridgeProto_pb2.getHistoryForWalletSelection
       packet.stringArgs.append(order)
       for wltID in wltIDList:
          packet.stringArgs.append(wltID)
@@ -1223,289 +1271,58 @@ class ArmoryBridge(object):
       fut = self.sendToBridgeProto(packet)
       socketResponse = fut.getVal()
 
-      response = ClientProto_pb2.BridgeLedgers()
+      response = BridgeProto_pb2.BridgeLedgers()
       response.ParseFromString(socketResponse)
 
       return response
 
 ################################################################################
-class BridgeSigner(object):
-   def __init__(self):
-      self.signerId = None
+class CallbackWrapper(object):
+   def __init__(self, callbackFunc, callbackArgs=[]):
+      self.callbackFunc = callbackFunc
+      self.callbackArgs = callbackArgs
 
-   def __del__(self):
-      self.cleanup()
-
-   #############################################################################
-   def initNew(self):
-      if self.signerId != None:
-         raise BridgeSignerError("initNew")
-
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.initNewSigner
-
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyStrings()
-      response.ParseFromString(socketResponse)
-
-      self.signerId = response.reply[0]
-
-   #############################################################################
-   def cleanup(self):
-      if self.signerId != None:
-         return
-
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.destroySigner
-      packet.stringArgs.append(self.signerId)
-
-      TheBridge.sendToBridgeProto(packet, False)
-      self.signerId = None
-
-   #############################################################################
-   def setVersion(self, version):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_SetVersion
-      packet.stringArgs.append(self.signerId)
-      packet.intArgs.append(version)
-
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeSignerError("setVersion")
-
-   #############################################################################
-   def setLockTime(self, locktime):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_SetLockTime
-      packet.stringArgs.append(self.signerId)
-      packet.intArgs.append(locktime)
-
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeSignerError("setLockTime")
-
-   #############################################################################
-   def addSpenderByOutpoint(self, hashVal, txoutid, seq, value):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_addSpenderByOutpoint
-      packet.stringArgs.append(self.signerId)
-      packet.byteArgs.append(hashVal)
-      packet.intArgs.append(txoutid)
-      packet.intArgs.append(seq)
-      packet.longArgs.append(value)
-
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeSignerError("addSpenderByOutpoint")
-
-   #############################################################################
-   def populateUtxo(self, hashVal, txoutid, value, script):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_populateUtxo
-      packet.stringArgs.append(self.signerId)
-      packet.byteArgs.append(hashVal)
-      packet.intArgs.append(txoutid)
-      packet.longArgs.append(value)
-      packet.byteArgs.append(script)
-
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeSignerError("addSpenderByOutpoint")
-
-   #############################################################################
-   def addSupportingTx(self, rawTxData):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_addSupportingTx
-      packet.stringArgs.append(self.signerId)
-      packet.byteArgs.append(rawTxData)
-
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeSignerError("addSpenderByOutpoint")
-
-   #############################################################################
-   def addRecipient(self, value, script):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_addRecipient
-      packet.stringArgs.append(self.signerId)
-      packet.byteArgs.append(script)
-      packet.longArgs.append(value)
-
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeSignerError("addRecipient")
-
-   #############################################################################
-   def toTxSigCollect(self, ustxType):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_toTxSigCollect
-      packet.stringArgs.append(self.signerId)
-      packet.intArgs.append(ustxType)
-
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyStrings()
-      response.ParseFromString(socketResponse)
-
-      return response.reply[0]
-
-   #############################################################################
-   def fromTxSigCollect(self, txSigCollect):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_fromTxSigCollect
-      packet.stringArgs.append(self.signerId)
-      packet.stringArgs.append(txSigCollect)
-
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeSignerError("fromTxSigCollect")
-
-   #############################################################################
-   def resolve(self, wltId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_resolve
-      packet.stringArgs.append(self.signerId)
-      packet.stringArgs.append(wltId)
-
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeSignerError("resolve")
-
-   #############################################################################
-   def signTx(self, wltId, callback):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_signTx
-      packet.stringArgs.append(self.signerId)
-      packet.stringArgs.append(wltId)
-
-      callbackArgs = [callback]
-      TheBridge.sendToBridgeProto(
-         packet, False, self.signTxCallback, callbackArgs)
-
-   #############################################################################
-   def signTxCallback(self, socketResponse, args):
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      callbackThread = threading.Thread(\
-         group=None, target=args[0], \
-         name=None, args=[], kwargs={})
+   def execute(self, replyObj):
+      callbackThread = threading.Thread(
+         group=None, target=self.callbackFunc,
+         name=None, args=[*self.callbackArgs, replyObj], kwargs={})
       callbackThread.start()
 
-   #############################################################################
-   def getSignedTx(self):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_getSignedTx
-      packet.stringArgs.append(self.signerId)
+################################################################################
+class ServerPush(ProtoWrapper):
+   def __init__(self, callbackId=""):
+      super().__init__(TheBridge.bridgeSocket)
 
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
+      if len(callbackId) == 0:
+         self.callbackId = base64.b16encode(os.urandom(10)).decode('utf-8')
+      else:
+         self.callbackId = callbackId
+      self.bridgeSocket.setCallback(self.callbackId, self)
 
-      response = ClientProto_pb2.ReplyBinary()
-      response.ParseFromString(socketResponse)
+      self.refId = 0
+      self.packet = None
 
-      return response.reply[0]
+   def parseProtoPacket(self, protoPacket):
+      raise Exception("override me")
 
-   #############################################################################
-   def getUnsignedTx(self):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_getUnsignedTx
-      packet.stringArgs.append(self.signerId)
+   def process(self, protoPacket):
+      if protoPacket.HasField('cleanup'):
+         self.bridgeSocket.unsetCallback(self.callbackId)
 
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
+      self.refId = protoPacket.reference_id
+      self.parseProtoPacket(protoPacket)
 
-      response = ClientProto_pb2.ReplyBinary()
-      response.ParseFromString(socketResponse)
+   def getNewPacket(self):
+      self.packet = BridgeProto_pb2.Request()
+      self.packet.callback_reply.reference_id = self.refId
+      self.refId = 0
+      return self.packet.callback_reply
 
-      return response.reply[0]
+   def reply(self):
+      self.send(self.packet, needsReply=False)
+      self.packet = None
 
 
-   #############################################################################
-   def getSignedStateForInput(self, inputId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_getSignedStateForInput
-      packet.stringArgs.append(self.signerId)
-      packet.intArgs.append(inputId)
-
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.BridgeInputSignedState()
-      response.ParseFromString(socketResponse)
-
-      return response
-
-   #############################################################################
-   def fromType(self):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_fromType
-      packet.stringArgs.append(self.signerId)
-
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      return response.ints[0]
-
-   #############################################################################
-   def canLegacySerialize(self):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_canLegacySerialize
-      packet.stringArgs.append(self.signerId)
-
-      fut = TheBridge.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      return bool(response.ints[0])
 
 ####
 TheBridge = ArmoryBridge()

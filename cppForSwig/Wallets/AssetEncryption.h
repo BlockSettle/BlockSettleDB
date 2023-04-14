@@ -97,6 +97,7 @@ namespace Armory
             bool isSame(KeyDerivationFunction* const) const;
             BinaryData serialize(void) const;
             const BinaryData& getId(void) const;
+            unsigned memTarget(void) const;
          };
 
          ///////////////////////////////////////////////////////////////////////
@@ -397,15 +398,8 @@ namespace Armory
             const EncryptionKeyId& getEncryptionKeyId(void) const;
             const BinaryData& getKdfId(void) const;
 
-            bool hasData(void) const
-            {
-               return cipherData_ != nullptr;
-            }
-
-            const CipherData* getCipherDataPtr() const
-            {
-               return cipherData_.get();
-            }
+            bool hasData(void) const;
+            const CipherData* getCipherDataPtr(void) const;
          };
 
       }; //namespace Encryption

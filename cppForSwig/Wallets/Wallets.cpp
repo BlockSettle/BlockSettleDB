@@ -566,6 +566,22 @@ const Armory::Wallets::AddressAccountId& AssetWallet::getMainAccountID() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+const EncryptionKeyId& AssetWallet::getDefaultEncryptionKeyId() const
+{
+   if (decryptedData_ == nullptr)
+      throw WalletException("[getDefaultEncryptionKeyId] unexpected error");
+
+   return decryptedData_->getDefaultEncryptionKeyId();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+std::shared_ptr<Encryption::KeyDerivationFunction>
+   AssetWallet::getDefaultKdf() const
+{
+   return decryptedData_->getKdf(decryptedData_->getDefaultKdfId());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AddressAccount> AssetWallet::getAccountForID(
    const AddressAccountId& id) const
 {
