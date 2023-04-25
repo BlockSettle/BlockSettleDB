@@ -1044,7 +1044,8 @@ void UtxoSelection::computeSizeAndFee(
    }
 
    if (targetVal > value_)
-      throw CoinSelectionException("targetVal > value");
+      throw CoinSelectionException("targetVal " + std::to_string(targetVal)
+         + " > value " + std::to_string(value_));
 
    size_ = 10 + txOutSize + txInSize;
    if (sw)
