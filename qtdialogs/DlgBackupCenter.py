@@ -19,6 +19,8 @@ from PySide2.QtWidgets import QRadioButton, QPushButton, QVBoxLayout, \
    QGraphicsLineItem, QGraphicsItem
 
 from armoryengine.ArmoryUtils import toUnicode, USE_TESTNET, USE_REGTEST
+from armoryengine.AddressUtils import binary_to_base58, encodePrivKeyBase58, \
+   hash160_to_addrStr
 from armorycolors import htmlColor
 
 from ui.WalletFrames import WalletBackupFrame

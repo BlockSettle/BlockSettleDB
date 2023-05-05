@@ -20,6 +20,7 @@ from armoryengine.ArmoryUtils import LOGERROR, UINT32_MAX, UINT8_MAX, \
    UNKNOWN
 from armoryengine.BDM import TheBDM
 from armoryengine.PyBtcWallet import PyBtcWallet
+from armoryengine.AddressUtils import binary_to_base58
 from ui.QtExecuteSignal import TheSignalExecution
 
 from qtdialogs.ArmoryDialog import ArmoryDialog

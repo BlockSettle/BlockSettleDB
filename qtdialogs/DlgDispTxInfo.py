@@ -17,12 +17,13 @@ from PySide2.QtWidgets import QLabel, QGridLayout, QFrame, QTableView, \
    QVBoxLayout, QDialogButtonBox, QApplication
 
 from armoryengine.ArmoryUtils import enum, CPP_TXOUT_MULTISIG, \
-   CPP_TXOUT_P2SH, CPP_TXOUT_HAS_ADDRSTR, script_to_addrStr, \
-   addrStr_to_hash160, script_to_scrAddr, BIGENDIAN, binary_to_hex, \
+   CPP_TXOUT_P2SH, CPP_TXOUT_HAS_ADDRSTR, BIGENDIAN, binary_to_hex, \
    hex_to_binary, coin2str, coin2strNZS, LOGEXCEPT, LOGERROR, \
    CPP_TXIN_SCRIPT_NAMES, CPP_TXOUT_SCRIPT_NAMES, int_to_hex, \
-   script_to_scrAddr, scrAddr_to_addrStr, unixTimeToFormatStr, \
-   UINT32_MAX, hash256
+   unixTimeToFormatStr, UINT32_MAX, hash256
+from armoryengine.AddressUtils import addrStr_to_hash160, \
+   script_to_scrAddr, script_to_addrStr, scrAddr_to_addrStr, \
+   addrStr_to_scrAddr, script_to_scrAddr
 
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from armoryengine.Transaction import UnsignedTransaction, \

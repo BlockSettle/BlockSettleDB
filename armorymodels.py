@@ -21,7 +21,6 @@ from PySide2.QtWidgets import QStyle, QApplication, QCalendarWidget, \
    QLineEdit, QFrame, QGridLayout, QPushButton, QAbstractItemView, \
    QStyledItemDelegate, QTableView, QLabel
 
-
 from armoryengine.ArmoryUtils import enum, coin2str, binary_to_hex, \
    int_to_hex, CPP_TXOUT_SCRIPT_NAMES, CPP_TXOUT_MULTISIG, \
    CPP_TXIN_SCRIPT_NAMES
@@ -32,6 +31,8 @@ from armoryengine.MultiSigUtils import calcLockboxID
 from armoryengine.Timer import TimeThisFunction
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from armoryengine.CppBridge import TheBridge
+from armoryengine.AddressUtils import Hash160ToScrAddr, addrStr_to_hash160, \
+   scrAddr_to_addrStr
 
 from armorycolors import Colors
 from qtdialogs.qtdefines import determineWalletType, WLTTYPES, \

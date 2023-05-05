@@ -17,7 +17,19 @@ from PySide2.QtGui import QCursor, QDesktopServices, QIcon, QPixmap
 
 from armorycolors import htmlColor
 from qtdialogs.ArmoryDialog import ArmoryDialog
-from armoryengine.ArmoryUtils import BLOCKEXPLORE_NAME, BLOCKEXPLORE_URL_ADDR, BadAddressError, CPP_TXOUT_MULTISIG, CheckHash160, DATATYPE, DEFAULT_DATE_FORMAT, LB_MAXM, LB_MAXN, LOGDEBUG, LOGERROR, LOGEXCEPT, LOGINFO, NegativeValueError, RightNow, SignerException, TooMuchPrecisionError, USE_REGTEST, USE_TESTNET, addrStr_is_p2sh, addrStr_to_hash160, binScript_to_p2shAddrStr, binary_to_hex, checkAddrStrValid, coin2strNZS, getBlockID, hash160_to_addrStr, hash160_to_p2pkhash_script, hex_switchEndian, hex_to_binary, isLikelyDataType, pubkeylist_to_multisig_script, scrAddr_to_addrStr, script_to_addrStr, script_to_p2sh_script, script_to_scrAddr, str2coin, unixTimeToFormatStr
+from armoryengine.ArmoryUtils import BLOCKEXPLORE_NAME, \
+   BLOCKEXPLORE_URL_ADDR, CPP_TXOUT_MULTISIG, \
+   DATATYPE, DEFAULT_DATE_FORMAT, LB_MAXM, LB_MAXN, \
+   LOGDEBUG, LOGERROR, LOGEXCEPT, LOGINFO, NegativeValueError, \
+   RightNow, SignerException, TooMuchPrecisionError, USE_REGTEST, \
+   USE_TESTNET, binary_to_hex, checkAddrStrValid, coin2strNZS, \
+   getBlockID, hash160_to_p2pkhash_script, hex_switchEndian, \
+   hex_to_binary, pubkeylist_to_multisig_script, \
+   script_to_p2sh_script, str2coin, unixTimeToFormatStr
+from armoryengine.AddressUtils import scrAddr_to_addrStr, BadAddressError, \
+   CheckHash160, addrStr_is_p2sh, hash160_to_addrStr, script_to_addrStr, \
+   script_to_scrAddr, addrStr_to_hash160, binScript_to_p2shAddrStr, \
+   isLikelyDataType
 from armoryengine.BDM import BDM_BLOCKCHAIN_READY, TheBDM
 from armoryengine.CoinSelection import PySelectCoins, sumTxOutList
 from armoryengine.Transaction import BASE_SCRIPT, DecoratedTxOut, PyTx, TXIN_SIGSTAT, UnsignedTransaction, UnsignedTxInput, convertScriptToOpStrings, getTxOutScriptType

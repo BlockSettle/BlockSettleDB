@@ -296,7 +296,7 @@ class SelectWalletFrame(ArmoryFrame):
       elif nUtxo == 1:
          utxo = self.customUtxoList[0]
          binAddr = utxo.getRecipientScrAddr()
-         aStr = TheBridge.getAddrStrForScrAddr(binAddr)
+         aStr = TheBridge.scriptUtils.getAddrStrForScrAddr(binAddr)
          self.lblCoinCtrl.setText(self.tr('Source: %s...' % aStr[:12]))
       elif nUtxo > 1:
          self.lblCoinCtrl.setText(self.tr('Source: %d Outputs' % nUtxo))
@@ -331,8 +331,7 @@ class SelectWalletFrame(ArmoryFrame):
       nUtxo = len(self.customUtxoList)
       if nUtxo == 1:
          utxo = self.customUtxoList[0]
-         binAddr = utxo.getRecipientScrAddr()
-         aStr = hash160_to_addrStr(utxo.getRecipientHash160(), binAddr[0])
+         aStr = TheBridge.scriptUtils.getAddrStrForScrAddr(utxo.getRecipientScrAddr())
          self.lblRBF.setText(self.tr('Source: %s...' % aStr[:12]))
       else:
          self.lblRBF.setText(self.tr("Source: %s Outputs" % str(nUtxo)))

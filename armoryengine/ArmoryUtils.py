@@ -147,7 +147,6 @@ parser.add_option("--coverage_output_dir", dest="coverageOutputDir", default=Non
 parser.add_option("--coverage_include", dest="coverageInclude", default=None, type="str", help="Unit Test Argument - Do not consume")
 
 # Some useful constants to be used throughout everything
-BASE58CHARS  = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 BASE16CHARS  = '0123456789abcdefABCDEF'
 BASE16CHARS_NOCAPS = '0123456789abcdef'
 LITTLEENDIAN  = '<'
@@ -213,7 +212,6 @@ FORMAT_SYMBOLS = [ \
 
 
 class UnserializeError(Exception): pass
-class BadAddressError(Exception): pass
 class VerifyScriptError(Exception): pass
 class FileExistsError(Exception): pass
 class ECDSA_Error(Exception): pass
@@ -245,7 +243,6 @@ class ShouldNotGetHereError(Exception): pass
 class BadInputError(Exception): pass
 class UstxError(Exception): pass
 class P2SHNotSupportedError(Exception): pass
-class NonBase58CharacterError(Exception): pass
 class isMSWallet(Exception): pass
 class SignerException(Exception): pass
 
@@ -310,7 +307,7 @@ ENABLE_DETSIGN = CLI_OPTIONS.enableDetSign
 # Figure out the default directories for Satoshi client, and BicoinArmory
 OS_NAME          = ''
 OS_VARIANT       = ''
-USER_HOME_DIR    = ''   
+USER_HOME_DIR    = ''  
 BTC_HOME_DIR     = ''
 ARMORY_HOME_DIR  = ''
 ARMORY_DB_DIR    = ''
@@ -335,7 +332,7 @@ if OS_WINDOWS:
       BTC_HOME_DIR = os.path.join(USER_HOME_DIR, 'Bitcoin')
    if SUBDIR != '':
       BTC_HOME_DIR = os.path.join(BTC_HOME_DIR, SUBDIR)
-   
+
    ARMORY_HOME_DIR = os.path.join(USER_HOME_DIR, 'Armory', SUBDIR)
    BLKFILE_DIR     = os.path.join(BTC_HOME_DIR, 'blocks')
    BLKFILE_1stFILE = os.path.join(BLKFILE_DIR, 'blk00000.dat')
@@ -344,12 +341,12 @@ elif OS_LINUX:
    OS_NAME         = 'Linux'
    OS_VARIANT      = distro.linux_distribution()
    USER_HOME_DIR   = os.getenv('HOME')
-   
+
    if BTC_HOME_DIR == '':
       BTC_HOME_DIR = os.path.join(USER_HOME_DIR, '.bitcoin')
    if SUBDIR != '':
       BTC_HOME_DIR = os.path.join(BTC_HOME_DIR, SUBDIR)
-   
+
    ARMORY_HOME_DIR = os.path.join(USER_HOME_DIR, '.armory', SUBDIR)
    BLKFILE_DIR     = os.path.join(BTC_HOME_DIR, 'blocks')
    BLKFILE_1stFILE = os.path.join(BLKFILE_DIR, 'blk00000.dat')
@@ -358,12 +355,12 @@ elif OS_MACOSX:
    OS_NAME         = 'MacOSX'
    OS_VARIANT      = platform.mac_ver()
    USER_HOME_DIR   = os.path.expanduser('~/Library/Application Support')
-    
+
    if BTC_HOME_DIR == '':
       BTC_HOME_DIR = os.path.join(USER_HOME_DIR, 'Bitcoin')
    if SUBDIR != '':
-      BTC_HOME_DIR = os.path.join(BTC_HOME_DIR, SUBDIR)   
-   
+      BTC_HOME_DIR = os.path.join(BTC_HOME_DIR, SUBDIR)
+
    ARMORY_HOME_DIR = os.path.join(USER_HOME_DIR, 'Armory', SUBDIR)
    BLKFILE_DIR     = os.path.join(BTC_HOME_DIR, 'blocks')
    BLKFILE_1stFILE = os.path.join(BLKFILE_DIR, 'blk00000.dat')
@@ -621,16 +618,6 @@ CPP_TXIN_SCRIPT_NAMES[CPP_TXIN_SPENDMULTI]  = 'Spend Multisig'
 CPP_TXIN_SCRIPT_NAMES[CPP_TXIN_SPENDP2SH]   = 'Spend P2SH'
 CPP_TXIN_SCRIPT_NAMES[CPP_TXIN_NONSTANDARD] = 'Non-Standard'
 
-#address types, copied from cppForSwig/Wallets/Addresses.h
-AddressEntryType_Default = 0
-AddressEntryType_P2PKH = 1
-AddressEntryType_P2PK = 2
-AddressEntryType_P2WPKH = 3
-AddressEntryType_Multisig = 4
-AddressEntryType_Uncompressed = 0x10000000
-AddressEntryType_P2SH = 0x40000000
-AddressEntryType_P2WSH = 0x80000000
-
 ################################################################################
 if not CLI_OPTIONS.satoshiPort == DEFAULT:
    try:
@@ -831,7 +818,6 @@ DEFAULT_CONSOLE_LOGTHRESH = logging.WARNING
 DEFAULT_FILE_LOGTHRESH    = logging.INFO
 
 DEFAULT_PPRINT_LOGLEVEL   = logging.DEBUG
-DEFAULT_RAWDATA_LOGLEVEL  = logging.DEBUG
 
 rootLogger = logging.getLogger('')
 if CLI_OPTIONS.doDebug or CLI_OPTIONS.netlog or CLI_OPTIONS.mtdebug:
@@ -883,24 +869,6 @@ def LOGPPRINT(theObj, loglevel=DEFAULT_PPRINT_LOGLEVEL):
    filename,method = stkOneUp[0], stkOneUp[1]
    methodStr  = '(PPRINT from %s:%d)\n' % (filename,method)
    logging.log(loglevel, methodStr + printedStr)
-
-# For super-debug mode, we'll write out raw data
-def LOGRAWDATA(rawStr, loglevel=DEFAULT_RAWDATA_LOGLEVEL):
-   dtype = isLikelyDataType(rawStr)
-   stkOneUp = traceback.extract_stack()[-2]
-   filename,method = stkOneUp[0], stkOneUp[1]
-   methodStr  = '(PPRINT from %s:%d)\n' % (filename,method)
-   pstr = rawStr[:]
-   if dtype==DATATYPE.Binary:
-      pstr = binary_to_hex(rawStr)
-      pstr = prettyHex(pstr, indent='  ', withAddr=False)
-   elif dtype==DATATYPE.Hex:
-      pstr = prettyHex(pstr, indent='  ', withAddr=False)
-   else:
-      pstr = '   ' + '\n   '.join(pstr.split('\n'))
-
-   logging.log(loglevel, methodStr + pstr)
-
 
 cpplogfile = None
 if CLI_OPTIONS.logDisable:
@@ -1463,128 +1431,6 @@ def pubkeylist_to_multisig_script(pkList, M, withSort=True):
    return outScript
 
 ################################################################################
-def scrAddr_to_script(scraddr):
-   """
-   Convert a scrAddr string (used by BDM) to the correct TxOut script
-   Note this only works for P2PKH and P2SH scraddrs.  Multi-sig and
-   all non-standard scripts cannot be derived from scrAddrs.  In a way,
-   a scrAddr is intended to be an intelligent "hash" of the script,
-   and it's a perk that most of the time we can reverse it to get the script.
-   """
-   if len(scraddr)==0:
-      raise BadAddressError('Empty scraddr')
-
-   prefix = scraddr[0]
-   if not prefix in SCRADDR_BYTE_LIST or not len(scraddr)==21:
-      LOGERROR('Bad scraddr: "%s"' % binary_to_hex(scraddr))
-      raise BadAddressError('Invalid ScrAddress')
-
-   if prefix==ADDRBYTE:
-      return hash160_to_p2pkhash_script(scraddr[1:])
-   elif prefix==P2SHBYTE:
-      return hash160_to_p2sh_script(scraddr[1:])
-   else:
-      LOGERROR('Unsupported scraddr type: "%s"' % binary_to_hex(scraddr))
-      raise BadAddressError('Can only convert P2PKH and P2SH scripts')
-
-
-################################################################################
-def script_to_scrAddr(binScript):
-   """ Convert a binary script to scrAddr string (used by BDM) """
-   from armoryengine.CppBridge import TheBridge
-   return TheBridge.scriptUtils.getScrAddrForScript(binScript)
-
-################################################################################
-def script_to_addrStr(binScript):
-   """ Convert a binary script to scrAddr string (used by BDM) """
-   return scrAddr_to_addrStr(script_to_scrAddr(binScript))
-
-################################################################################
-def scrAddr_to_addrStr(scrAddr):
-   from armoryengine.CppBridge import TheBridge
-   return TheBridge.scriptUtils.getAddrStrForScrAddr(scrAddr)
-
-################################################################################
-# We beat around the bush here, to make sure it goes through addrStr which
-# triggers errors if this isn't a regular addr or P2SH addr
-def scrAddr_to_hash160(scrAddr):
-   addr = scrAddr_to_addrStr(scrAddr)
-   atype, a160 = addrStr_to_hash160(addr)
-   return (atype, a160)
-
-
-################################################################################
-def addrStr_to_scrAddr(addrStr, p2pkhByte = ADDRBYTE, p2shByte = P2SHBYTE):
-   if addrStr == '':
-      return ''
-
-   if not checkAddrStrValid(addrStr, [p2pkhByte, p2shByte]):
-      BadAddressError('Invalid address: "%s"' % addrStr)
-
-   atype, a160 = addrStr_to_hash160(addrStr, True, p2pkhByte, p2shByte)
-   if atype==int.from_bytes(p2pkhByte, "little"):
-      return p2pkhByte + a160
-   elif atype==int.from_bytes(p2shByte, "little"):
-      return p2shByte + a160
-   else:
-      BadAddressError('Invalid address: "%s"' % addrStr)
-
-
-################################################################################
-def addrStr_to_script(addrStr):
-   """ Convert an addr string to a binary script """
-   return scrAddr_to_script(addrStr_to_scrAddr(addrStr))
-
-################################################################################
-# output script type to address type resolution
-def getAddressTypeForOutputType(scriptType):
-   if scriptType == CPP_TXOUT_STDHASH160:
-      return AddressEntryType_P2PKH
-
-   elif scriptType == CPP_TXOUT_STDPUBKEY33:
-      return AddressEntryType_P2PK
-
-   elif scriptType == CPP_TXOUT_STDPUBKEY65:
-      return AddressEntryType_P2PK + AddressEntryType_Uncompressed
-
-   elif scriptType == CPP_TXOUT_MULTISIG:
-      return AddressEntryType_Multisig
-
-   elif scriptType == CPP_TXOUT_P2SH:
-      return AddressEntryType_P2SH
-
-   elif scriptType == CPP_TXOUT_P2WPKH:
-      return AddressEntryType_P2WPKH
-
-   elif scriptType == CPP_TXOUT_P2WSH:
-      return AddressEntryType_P2WSH
-
-   raise Exception("unknown address type")
-
-################################################################################
-def addrTypeInSet(addrType, addrTypeSet):
-   if addrType in addrTypeSet:
-      return True
-
-   def nestedSearch(nestedType):
-      if not (addrType & nestedType):
-         return False
-
-      for aType in addrTypeSet:
-         if aType & nestedType:
-            return True
-      return False
-
-   #couldn't find an exact address type match, try to filter by nested types
-   if nestedSearch(AddressEntryType_P2SH):
-      return True
-
-   if nestedSearch(AddressEntryType_P2WSH):
-      return True
-
-   return False
-
-################################################################################
 # We need to have some methods for casting ASCII<->Unicode<->Preferred
 DEFAULT_ENCODING = 'utf-8'
 
@@ -1651,72 +1497,11 @@ def enum(*sequential, **named):
 DATATYPE = enum("Binary", 'Base58', 'Hex')
 INTERNET_STATUS = enum('Available', 'Unavailable', 'DidNotCheck')
 
-
-def isLikelyDataType(theStr, dtype=None):
-   """
-   This really shouldn't be used on short strings.  Hence
-   why it's called "likely" datatype...
-   """
-   ret = None
-   try:
-      hexCount = sum([1 if c in BASE16CHARS else 0 for c in theStr])
-   except:
-      return DATATYPE.Binary
-   b58Count = sum([1 if c in BASE58CHARS else 0 for c in theStr])
-   canBeHex = hexCount==len(theStr)
-   canBeB58 = b58Count==len(theStr)
-   if canBeHex:
-      ret = DATATYPE.Hex
-   elif canBeB58 and not canBeHex:
-      ret = DATATYPE.Base58
-   else:
-      ret = DATATYPE.Binary
-
-   if dtype==None:
-      return ret
-   else:
-      return dtype==ret
-
 cpplogfile = None
 if CLI_OPTIONS.logDisable:
    print('Logging is disabled')
    rootLogger.disabled = True
 
-
-
-
-
-# The database uses prefixes to identify type of address.  Until the new
-# wallet format is created that supports more than just hash160 addresses
-# we have to explicitly add the prefix to any hash160 values that are being
-# sent to any of the C++ utilities.  For instance, the BlockDataManager (BDM)
-# (C++ stuff) tracks regular hash160 addresses, P2SH, multisig, and all
-# non-standard scripts.  Any such "scrAddrs" (script-addresses) will eventually
-# be valid entities for tracking in a wallet.  Until then, all of our python
-# utilities all use just hash160 values, and we manually add the prefix
-# before talking to the BDM.
-HASH160PREFIX     = '\x00'
-HASH160_TESTNET   = '\x6f'
-P2SHPREFIX        = '\x05'
-P2SH_TESTNET      = '\xc4'
-MSIGPREFIX        = '\xfe'
-NONSTDPREFIX      = '\xff'
-def CheckHash160(scrAddr):
-   if not len(scrAddr)==21:
-      raise BadAddressError("Supplied scrAddr is not a Hash160 value!")
-   if scrAddr[0] != int.from_bytes(ADDRBYTE, "little") and scrAddr[0] != int.from_bytes(P2SHBYTE, "little"):
-      raise BadAddressError("Supplied scrAddr is not a Hash160 value!")
-   return scrAddr[1:]
-
-def Hash160ToScrAddr(a160):
-   if not len(a160)==20:
-      LOGERROR('Invalid hash160 value!')
-   return HASH160PREFIX + a160
-
-def HexHash160ToScrAddr(a160):
-   if not len(a160)==40:
-      LOGERROR('Invalid hash160 value!')
-   return HASH160PREFIX + hex_to_binary(a160)
 
 # Some time methods (RightNow() return local unix timestamp)
 RightNow = time.time
@@ -1917,172 +1702,7 @@ def bitset_to_int(bitset):
       n += (0 if bit=='0' else 1) * 2**i
    return n
 
-
-
 EmptyHash = hex_to_binary('00'*32)
-
-
-################################################################################
-# BINARY/BASE58 CONVERSIONS
-def binary_to_base58(binstr):
-   """
-   This method applies the Bitcoin-specific conversion from binary to Base58
-   which may includes some extra "zero" bytes, such as is the case with the
-   main-network addresses.
-
-   This method is labeled as outputting an "addrStr", but it's really this
-   special kind of Base58 converter, which makes it usable for encoding other
-   data, such as ECDSA keys or scripts.
-   """
-   padding = 0
-   for b in binstr:
-      if b==b'\x00':
-         padding+=1
-      else:
-         break
-
-   n = 0
-   for ch in binstr:
-      n *= 256
-      n += ch
-
-   b58 = ''
-   while n > 0:
-      n, r = divmod (n, 58)
-      b58 = BASE58CHARS[r] + b58
-   return '1'*padding + b58
-
-
-################################################################################
-def base58_to_binary(s):
-   """
-   This method applies the Bitcoin-specific conversion from Base58 to binary
-   which may includes some extra "zero" bytes, such as is the case with the
-   main-network addresses.
-
-   This method is labeled as inputting an "addrStr", but it's really this
-   special kind of Base58 converter, which makes it usable for encoding other
-   data, such as ECDSA keys or scripts.
-   """
-
-   if not s:
-      return b''
-
-   # Convert the string to an integer
-   n = 0
-   for c in s:
-      n *= 58
-      if c not in BASE58CHARS:
-         raise NonBase58CharacterError('Character %r is not a valid base58 character' % c)
-      digit = BASE58CHARS.index(c)
-      n += digit
-
-   # Convert the integer to bytes
-   h = '%x' % n
-   if len(h) % 2:
-      h = '0' + h
-   res = bytes(binascii.unhexlify(h.encode('utf8')))
-
-   # Add padding back.
-   pad = 0
-   for c in s[:-1]:
-      if c == BASE58CHARS[0]: pad += 1
-      else: break
-   return b'\x00' * pad + res
-
-################################################################################
-def privKey_to_base58(binKey):
-   '''Convert a 32-byte private key to the Satoshi client Base58 format.'''
-
-   retBase58 = ''
-   # For now, we don't support compressed private keys. (When we do, add
-   # 0x01 after the private key when returning a private key.)
-   try:
-      compByte = ''
-      if 0:
-         compByte = '\x01'
-      privHashAddr = SecureBinaryData(PRIVKEYBYTE + binKey + compByte)
-      privHash256 = \
-                    SecureBinaryData(hash256(privHashAddr.toBinStr())[0:4])
-      privHashFinal = \
-              SecureBinaryData(binary_to_base58(privHashAddr.toBinStr() + \
-                                                privHash256.toBinStr()))
-      retBase58 = privHashFinal.toBinStr()
-   finally:
-      privHashAddr.destroy()
-      privHash256.destroy()
-      privHashFinal.destroy()
-
-   return retBase58
-
-
-################################################################################
-def hash160_to_addrStr(binStr, netbyte=ADDRBYTE):
-   """
-   Converts the 20-byte pubKeyHash to 25-byte binary Bitcoin address
-   which includes the network byte (prefix) and 4-byte checksum (suffix)
-   """
-
-   if not len(binStr) == 20:
-      raise InvalidHashError('Input string is %d bytes' % len(binStr))
-
-   addr21 = netbyte + binStr
-   addr25 = addr21 + hash256(addr21)[:4]
-   return binary_to_base58(addr25)
-
-################################################################################
-def hash160_to_p2shAddrStr(binStr):
-   if not len(binStr) == 20:
-      raise InvalidHashError('Input string is %d bytes' % len(binStr))
-
-   addr21 = P2SHBYTE + binStr
-   addr25 = addr21 + hash256(addr21)[:4]
-   return binary_to_base58(addr25)
-
-################################################################################
-def binScript_to_p2shAddrStr(binScript):
-   return hash160_to_p2shAddrStr(hash160(binScript))
-
-################################################################################
-def addrStr_is_p2sh(b58Str):
-   if len(b58Str)==0:
-      return False
-
-   if sum([(0 if c in BASE58CHARS else 1) for c in b58Str]) > 0:
-      return False
-
-   binStr = base58_to_binary(b58Str)
-   if not len(binStr)==25:
-      return False
-
-   if not hash256(binStr[:21])[:4] == binStr[-4:]:
-      return False
-
-   return (binStr[0] == P2SHBYTE)
-
-################################################################################
-# As of version 0.90.1, this returns the prefix byte with the hash160.  This is
-# because we need to handle/distinguish regular addresses from P2SH.  All code
-# using this method must be updated to expect 2 outputs and check the prefix.
-def addrStr_to_hash160(b58Str, p2shAllowed=True, \
-                       addrByte = ADDRBYTE, p2shByte = P2SHBYTE):
-   binStr = base58_to_binary(b58Str)
-   
-   addrByteInt = int.from_bytes(addrByte, "little")
-   p2shByteInt = int.from_bytes(p2shByte, "little")
-
-   if not p2shAllowed and binStr[0]==addrByteInt:
-      raise P2SHNotSupportedError
-   if not len(binStr) == 25:
-      raise BadAddressError('Address string is %d bytes' % len(binStr))
-
-   if not hash256(binStr[:21])[:4] == binStr[-4:]:
-      raise ChecksumError('Address string has invalid checksum')
-
-   if not binStr[0] in (addrByteInt, p2shByteInt):
-      raise BadAddressError('Unknown addr prefix: %s' % binary_to_hex(binStr[0]))
-
-   return (binStr[0], binStr[1:-4])
 
 
 ###### Typing-friendly Base16 #####
@@ -2596,41 +2216,6 @@ def testReconstructSecrets(fragMap, M, maxTestCount=20):
 
    return isRandom, testResults
 
-
-################################################################################
-def ComputeFragIDBase58(M, wltIDBin):
-   mBin4   = int_to_binary(M, widthBytes=4, endOut=BIGENDIAN)
-   fragBin = hash256(wltIDBin + mBin4)[:4]
-   fragB58 = str(M) + binary_to_base58(fragBin)
-   return fragB58
-
-################################################################################
-def ComputeFragIDLineHex(M, index, wltIDBin, isSecure=False, addSpaces=False):
-   fragID  = int_to_hex((128+M) if isSecure else M)
-   fragID += int_to_hex(index+1)
-   fragID += binary_to_hex(wltIDBin)
-
-   if addSpaces:
-      fragID = ' '.join([fragID[i*4:(i+1)*4] for i in range(4)])
-
-   return fragID
-
-
-################################################################################
-def ReadFragIDLineBin(binLine):
-   doMask = binary_to_int(binLine[0]) > 127
-   M      = binary_to_int(binLine[0]) & 0x7f
-   fnum   = binary_to_int(binLine[1])
-   fragID  = binLine[2:]
-
-   idBase58 = ComputeFragIDBase58(M, fragID) + '-#' + str(fnum)
-   return (M, fnum, fragID, doMask, idBase58)
-
-
-################################################################################
-def ReadFragIDLineHex(hexLine):
-   return ReadFragIDLineBin( hex_to_binary(hexLine.strip().replace(' ','')))
-
 # END FINITE FIELD OPERATIONS
 ################################################################################
 ################################################################################
@@ -2771,15 +2356,6 @@ def parsePrivateKeyData(theStr):
       elif len(binEntry) in (33, 37) and binEntry[-1]=='\x01':
          raise CompressedKeyError('Compressed Public keys not supported!')
       return binEntry, keyType
-
-
-
-################################################################################
-def encodePrivKeyBase58(privKeyBin):
-   bin33 = PRIVKEYBYTE + privKeyBin
-   chk = computeChecksum(bin33)
-   return binary_to_base58(bin33 + chk)
-
 
 
 URI_VERSION_STR = '1.0'
@@ -3255,30 +2831,6 @@ def touchFile(fname):
       f.flush()
       os.fsync(f.fileno())
       f.close()
-
-################################################################################
-def calcLockboxID(script=None, scraddr=None):
-   # ScrAddr is "Script/Address" and for multisig it is 0xfe followed by
-   # M and N, then the SORTED hash160 values of the public keys
-   # Part of the reason for using "ScrAddrs" is to bundle together
-   # different scripts that have the same effective signing authority.
-   # Different sortings of the same public key list have same signing
-   # authority and therefore should have the same ScrAddr
-
-   if script is not None:
-      scrType = getTxOutScriptType(script)
-      if not scrType==CPP_TXOUT_MULTISIG:
-         LOGERROR('Not a multisig script!')
-         return None
-      scraddr = script_to_scrAddr(script)
-
-   if not scraddr.startswith(SCRADDR_MULTISIG_BYTE):
-      LOGERROR('ScrAddr is not a multisig script!')
-      return None
-
-   hashedData = hash160(MAGIC_BYTES + scraddr)
-   return binary_to_base58(hashedData)[1:9]
-
 
 ################################################################################
 def getNameForAddrType(addrType):

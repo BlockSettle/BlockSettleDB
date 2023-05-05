@@ -14,8 +14,8 @@ from __future__ import (absolute_import, division,
 import os.path
 import shutil
 
-from armoryengine.ArmoryUtils import AddressEntryType_Default, UINT32_MAX, \
-   emptyFunc, PYBTCWALLET_VERSION, USE_TESTNET, USE_REGTEST, CLI_OPTIONS, \
+from armoryengine.ArmoryUtils import UINT32_MAX, emptyFunc, \
+   PYBTCWALLET_VERSION, USE_TESTNET, USE_REGTEST, CLI_OPTIONS, \
    LOGINFO, LOGEXCEPT, LOGWARN, LOGERROR
 from armoryengine.BinaryPacker import *
 from armoryengine.BinaryUnpacker import *
@@ -23,6 +23,8 @@ from armoryengine.Timer import Timer, TimeThisFunction
 from armoryengine.Decorators import singleEntrantMethod
 from armoryengine.CppBridge import TheBridge, BridgeWalletWrapper
 from armoryengine.PyBtcAddress import PyBtcAddress
+from armoryengine.AddressUtils import addrStr_to_hash160, \
+   scrAddr_to_addrStr, AddressEntryType_Default
 
 BLOCKCHAIN_READONLY   = 0
 BLOCKCHAIN_READWRITE  = 1
@@ -332,17 +334,6 @@ class PyBtcWallet(object):
             return comment
 
       return ''
-
-   #############################################################################
-   @CheckWalletRegistration
-   def printAddressBook(self):
-      addrbook = self.cppWallet.createAddressBook()
-      for abe in addrbook:
-         print(hash160_to_addrStr(abe.getAddr160()), end=' ')
-         txlist = abe.getTxList()
-         print(len(txlist))
-         for rtx in txlist:
-            print('\t', binary_to_hex(rtx.getTxHash(), BIGENDIAN))
 
    #############################################################################
    def hasAnyImported(self):

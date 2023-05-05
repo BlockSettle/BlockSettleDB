@@ -12,6 +12,8 @@ from armoryengine.MultiSigUtils import readLockboxEntryStr, calcLockboxID, \
    isBareLockbox, isP2SHLockbox
 from armoryengine.Transaction import getTxOutScriptType, getMultisigScriptInfo
 from armoryengine.CppBridge import TheBridge, BridgeError
+from armoryengine.AddressUtils import script_to_scrAddr, script_to_addrStr, \
+   scrAddr_to_addrStr
 
 #############################################################################
 def getScriptForUserStringImpl(userStr, wltMap, lboxList):

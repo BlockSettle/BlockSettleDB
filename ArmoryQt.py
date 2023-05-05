@@ -54,10 +54,13 @@ from armoryengine.ArmoryUtils import HMAC256, \
    enum, GetExecDir, RightNow, CLI_ARGS, ARMORY_HOME_DIR, DEFAULT, \
    ARMORY_DB_DIR, coin2str, DEFAULT_DATE_FORMAT, \
    unixTimeToFormatStr, binary_to_hex, BTC_HOME_DIR, secondsToHumanTime, \
-   LEVELDB_BLKDATA, LOGRAWDATA, LOGPPRINT, hex_to_binary, \
+   LEVELDB_BLKDATA, LOGPPRINT, hex_to_binary, \
    getRandomHexits_NotSecure, coin2strNZS, bytesToHumanSize, hash256, \
    DEFAULT_ADDR_TYPE, hex_switchEndian, BLOCKEXPLORE_NAME, getBridgeArgList
 from armoryengine.Settings import TheSettings
+from armoryengine.AddressUtils import base58_to_binary, Hash160ToScrAddr, \
+   hash160_to_addrStr, addrStr_to_hash160, scrAddr_to_script, \
+   scrAddr_to_addrStr, LOGRAWDATA
 
 from armoryengine.Block import PyBlock
 from armoryengine.Decorators import RemoveRepeatingExtensions
@@ -5467,7 +5470,7 @@ class ArmoryMainWindow(QMainWindow):
       wlt = self.walletMap[walletId]
 
       #grab ZC from DB
-      zctx = TheBDM.bdv().getTxByHash(txHash)
+      zctx = TheBDM.service.getTxByHash(txHash)
       pytx = PyTx().unserialize(zctx.serialize())
 
       #create tx batch

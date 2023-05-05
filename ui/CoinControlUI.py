@@ -8,6 +8,7 @@ from __future__ import (absolute_import, division,
 #                                                                            #
 ##############################################################################
 
+from armoryengine.Settings import TheSettings
 from qtdialogs.qtdefines import QRichLabel, makeHorizFrame, \
    saveTableView, restoreTableView, createToolTipWidget
 from qtdialogs.ArmoryDialog import ArmoryDialog
@@ -60,8 +61,8 @@ class CoinControlDlg(ArmoryDialog):
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
 
-      hexgeom  = self.main.settings.get('ccDlgGeometry')
-      tblgeom  = self.main.settings.get('ccDlgAddrCols')
+      hexgeom  = TheSettings.get('ccDlgGeometry')
+      tblgeom  = TheSettings.get('ccDlgAddrCols')
 
       if len(hexgeom) > 0:
          if type(hexgeom) == str:
@@ -159,8 +160,8 @@ class RBFDlg(ArmoryDialog):
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
 
-      hexgeom  = self.main.settings.get('rbfDlgGeometry')
-      tblgeom  = self.main.settings.get('rbfDlgAddrCols')
+      hexgeom  = TheSettings.get('rbfDlgGeometry')
+      tblgeom  = TheSettings.get('rbfDlgAddrCols')
 
       if len(hexgeom) > 0:
          if type(hexgeom) == str:

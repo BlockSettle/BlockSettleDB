@@ -9,11 +9,23 @@ from __future__ import (absolute_import, division,
 ################################################################################
 import logging
 import os
+import binascii
 
-from armoryengine.ArmoryUtils import *
-from armoryengine.BinaryPacker import *
-from armoryengine.BinaryUnpacker import *
-
+from armoryengine.ArmoryUtils import BlockComponent, BIGENDIAN, \
+   LITTLEENDIAN, enum, UINT32_MAX, UNINITIALIZED, WITNESS_MARKER, hash256, \
+   CPP_TXOUT_NONSTANDARD, CPP_TXOUT_P2SH, CPP_TXOUT_MULTISIG, \
+   CPP_TXOUT_P2WPKH, CPP_TXOUT_P2WSH, CPP_TXOUT_NONSTANDARD, \
+   CPP_TXOUT_STDPUBKEY33, CPP_TXOUT_STDPUBKEY65, CPP_TXOUT_STDHASH160, \
+   CPP_TXIN_STDUNCOMPR, CPP_TXIN_STDCOMPR, CPP_TXIN_SPENDP2SH, \
+   CPP_TXIN_P2WPKH_P2SH, CPP_TXIN_P2WSH_P2SH, MIN_RELAY_TX_FEE, \
+   int_to_binary, SignatureError, indent, binary_to_hex, \
+   hash160, sha256, ONE_BTC
+from armoryengine.AddressUtils import hash160_to_addrStr, binary_to_base58, \
+   CheckHash160, binScript_to_p2shAddrStr, script_to_addrStr, \
+   script_to_scrAddr, scrAddr_to_addrStr, BadAddressError
+from armoryengine.BinaryPacker import BinaryPacker, UINT8, UINT32, UINT64, \
+   VAR_INT, BINARY_CHUNK
+from armoryengine.BinaryUnpacker import BinaryUnpacker
 from armoryengine.AsciiSerialize import AsciiSerializable
 from armoryengine.CppBridge import TheBridge, BridgeSigner
 from armoryengine.CoinSelection import sumTxOutList
@@ -268,7 +280,7 @@ def TxInExtractAddrStrIfAvail(txinObj):
    elif scrType == CPP_TXIN_P2WPKH_P2SH:
       return binScript_to_p2shAddrStr(hash160(rawScript))
    elif scrType == CPP_TXIN_P2WSH_P2SH:
-      return binScript_to_p2shAddrStr(hash160(rawScript[1:]))
+      return binScript_to_p2shAddrStr(sha256(rawScript[1:]))
    else:
       return ''
 
@@ -323,6 +335,9 @@ class PyOutPoint(BlockComponent):
       binOut.put(BINARY_CHUNK, self.txHash)
       binOut.put(UINT32, self.txOutIndex)
       return binOut.getBinaryString()
+
+   def getTxHashStr(self):
+      return binascii.hexlify(self.txHash)
 
    def pprint(self, nIndent=0, endian=BIGENDIAN):
       indstr = indent*nIndent
@@ -975,102 +990,6 @@ class UnsignedTxInput(AsciiSerializable):
       baseScript = self.txoScript
       if self.scriptType==CPP_TXOUT_P2SH:
          nested = True
-
-         '''
-         # If we're here, we should've passed in a P2SH script
-         if len(self.p2shMap) == 0:
-            self.isInitialized = False
-            raise UstxError('No P2SH script supplied for P2SH input')
-
-         # Sanity check that the supplied P2SH script actually matches
-         self.p2shScrAddr = script_to_scrAddr(baseScript)
-         scriptHash = hash160(self.p2shMap[BASE_SCRIPT])
-         if not P2SHBYTE + scriptHash == self.p2shScrAddr:
-            self.isInitialized = False
-            raise InvalidScriptError('No P2SH script info avail for TxDP')
-
-         # Replace script type with that of the sub-script
-         # We can use the presence of p2shScript to identify it's p2sh
-         # Do the rest of the processing with the baseScript though we
-         # will leave self.txoScript alone since that needs to be the
-         # original script
-         baseScript = self.p2shMap[BASE_SCRIPT]
-         self.scriptType = getTxOutScriptType(baseScript)
-         '''
-
-      #####
-      '''
-      # Fill some of the other fields with info needed to spend the script
-      if self.scriptType==CPP_TXOUT_MULTISIG:
-         #nested or raw MS scripts for lockboxes
-         M, N, a160s, pubs = getMultisigScriptInfo(baseScript)
-         self.sigsNeeded   = M
-         self.keysListed   = N
-         self.scrAddrs     = [SCRADDR_P2PKH_BYTE+a for a in a160s]
-         self.pubKeys      = pubs[:]
-         self.signatures   = ['']*N
-         self.wltLocators  = ['']*N
-
-      elif nested == False:
-         #legacy single sig types
-         if self.scriptType==CPP_TXOUT_P2SH:
-            # If this is a P2SH script, we've already overwritten the script
-            # type with the type of sub script.  If we're here, this means
-            # that the subscript is also P2SH, which is not allowed
-            raise InvalidScriptError('Cannot have recursive P2SH scripts!')
-         elif self.scriptType in CPP_TXOUT_STDSINGLESIG:
-            scrAddr = script_to_scrAddr(baseScript)
-            if pubKeyMap is None or pubKeyMap.get(scrAddr) is None:
-               raise KeyDataError('Must give pubkey map for singlesig USTXI!')
-            self.sigsNeeded  = 1
-            self.keysListed  = 1
-            self.scrAddrs    = [scrAddr]
-            self.pubKeys     = [pubKeyMap[scrAddr]]
-            self.signatures  = ['']
-            self.wltLocators = ['']
-         else:
-            LOGWARN("Non-standard script for TxIn %d" % i)
-            pass
-
-      else:
-         #new nested single sig types
-         scrType = self.scriptType
-         if scrType in CPP_TXOUT_NESTED_SINGLESIG and \
-            BASE_SCRIPT in self.p2shMap:
-            scrAddr = P2SHBYTE + hash160(self.p2shMap[BASE_SCRIPT])
-            self.sigsNeeded  = 1
-            self.keysListed  = 1
-            self.scrAddrs    = [scrAddr]
-            self.pubKeys     = [pubKeyMap[scrAddr]]
-            self.signatures  = ['']
-            self.wltLocators = ['']
-            self.isLegacyScript = False
-
-            if scrType == CPP_TXOUT_P2WPKH:
-               self.isSegWit = True
-
-         elif scrType == CPP_TXOUT_P2WSH:
-            try:
-               baseScript = self.p2shMap[BASE_SCRIPT]
-               msScript = self.p2shMap[baseScript]
-            except:
-               LOGERROR("missing p2wsh pre image" % i)
-               
-            M, N, a160s, pubs = getMultisigScriptInfo(msScript)
-            self.sigsNeeded   = M
-            self.keysListed   = N
-            self.scrAddrs     = [SCRADDR_P2PKH_BYTE+a for a in a160s]
-            self.pubKeys      = pubs[:]
-            self.signatures   = ['']*N
-            self.wltLocators  = ['']*N
-            self.isLegacyScript = False
-            self.isSegWit = True
-
-         else:
-            LOGWARN("Unexpected nested type for TxIn %d" % i)
-            pass
-      '''
-
 
       # "insert*s" can either be a single values, or a list
       # of pairs [multisgIndex, pubKey]
@@ -2021,24 +1940,6 @@ class UnsignedTransaction(AsciiSerializable):
          else:
             raise InvalidScriptError('No previous-tx data available for TxDP')
 
-         txoScript = pyPrevTx.outputs[txoIdx].binScript
-         txoScrAddr = script_to_scrAddr(txoScript)
-         txoType = getTxOutScriptType(txoScript)
-         
-         '''
-         p2shMap_copy = {}
-         if txoType==CPP_TXOUT_P2SH:
-            p2sh = p2shMap.get(binary_to_hex(txoScrAddr))
-            if not p2sh:
-               raise InvalidHashError('P2SH script not supplied')
-            p2shMap_copy[BASE_SCRIPT] = p2sh
-            script_key = p2sh
-            while script_key in p2shMap:
-               val = p2shMap[script_key]
-               p2shMap_copy[script_key] = val
-               script_key = val
-         '''
-
          ustxiList.append(UnsignedTxInput(pyPrevTx.serializeWithoutWitness(),
                                           txoIdx,
                                           {},
@@ -2508,7 +2409,7 @@ def determineSentToSelfAmt(le, wlt):
           creative with this tx, this may not actually work.
    """
    amt = 0
-   if le.sent_to_senf:
+   if le.sent_to_self:
       txProto = TheBridge.service.getTxByHash(le.hash)
       if txProto == None:
          return (0, 0)

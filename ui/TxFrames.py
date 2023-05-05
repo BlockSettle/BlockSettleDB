@@ -31,10 +31,12 @@ from ui.WalletFrames import SelectWalletFrame, LockboxSelectFrame
 from armoryengine.MultiSigUtils import createLockboxEntryStr
 from armoryengine.ArmoryUtils import MAX_COMMENT_LENGTH, getAddrByte, \
    LOGEXCEPT, LOGERROR, LOGINFO, NegativeValueError, TooMuchPrecisionError, \
-   str2coin, CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, \
-   coin2str, MIN_FEE_BYTE, getNameForAddrType, addrTypeInSet, \
-   getAddressTypeForOutputType, binary_to_hex
+   str2coin, CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, coin2str, \
+   MIN_FEE_BYTE, getNameForAddrType, binary_to_hex
 from armoryengine.Settings import TheSettings
+from armoryengine.AddressUtils import hash160_to_addrStr, addrTypeInSet, \
+   addrStr_to_hash160, script_to_addrStr, getAddressTypeForOutputType, \
+   BadAddressError
 
 from ui.FeeSelectUI import FeeSelectionDialog
 from ui.QtExecuteSignal import TheSignalExecution
@@ -53,7 +55,7 @@ CS_USE_FULL_CUSTOM_LIST = 1
 CS_ADJUST_FEE           = 2
 CS_SHUFFLE_ENTRIES      = 4
 
-from armoryengine.PyBtcAddress import AddressEntryType_Default, \
+from armoryengine.AddressUtils import AddressEntryType_Default, \
    AddressEntryType_P2PKH, AddressEntryType_P2PK, AddressEntryType_P2WPKH, \
    AddressEntryType_Multisig, AddressEntryType_Uncompressed, \
    AddressEntryType_P2SH, AddressEntryType_P2WSH
@@ -1021,7 +1023,6 @@ class SendBitcoinsFrame(ArmoryFrame):
                def finalizeSignTx(success):
                   #this needs to run in the GUI thread
                   def signTxLastStep(success):
-                     print (f"signtx success: {success}")
                      if success:
                         finalTx = ustx.getSignedPyTx()
 

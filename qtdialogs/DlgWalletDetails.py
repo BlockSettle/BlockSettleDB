@@ -15,6 +15,7 @@ from PySide2.QtWidgets import QFrame, QVBoxLayout, QGridLayout, QPushButton, \
    QTreeView, QLabel, QCheckBox, QLineEdit, QDialogButtonBox, QTextEdit
 
 from armoryengine.ArmoryUtils import getVersionString, coin2str, isASCII
+from armoryengine.AddressUtils import addrStr_to_hash160
 from armoryengine.BDM import TheBDM, BDM_UNINITIALIZED, BDM_OFFLINE, \
    BDM_SCANNING
 from armoryengine.Settings import TheSettings

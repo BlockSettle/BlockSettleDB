@@ -15,6 +15,7 @@ from PySide2.QtWidgets import QApplication, QFrame, QGridLayout, \
 
 from armoryengine.ArmoryUtils import BIGENDIAN, LITTLEENDIAN, binary_to_hex
 from armoryengine.Settings import TheSettings
+from armoryengine.AddressUtils import encodePrivKeyBase58
 
 from armorymodels import LedgerDispModelSimple, LedgerDispDelegate, \
    LEDGERCOLS, GETFONT

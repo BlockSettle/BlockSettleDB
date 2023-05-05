@@ -7,17 +7,13 @@ from __future__ import (absolute_import, division,
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
 ################################################################################
-from armoryengine.ArmoryUtils import ADDRBYTE, hash256, binary_to_base58, \
+from armoryengine.ArmoryUtils import ADDRBYTE, hash256, \
    KeyDataError, RightNow, LOGERROR, ChecksumError, convertKeyDataToAddress, \
    verifyChecksum, WalletLockError, createDERSigFromRS, binary_to_int, \
    computeChecksum, getVersionInt, PYBTCWALLET_VERSION, bitset_to_int, \
-   LOGDEBUG, Hash160ToScrAddr, int_to_bitset, UnserializeError, \
-   hash160_to_addrStr, int_to_binary, BIGENDIAN, \
-   BadAddressError, checkAddrStrValid, binary_to_hex, ENABLE_DETSIGN, \
-   AddressEntryType_Default, AddressEntryType_P2PKH, AddressEntryType_P2PK, \
-   AddressEntryType_P2WPKH, AddressEntryType_Multisig, \
-   AddressEntryType_Uncompressed, AddressEntryType_P2SH, \
-   AddressEntryType_P2WSH
+   LOGDEBUG, int_to_bitset, UnserializeError, int_to_binary, BIGENDIAN, \
+   checkAddrStrValid, binary_to_hex, ENABLE_DETSIGN
+from armoryengine.AddressUtils import AddressEntryType_Default
 from armoryengine.BinaryPacker import BinaryPacker, UINT8, UINT16, UINT32, \
    UINT64, INT8, INT16, INT32, INT64, VAR_INT, VAR_STR, FLOAT, BINARY_CHUNK
 from armoryengine.BinaryUnpacker import BinaryUnpacker

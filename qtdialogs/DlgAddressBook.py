@@ -18,8 +18,8 @@ from PySide2.QtWidgets import QPushButton, QCheckBox, QGridLayout, \
 from armorymodels import AllWalletsDispModel, WLTVIEWCOLS, \
    SentToAddrBookModel, SentAddrSortProxy, ADDRBOOKCOLS, \
    WalletAddrDispModel, WalletAddrSortProxy, ADDRESSCOLS
-from armoryengine.ArmoryUtils import DEFAULT_RECEIVE_TYPE, \
-   addrStr_to_hash160, P2SHBYTE
+from armoryengine.ArmoryUtils import DEFAULT_RECEIVE_TYPE, P2SHBYTE
+from armoryengine.AddressUtils import addrStr_to_hash160
 from armoryengine.MultiSigUtils import isBareLockbox, isP2SHLockbox
 from armoryengine.Settings import TheSettings
 

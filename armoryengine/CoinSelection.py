@@ -62,8 +62,10 @@ from __future__ import (absolute_import, division,
 import math
 import random
 
-from armoryengine.ArmoryUtils import CheckHash160, binary_to_hex, coin2str, \
-   hash160_to_addrStr, ONE_BTC, CENT, int_to_binary, MIN_RELAY_TX_FEE, MIN_TX_FEE
+from armoryengine.ArmoryUtils import binary_to_hex, coin2str, \
+   ONE_BTC, CENT, int_to_binary, MIN_RELAY_TX_FEE, MIN_TX_FEE
+from armoryengine.AddressUtils import CheckHash160, hash160_to_addrStr, \
+   scrAddr_to_script
 from armoryengine.Timer import TimeThisFunction
 from armoryengine.Transaction import *
 from armoryengine.BDM import TheBDM
@@ -79,11 +81,11 @@ from armoryengine.BDM import TheBDM
 #        (correctly) throw errors if you don't.  We can upgrade this in
 #        the future.
 class PyUnspentTxOut(object):
-   def __init__(self, scrAddr=None, txHash=None, txoIdx=None, val=None, 
-                                             numConf=None, fullScript=None):
+   def __init__(self, scrAddr=None, txHash=None, txoIdx=None, val=None,
+      numConf=None, fullScript=None):
 
-      self.initialize(scrAddr, txHash, None, None, None, 
-                      txoIdx, val, numConf, fullScript)
+      self.initialize(scrAddr, txHash, None, None, None,
+         txoIdx, val, numConf, fullScript)
 
 
    #############################################################################
@@ -179,16 +181,16 @@ class PyUnspentTxOut(object):
 
    #############################################################################
    def toBridgeUtxo(self):
-      from armoryengine import ClientProto_pb2
-      bridgeUtxo = ClientProto_pb2.BridgeUtxo()
+      from armoryengine import BridgeProto_pb2
+      bridgeUtxo = BridgeProto_pb2.Utxo()
 
-      bridgeUtxo.scrAddr = self.scrAddr
+      bridgeUtxo.scraddr = self.scrAddr
       bridgeUtxo.value = self.val
-      bridgeUtxo.txHash = self.txHash
-      bridgeUtxo.txOutIndex = self.txOutIndex
+      bridgeUtxo.tx_hash = self.txHash
+      bridgeUtxo.txout_index = self.txOutIndex
       bridgeUtxo.script = self.binScript
-      bridgeUtxo.txHeight = self.txHeight
-      bridgeUtxo.txIndex = self.txIndex
+      bridgeUtxo.tx_height = self.txHeight
+      bridgeUtxo.tx_index = self.txIndex
 
       return bridgeUtxo
 
@@ -211,101 +213,6 @@ def pprintUnspentTxOutList(utxoList, headerLine='Coin Selection: '):
       print('   ',(coin2str(utxo.getValue()) + ' BTC').rjust(18), end=' ')
       print('   ',str(utxo.getNumConfirm()).rjust(8), end=' ')
       print('   ', ('%0.2f' % (utxo.getValue()*utxo.getNumConfirm()/(ONE_BTC*144.))).rjust(16))
-
-
-################################################################################
-# Sorting currently implemented in C++, but we implement a different kind, here
-def PySortCoins(unspentTxOutInfo, sortMethod=1):
-   """
-   Here we define a few different ways to sort a list of unspent TxOut objects.
-   Most of them are simple, some are more complex.  In particular, the last
-   method (4) tries to be intelligent, by grouping together inputs from the
-   same address.
-
-   The goal is not to do the heavy lifting for SelectCoins... we simply need
-   a few different ways to sort coins so that the SelectCoins algorithms has
-   a variety of different inputs to play with.  Each sorting method is useful
-   for some types of unspent-TxOut lists, so as long as we have one good
-   sort, the PyEvalCoinSelect method will pick it out.
-
-   As a precaution we send all the zero-confirmation UTXO's to the back
-   of the list, so that they will only be used if absolutely necessary.
-   """
-   zeroConfirm = []
-
-   if sortMethod==0:
-      priorityFn = lambda a: a.getValue() * a.getNumConfirm()
-      return sorted(unspentTxOutInfo, key=priorityFn, reverse=True)
-   if sortMethod==1:
-      priorityFn = lambda a: (a.getValue() * a.getNumConfirm())**(1/3.)
-      return sorted(unspentTxOutInfo, key=priorityFn, reverse=True)
-   if sortMethod==2:
-      priorityFn = lambda a: (math.log(a.getValue()*a.getNumConfirm()+1)+4)**4
-      return sorted(unspentTxOutInfo, key=priorityFn, reverse=True)
-   if sortMethod==3:
-      priorityFn = lambda a: a.getValue() if a.getNumConfirm()>0 else 0
-      return sorted(unspentTxOutInfo, key=priorityFn, reverse=True)
-   if sortMethod==4:
-      addrMap = {}
-      zeroConfirm = []
-      for utxo in unspentTxOutInfo:
-         if utxo.getNumConfirm() == 0:
-            zeroConfirm.append(utxo)
-         else:
-            scrType = getTxOutScriptType(utxo.getScript())
-            if scrType in CPP_TXOUT_HAS_ADDRSTR:
-               addr = script_to_addrStr(utxo.getScript())
-            else:
-               addr = script_to_scrAddr(utxo.getScript())
-
-            if addr not in addrMap:
-               addrMap[addr] = [utxo]
-            else:
-               addrMap[addr].append(utxo)
-
-      priorityUTXO = (lambda a: (a.getNumConfirm()*a.getValue()**0.333))
-      for addr,txoutList in addrMap.iteritems():
-         txoutList.sort(key=priorityUTXO, reverse=True)
-
-      priorityGrp = lambda a: max([priorityUTXO(utxo) for utxo in a])
-      finalSortedList = []
-      for utxo in sorted(addrMap.values(), key=priorityGrp, reverse=True):
-         finalSortedList.extend(utxo)
-
-      finalSortedList.extend(zeroConfirm)
-      return finalSortedList
-   if sortMethod in (5, 6, 7):
-      utxoSorted = PySortCoins(unspentTxOutInfo, 1)
-      if len(utxoSorted) == 0:
-         return utxoSorted
-      # Rotate the top 1,2 or 3 elements to the bottom of the list
-      for i in range(sortMethod-4):
-         utxoSorted.append(utxoSorted[0])
-         del utxoSorted[0]
-      return utxoSorted
-
-   # TODO:  Add a semi-random sort method:  it will favor putting high-priority
-   #        outputs at the front of the list, but will not be deterministic
-   #        This should give us some high-fitness variation compared to sorting
-   #        uniformly
-   if sortMethod==8:
-      utxosNoZC = filter(lambda a: a.getNumConfirm()!=0, unspentTxOutInfo)
-      random.shuffle(utxosNoZC)
-      utxosNoZC.extend(filter(lambda a: a.getNumConfirm()==0, unspentTxOutInfo))
-      return utxosNoZC
-   if sortMethod==9:
-      utxoSorted = PySortCoins(unspentTxOutInfo, 1)
-      sz = len(filter(lambda a: a.getNumConfirm()!=0, utxoSorted))
-      # swap 1/3 of the values at random
-      topsz = int(min(max(round(sz/3), 5), sz))
-      for i in range(topsz):
-         pick1 = int(random.uniform(0,topsz))
-         pick2 = int(random.uniform(0,sz-topsz))
-         utxoSorted[pick1], utxoSorted[pick2] = utxoSorted[pick2], utxoSorted[pick1]
-      return utxoSorted
-
-
-
 
 ################################################################################
 # Now we try half a dozen different selection algorithms
@@ -436,172 +343,6 @@ def PySelectCoins_MultiInput_DoubleValue( \
    return outList
 
 
-
-
-################################################################################
-def getSelectCoinsScores(utxoSelectList, targetOutVal, minFee):
-   """
-   Define a metric for scoring the output of SelectCoints.  The output of
-   this method is a tuple of scores which identify a few different factors
-   of a txOut selection that users might care about in a selectCoins algorithm.
-
-   This method only returns an absolute score, usually between 0 and 1 for
-   each factor.  It is up to the person calling this method to decide how
-   much "weight" they want to give each one.  You could even use the scores
-   as multiplicative factors if you wanted, though they were designed with
-   the following equation in mind:   finalScore = sum(WEIGHT[i] * SCORE[i])
-
-   TODO:  I need to recalibrate some of these factors, and modify them to
-          represent more directly what the user would be concerned about --
-          such as PayFeeFactor, AnonymityFactor, etc.  The information is
-          indirectly available with the current set of factors here
-   """
-
-   # Need to calculate how much the change will be returned to sender on this tx
-   totalIn = sum([utxo.getValue() for utxo in utxoSelectList])
-   totalChange = totalIn - (targetOutVal+minFee)
-
-   # Abort if this is an empty list (negative score) or not enough coins
-   if len(utxoSelectList)==0 or totalIn<targetOutVal+minFee:
-      return -1
-
-
-   ##################
-   # -- Does this selection include any zero-confirmation tx?
-   # -- How many addresses are linked together by this tx?
-   addrSet = set()
-   noZeroConf = 1
-   for utxo in utxoSelectList:
-      
-      addrSet.add(script_to_scrAddr(utxo.getScript()))
-      if utxo.getNumConfirm() == 0:
-         noZeroConf = 0
-   numAddr = len(addrSet)
-   numAddrFactor = 4.0/(numAddr+1)**2  # values in the range (0, 1]
-
-
-
-   ##################
-   # Evaluate output anonanymity
-   # One good measure of anonymity is look at trailiing zeros of the value.
-   # If one output is like 50.0, and nother if 27.383291, then it's fairly
-   # obvious which one is the change.  Can measure that by seeing that 50.0
-   # in satoshis has 9 trailing zeros, where as 27.383291 only has 2
-   #
-   # If the diff is negative, the wrong answer starts to look like the
-   # correct one (about which output is recipient and which is change)
-   # We should give "extra credit" for those cases
-   def countTrailingZeros(btcVal):
-      for i in range(1,20):
-         if btcVal % 10**i != 0:
-            return i-1
-      return 0  # not sure how we'd get here, but let's be safe
-   tgtTrailingZeros =  countTrailingZeros(targetOutVal)
-   chgTrailingZeros =  countTrailingZeros(totalChange)
-   zeroDiff = tgtTrailingZeros - chgTrailingZeros
-   outAnonFactor = 0
-   if totalChange==0:
-      outAnonFactor = 1
-   else:
-      if zeroDiff==2:
-         outAnonFactor = 0.2
-      elif zeroDiff==1:
-         outAnonFactor = 0.7
-      elif zeroDiff<1:
-         outAnonFactor = abs(zeroDiff) + 1
-
-
-   ##################
-   # Equal inputs are anonymous-- but no point in doing this if the
-   # trailing zeros count is way different -- i.e. does it matter if
-   # outputs a and b are close, if a=51.000, and b=47.283?  It's
-   # still pretty obvious which one is the change. (so: only execute
-   # the following block if outAnonFactor > 0)
-   #
-   # On the other hand, if we have 1.832 and 10.00, and the 10.000 is the
-   # change, we don't really care that they're not close, it's still
-   # damned good/deceptive output anonymity  (so: only execute
-   # the following block if outAnonFactor <= 1)
-   if 0 < outAnonFactor <= 1 and not totalChange==0:
-      outValDiff = abs(totalChange - targetOutVal)
-      diffPct = (outValDiff / max(totalChange, targetOutVal))
-      if diffPct < 0.20:
-         outAnonFactor *= 1
-      elif diffPct < 0.50:
-         outAnonFactor *= 0.7
-      elif diffPct < 1.0:
-         outAnonFactor *= 0.3
-      else:
-         outAnonFactor = 0
-
-
-   ##################
-   # Tx size:  we don't have signatures yet, but we assume that each txin is
-   #           about 180 Bytes, TxOuts are 35, and 10 other bytes in the Tx
-   numBytes  =  10
-   numBytes += 180 * len(utxoSelectList)
-   numBytes +=  35 * (1 if totalChange==0 else 2)
-   txSizeFactor = 0
-   numKb = int(numBytes / 1000)
-   # Will compute size factor after we see this tx priority and AllowFree
-   # results.  If the tx qualifies for free, we don't need to penalize
-   # a 3 kB transaction vs one that is 0.5 kB
-
-
-   ##################
-   # Priority:  If our priority is above the 1-btc-after-1-day threshold
-   #            then we might be allowed a free tx.  But, if its priority
-   #            isn't much above this thresh, it might take a couple blocks
-   #            to be included
-   dPriority = 0
-   anyZeroConfirm = False
-   for utxo in utxoSelectList:
-      if utxo.getNumConfirm() == 0:
-         anyZeroConfirm = True
-      else:
-         dPriority += utxo.getValue() * utxo.getNumConfirm()
-
-   dPriority = dPriority / numBytes
-   priorityThresh = ONE_BTC * 144 / 250
-   if dPriority < priorityThresh:
-      priorityFactor = 0
-   elif dPriority < 10.0*priorityThresh:
-      priorityFactor = 0.7
-   elif dPriority < 100.0*priorityThresh:
-      priorityFactor = 0.9
-   else:
-      priorityFactor = 1.0
-
-
-   ##################
-   # AllowFree:  If three conditions are met, then the tx can be sent safely
-   #             without a tx fee.  Granted, it may not be included in the
-   #             current block if the free space is full, but definitely in
-   #             the next one
-   isFreeAllowed = 0
-   haveDustOutputs = (0<totalChange<CENT or targetOutVal<CENT)
-   if ((not haveDustOutputs) and \
-       dPriority >= priorityThresh and \
-       numBytes <= 10000):
-      isFreeAllowed = 1
-
-
-   ##################
-   # Finish size-factor calculation -- if free is allowed, kB is irrelevant
-   txSizeFactor = 0
-   if isFreeAllowed or numKb<1:
-      txSizeFactor = 1
-   else:
-      if numKb < 2:
-         txSizeFactor=0.2
-      elif numKb<3:
-         txSizeFactor=0.1
-      elif numKb<4:
-         txSizeFactor=0
-      else:
-         txSizeFactor=-1  #if this is huge, actually subtract score
-
-   return (isFreeAllowed, noZeroConf, priorityFactor, numAddrFactor, txSizeFactor, outAnonFactor)
 
 
 ################################################################################
@@ -847,38 +588,6 @@ def calcMinSuggestedFees(selectCoinsResult, targetOutVal, preSelectedFee,
       suggestedFee = numBytes*MIN_RELAY_TX_FEE
       
    return suggestedFee
-
-################################################################################
-def approxTxInSizeForTxOut(utxoScript, lboxList=None):
-   """
-   Since this is always used for fee estimation, we overestimate the size to
-   be conservative.  However, if this is P2SH, we won't have a clue what the
-   hashed script is, so unless we find it in our lockbox map, we assume the 
-   max-max which is 1,650 bytes.
-
-   Otherwise the TxIn is always:
-      PrevTxHash(32), PrevTxOutIndex(4), Script(_), Sequence(4)
-   """
-
-   scrType = getTxOutScriptType(utxoScript)
-   if scrType == CPP_TXOUT_STDHASH160:
-      return 180
-   elif scrType in [CPP_TXOUT_STDPUBKEY33, CPP_TXOUT_STDPUBKEY65]:
-      return 110
-   elif scrType == CPP_TXOUT_MULTISIG:
-      M,N,a160s,pubs = getMultisigScriptInfo(utxoScript)
-      return M*70 + 40
-   elif scrType == CPP_TXOUT_P2SH and not lboxList is None:
-      scrAddr = script_to_scrAddr(utxoScript)
-      for lbox in lboxList:
-         if scrAddr == lbox.getAddr():
-            M,N,a160s,pubs = getMultisigScriptInfo(lbox.binScript)
-            return M*70 + 40
-
-   # If we got here, we didn't identify it at all.  Assume max for TxIn
-   return 1650
-
-
 
 ################################################################################
 # I needed a new function that was going to be as accurate as possible for

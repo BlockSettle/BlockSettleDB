@@ -309,7 +309,6 @@ class DlgUnlockWallet(ArmoryDialog):
 
    #############################################################################
    def setIds(self, ids):
-      print (f"set ids: {ids}, self.encryptionKeyIds: {self.encryptionKeyIds}")
       if len(ids) == 0:
          self.reject()
       elif len(self.encryptionKeyIds) == 0:

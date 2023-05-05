@@ -6,7 +6,7 @@ from __future__ import (absolute_import, division,
 # Distributed under the GNU Affero General Public License (AGPL v3)            #
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
-# Copyright (C) 2016-2021, goatpig                                             #
+# Copyright (C) 2016-2023, goatpig                                             #
 #  Distributed under the MIT license                                           #
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                      #
 #                                                                              #
@@ -20,6 +20,15 @@ from PySide2.QtWidgets import QPushButton, QGridLayout, QFrame, \
    QVBoxLayout, QLabel, QMessageBox, QTextEdit, QSizePolicy, \
    QApplication, QRadioButton
 
+from ui.QtExecuteSignal import TheSignalExecution
+from armoryengine.Transaction import UnsignedTransaction, \
+   USTX_TYPE_MODERN, USTX_TYPE_LEGACY, USTX_TYPE_PSBT, USTX_TYPE_UNKNOWN
+from armoryengine.ArmoryUtils import LOGEXCEPT, LOGERROR, LOGINFO, \
+   CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, coin2str, enum, binary_to_hex, \
+   coin2strNZS, NetworkIDError, UnserializeError, OS_WINDOWS
+from armoryengine.Settings import TheSettings
+from armoryengine.AddressUtils import script_to_scrAddr, BadAddressError
+
 from qtdialogs.qtdefines import ArmoryFrame, tightSizeNChar, \
    GETFONT, QRichLabel, HLINE, QLabelButton, USERMODE, \
    VERTICAL, HORIZONTAL, STYLE_RAISED, relaxedSizeNChar, STYLE_SUNKEN, \
@@ -30,14 +39,6 @@ from qtdialogs.DlgDispTxInfo import DlgDispTxInfo, extractTxInfo
 from qtdialogs.DlgConfirmSend import DlgConfirmSend
 from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
 
-from armoryengine.Transaction import UnsignedTransaction, \
-   USTX_TYPE_MODERN, USTX_TYPE_LEGACY, USTX_TYPE_PSBT, USTX_TYPE_UNKNOWN
-from armoryengine.ArmoryUtils import LOGEXCEPT, LOGERROR, LOGINFO, \
-   CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, coin2str, enum, \
-   script_to_scrAddr, binary_to_hex, coin2strNZS, BadAddressError, \
-   NetworkIDError, UnserializeError
-from armoryengine.Settings import TheSettings
-from ui.QtExecuteSignal import TheSignalExecution
 
 ################################################################################
 class SignBroadcastOfflineTxFrame(ArmoryFrame):

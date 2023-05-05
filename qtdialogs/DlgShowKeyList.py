@@ -11,6 +11,7 @@
 ##############################################################################
 
 from qtdialogs.ArmoryDialog import ArmoryDialog
+from armoryengine.AddressUtils import encodePrivKeyBase58
 
 ################################################################################
 class DlgShowKeyList(ArmoryDialog):
