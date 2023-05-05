@@ -190,14 +190,14 @@ public:
    uint64_t        getValue(void) const { return READ_UINT64_LE(dataCopy_.getPtr()); }
    bool            isStandard(void) const { return scriptType_ != TXOUT_SCRIPT_NONSTANDARD; }
    bool            isInitialized(void) const { return dataCopy_.getSize() > 0; }
-   uint32_t        getIndex(void) { return index_; }
+   uint32_t        getIndex(void) const { return index_; }
 
    /////////////////////////////////////////////////////////////////////////////
    BinaryData const & getScrAddressStr(void) const { return uniqueScrAddr_; }
    BinaryDataRef      getScrAddressRef(void) const { return uniqueScrAddr_.getRef(); }
 
    /////////////////////////////////////////////////////////////////////////////
-   BinaryData         getScript(void);
+   BinaryData         getScript(void) const;
    BinaryDataRef      getScriptRef(void);
    TXOUT_SCRIPT_TYPE  getScriptType(void) const { return scriptType_; }
    uint32_t           getScriptSize(void) const { return getSize() - scriptOffset_; }

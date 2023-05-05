@@ -231,7 +231,7 @@ void TxIn::pprint(ostream & os, int nIndent, bool) const
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData TxOut::getScript(void)
+BinaryData TxOut::getScript(void) const
 {
    return BinaryData(dataCopy_.getPtr() + scriptOffset_, getScriptSize());
 }
