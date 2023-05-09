@@ -270,11 +270,10 @@ void WebSocketClient::shutdown()
       return;
 
    auto context = (struct lws_context*)contextPtr_.load(memory_order_acquire);
-   if (context == nullptr)
-      return;
-
+   if (context != nullptr) {
+      lws_cancel_service(context);
+   }
    run_.store(0, memory_order_relaxed);
-   lws_cancel_service(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
