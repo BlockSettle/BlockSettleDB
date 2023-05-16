@@ -447,9 +447,9 @@ BinaryData ScriptSpender::getAvailableInputScript() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData ScriptSpender::getSerializedInput(bool withSig) const
+BinaryData ScriptSpender::getSerializedInput(bool withSig, bool loose) const
 {
-   if (legacyStatus_ == SpenderStatus::Unknown)
+   if (legacyStatus_ == SpenderStatus::Unknown && !loose)
    {
       throw SpenderException("unresolved spender");
    }
@@ -1520,8 +1520,13 @@ void ScriptSpender::sign(shared_ptr<SignerProxy> proxy)
       }
    };
 
-   signStack(legacyStack_, false);
-   signStack(witnessStack_, true);
+   try
+   {
+      signStack(legacyStack_, false);
+      signStack(witnessStack_, true);
+   }
+   catch (const exception&)
+   {}
 
    processStacks();
 }
@@ -2726,7 +2731,7 @@ BinaryDataRef Signer::serializeSignedTx(void) const
 
    //txins
    for (auto& spender : spenders_)
-      bw.put_BinaryData(spender->getSerializedInput(true));
+      bw.put_BinaryData(spender->getSerializedInput(true, false));
 
    //txout count
    auto recVector = getRecipientVector();
@@ -2793,7 +2798,7 @@ BinaryDataRef Signer::serializeUnsignedTx(bool loose)
 
    //txins
    for (auto& spender : spenders_)
-      bw.put_BinaryData(spender->getSerializedInput(false));
+      bw.put_BinaryData(spender->getSerializedInput(false, loose));
 
    //txout count
    auto recVector = getRecipientVector();
@@ -2856,7 +2861,7 @@ BinaryData Signer::serializeAvailableResolvedData(void) const
    {
       try
       {
-         bw.put_BinaryData(spender->getSerializedInput(false));
+         bw.put_BinaryData(spender->getSerializedInput(false, false));
       }
       catch (const exception&)
       {
@@ -4050,7 +4055,7 @@ BinaryData Signer::getTxId_const() const
       if (!spender->isSegWit() && !spender->isSigned())
          throw runtime_error("cannot get hash for unsigned legacy input");
 
-      bw.put_BinaryData(spender->getSerializedInput(false));
+      bw.put_BinaryData(spender->getSerializedInput(false, false));
    }
 
    //outputs

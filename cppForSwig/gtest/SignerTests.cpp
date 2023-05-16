@@ -3628,7 +3628,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
       //locktime deser test
       {
          signer2.setLockTime(++locktime);
-         auto unsignedTx = signer2.serializeUnsignedTx();
+         auto unsignedTx = signer2.serializeUnsignedTx(true);
 
          Tx tx(unsignedTx);
          EXPECT_EQ(tx.getLockTime(), locktime);
@@ -3661,7 +3661,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
 
       //locktime deser test
       {
-         auto unsignedTx = signer3.serializeUnsignedTx();
+         auto unsignedTx = signer3.serializeUnsignedTx(true);
 
          Tx tx(unsignedTx);
          EXPECT_EQ(tx.getLockTime(), locktime);
@@ -3679,7 +3679,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
    signer4.setFeed(assetFeed2);
 
    {
-      auto unsignedTx = signer4.serializeUnsignedTx();
+      auto unsignedTx = signer4.serializeUnsignedTx(true);
 
       Tx tx(unsignedTx);
       EXPECT_EQ(tx.getLockTime(), locktime);

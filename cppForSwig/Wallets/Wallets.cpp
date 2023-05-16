@@ -904,7 +904,7 @@ string AssetWallet::forkWatchingOnly(
    if (DBUtils::fileExists(newname, 0))
       throw WalletException("WO wallet filename already exists");
 
-   //open original wallet db & new 
+   //open original wallet db & new
    auto originIface = getIfaceFromFile(filename, true, passLbd);
    auto masterID = getMasterID(originIface);
 
@@ -1854,8 +1854,8 @@ const SecureBinaryData& AssetWallet_Single::getArmory135Chaincode() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetWallet_Single::importPublicData(
-   const WalletPublicData& wpd, std::shared_ptr<IO::WalletDBInterface> iface)
+void AssetWallet_Single::importPublicData(const WalletPublicData& wpd,
+   std::shared_ptr<IO::WalletDBInterface> iface)
 {
    //TODO: merging from exported data
 
@@ -2041,7 +2041,7 @@ void AssetWallet_Single::importPublicData(
             "Failed to resolve address account type");
       }
 
-      //address account main flag
+      //flag main account
       if (accData.ID_ == wpd.mainAccountID_)
          accTypePtr->setMain(true);
 
