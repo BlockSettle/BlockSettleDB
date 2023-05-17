@@ -2230,7 +2230,7 @@ bool ScriptSpender::haveSupportingTx() const
 const Tx& ScriptSpender::getSupportingTx() const
 {
    if (txMap_ == nullptr)
-      throw SpenderException("missing tx map");;
+      throw SpenderException("missing tx map");
 
    auto hash = getOutputHash();
    auto iter = txMap_->find(hash);
