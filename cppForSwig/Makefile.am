@@ -93,7 +93,9 @@ ARMORYWALLETS_SOURCE_FILES = Wallets/BIP32_Node.cpp \
 	Wallets/WalletFileInterface.cpp \
 	Wallets/AssetEncryption.cpp \
 	Wallets/Wallets.cpp \
-	Wallets/AuthorizedPeers.cpp
+	Wallets/AuthorizedPeers.cpp \
+	Wallets/Seeds/Backups.cpp \
+	Wallets/Seeds/Seeds.cpp
 
 ARMORYSIGNER_SOURCE_FILES = Signer/Script.cpp \
 	Signer/ScriptRecipient.cpp \
@@ -156,7 +158,6 @@ ARMORYCOMMON_SOURCE_FILES = AsyncClient.cpp \
 	BitcoinSettings.cpp \
 	ReentrantLock.cpp \
 	SecureBinaryData.cpp \
-	ArmoryBackups.cpp \
 	SocketObject.cpp \
 	TxClasses.cpp \
 	TxOutScrRef.cpp \

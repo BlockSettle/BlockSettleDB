@@ -9,7 +9,8 @@
 
 #include "TestUtils.h"
 #include "../Wallets/PassphraseLambda.h"
-#include "../ArmoryBackups.h"
+#include "../Wallets/Seeds/Backups.h"
+#include "../Wallets/Seeds/Seeds.h"
 #include "../Wallets/WalletFileInterface.h"
 
 using namespace std;
@@ -19,6 +20,7 @@ using namespace Armory::Assets;
 using namespace Armory::Accounts;
 using namespace Armory::Wallets;
 using namespace Armory::Wallets::Encryption;
+using namespace Armory::Seed;
 
 ////////////////////////////////////////////////////////////////////////////////
 #define METHOD_ASSERT_EQ(a, b) \
@@ -8492,16 +8494,16 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BackupTests, Easy16)
 {
-   for (const auto& index : Armory::Backups::BackupEasy16::eligibleIndexes_)
+   for (const auto& index : Armory::Seeds::BackupEasy16::eligibleIndexes_)
    {
       auto root = CryptoPRNG::generateRandom(32);
       
       //encode the root
-      auto encoded = Armory::Backups::BackupEasy16::encode(root.getRef(), index);
+      auto encoded = Armory::Seeds::BackupEasy16::encode(root.getRef(), index);
       ASSERT_EQ(encoded.size(), 2ULL);
 
 
-      auto decoded = Armory::Backups::BackupEasy16::decode(encoded);
+      auto decoded = Armory::Seeds::BackupEasy16::decode(encoded);
       ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       EXPECT_EQ(decoded.checksumIndexes_[0], index);
       EXPECT_EQ(decoded.checksumIndexes_[1], index);
@@ -8528,7 +8530,7 @@ TEST_F(BackupTests, Easy16_Repair)
       char newChar;
       while (true)
       {
-         newChar = Armory::Backups::BackupEasy16::e16chars_[newVal % 16];
+         newChar = Armory::Seeds::BackupEasy16::e16chars_[newVal % 16];
          if (newChar != val)
             break;
 
@@ -8547,7 +8549,7 @@ TEST_F(BackupTests, Easy16_Repair)
       auto root = prng.generateRandom(32);
       
       //encode the root
-      auto encoded = Armory::Backups::BackupEasy16::encode(root.getRef(), 0);
+      auto encoded = Armory::Seeds::BackupEasy16::encode(root.getRef(), 0);
       ASSERT_EQ(encoded.size(), 2ULL);
 
       //corrupt one character in one line
@@ -8563,7 +8565,7 @@ TEST_F(BackupTests, Easy16_Repair)
       ASSERT_NE(encoded[lineSelect], corrupted[lineSelect]);
 
       //decode the corrupted data, should yield an incorrect value
-      auto decoded = Armory::Backups::BackupEasy16::decode(corrupted);
+      auto decoded = Armory::Seeds::BackupEasy16::decode(corrupted);
       ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       if (lineSelect == 0)
       {
@@ -8581,7 +8583,7 @@ TEST_F(BackupTests, Easy16_Repair)
       //attempt to repair, may fail because of collisions (no unique solution)
       try
       {
-         auto result = Armory::Backups::BackupEasy16::repair(decoded);
+         auto result = Armory::Seeds::BackupEasy16::repair(decoded);
          if (result)
          {
             ASSERT_EQ(decoded.repairedIndexes_.size(), 2ULL);
@@ -8592,7 +8594,7 @@ TEST_F(BackupTests, Easy16_Repair)
             ++succesfulRepairs;
          }
       }
-      catch (const Armory::Backups::Easy16RepairError&)
+      catch (const Armory::Seeds::Easy16RepairError&)
       {}
    }
 
@@ -8604,7 +8606,7 @@ TEST_F(BackupTests, Easy16_Repair)
       auto root = prng.generateRandom(32);
       
       //encode the root
-      auto encoded = Armory::Backups::BackupEasy16::encode(root.getRef(), 0);
+      auto encoded = Armory::Seeds::BackupEasy16::encode(root.getRef(), 0);
       ASSERT_EQ(encoded.size(), 2ULL);
 
       //corrupt 2 characters in one line
@@ -8627,7 +8629,7 @@ TEST_F(BackupTests, Easy16_Repair)
       ASSERT_NE(encoded[lineSelect], corrupted[lineSelect]);
 
       //decode, should yield an incorrect value
-      auto decoded = Armory::Backups::BackupEasy16::decode(corrupted);
+      auto decoded = Armory::Seeds::BackupEasy16::decode(corrupted);
       ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       if (lineSelect == 0)
       {
@@ -8643,7 +8645,7 @@ TEST_F(BackupTests, Easy16_Repair)
       EXPECT_NE(root, decoded.data_);
 
       //attempt to repair, should fail
-      auto result = Armory::Backups::BackupEasy16::repair(decoded);
+      auto result = Armory::Seeds::BackupEasy16::repair(decoded);
       if (result)
       {
          EXPECT_NE(decoded.data_, root);
@@ -8657,7 +8659,7 @@ TEST_F(BackupTests, Easy16_Repair)
       auto root = prng.generateRandom(32);
       
       //encode the root
-      auto encoded = Armory::Backups::BackupEasy16::encode(root.getRef(), 0);
+      auto encoded = Armory::Seeds::BackupEasy16::encode(root.getRef(), 0);
       ASSERT_EQ(encoded.size(), 2ULL);
 
       //corrupt 1 character per line
@@ -8676,7 +8678,7 @@ TEST_F(BackupTests, Easy16_Repair)
       corruptLine(corrupted, 1, wordSelect2, charSelect2, newVal2);
 
       //decode, should yield an incorrect value
-      auto decoded = Armory::Backups::BackupEasy16::decode(corrupted);
+      auto decoded = Armory::Seeds::BackupEasy16::decode(corrupted);
       ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       EXPECT_NE(decoded.checksumIndexes_[0], 0);
       EXPECT_NE(decoded.checksumIndexes_[1], 0);
@@ -8684,7 +8686,7 @@ TEST_F(BackupTests, Easy16_Repair)
       //attempt to repair, may fail because of collisions (no evident solution)
       try
       {
-         auto result = Armory::Backups::BackupEasy16::repair(decoded);
+         auto result = Armory::Seeds::BackupEasy16::repair(decoded);
          if (result)
          {
             ASSERT_EQ(decoded.repairedIndexes_.size(), 2ULL);
@@ -8698,7 +8700,7 @@ TEST_F(BackupTests, Easy16_Repair)
             ++succesfulRepairs;
          }
       }
-      catch (const Armory::Backups::Easy16RepairError&)
+      catch (const Armory::Seeds::Easy16RepairError&)
       {}
    }
 
@@ -8711,14 +8713,14 @@ TEST_F(BackupTests, SecurePrint)
    auto root = CryptoPRNG::generateRandom(32);
    
    //encrypt the root
-   Armory::Backups::SecurePrint spEncr;
+   Armory::Seeds::SecurePrint spEncr;
    auto encryptedData = spEncr.encrypt(root, {});
    ASSERT_FALSE(spEncr.getPassphrase().empty());
    ASSERT_EQ(encryptedData.first.getSize(), 32ULL);
    ASSERT_EQ(encryptedData.second.getSize(), 0ULL);
    EXPECT_NE(encryptedData.first, root);
 
-   Armory::Backups::SecurePrint spDecr;
+   Armory::Seeds::SecurePrint spDecr;
    auto decryptedData = 
       spDecr.decrypt(encryptedData.first, spEncr.getPassphrase());
 
@@ -8728,7 +8730,7 @@ TEST_F(BackupTests, SecurePrint)
    //with chaincode
    auto chaincode = CryptoPRNG::generateRandom(32);
 
-   Armory::Backups::SecurePrint spWithCC;
+   Armory::Seeds::SecurePrint spWithCC;
    auto dataWithCC = spWithCC.encrypt(root, chaincode);
 
    ASSERT_FALSE(spWithCC.getPassphrase().empty());
@@ -8739,7 +8741,7 @@ TEST_F(BackupTests, SecurePrint)
    EXPECT_NE(spEncr.getPassphrase(), spWithCC.getPassphrase());
    EXPECT_NE(encryptedData.first, dataWithCC.first);
 
-   Armory::Backups::SecurePrint spDecrWithCC;
+   Armory::Seeds::SecurePrint spDecrWithCC;
    auto decrRoot = spDecrWithCC.decrypt(
       dataWithCC.first, spWithCC.getPassphrase());
    
@@ -8759,7 +8761,7 @@ TEST_F(BackupTests, SecurePrint)
       ASSERT_GE(mangledPass.getSize(), 4ULL);
       mangledPass.getPtr()[3] ^= 0xFF;
 
-      Armory::Backups::SecurePrint spDecrWithCC;
+      Armory::Seeds::SecurePrint spDecrWithCC;
       auto decrypted = spDecrWithCC.decrypt(
          dataWithCC.first, mangledPass);
 
@@ -8780,7 +8782,7 @@ TEST_F(BackupTests, SecurePrint)
       auto passB58 = BinaryData::fromString(
          BtcUtils::base58_encode(passphrase));
       
-      Armory::Backups::SecurePrint spDecrWithCC;
+      Armory::Seeds::SecurePrint spDecrWithCC;
       auto decrypted = spDecrWithCC.decrypt(
          dataWithCC.first, passB58);
 
@@ -8793,7 +8795,7 @@ TEST_F(BackupTests, SecurePrint)
 
    //mismatched pass
    {
-      Armory::Backups::SecurePrint spDecrWithCC;
+      Armory::Seeds::SecurePrint spDecrWithCC;
       auto decrypted = spDecrWithCC.decrypt(
          dataWithCC.first, spEncr.getPassphrase());
       EXPECT_NE(decrypted, dataWithCC.first);
@@ -8819,29 +8821,29 @@ TEST_F(BackupTests, BackupStrings_Legacy)
    };
    assetWlt->setPassphrasePromptLambda(passLbd);
 
-   auto backupData = Armory::Backups::Helpers::getWalletBackup(assetWlt);
+   auto backupData = Armory::Seeds::Helpers::getWalletBackup(assetWlt);
 
    auto newPass = CryptoPRNG::generateRandom(10);
    auto newCtrl = CryptoPRNG::generateRandom(10);
    auto callback = [&backupData, &newPass, &newCtrl](
-      const Armory::Backups::RestorePromptType promptType,
+      const Armory::Seeds::RestorePromptType promptType,
       const vector<int> checksums, SecureBinaryData& extra)->bool
    {
       switch (promptType)
       {
-      case Armory::Backups::RestorePromptType::Passphrase:
+      case Armory::Seeds::RestorePromptType::Passphrase:
       {
          extra = newPass;
          return true;
       }
 
-      case Armory::Backups::RestorePromptType::Control:
+      case Armory::Seeds::RestorePromptType::Control:
       {
          extra = newCtrl;
          return true;
       }
 
-      case Armory::Backups::RestorePromptType::Id:
+      case Armory::Seeds::RestorePromptType::Id:
       {
          EXPECT_EQ(extra, SecureBinaryData::fromString(backupData.wltId_));
          
@@ -8864,7 +8866,7 @@ TEST_F(BackupTests, BackupStrings_Legacy)
    string filename;
    {
       //restore wallet
-      auto newWltPtr = Armory::Backups::Helpers::restoreFromBackup(
+      auto newWltPtr = Armory::Seeds::Helpers::restoreFromBackup(
          backupData.rootClear_, {}, newHomeDir, callback);
       EXPECT_NE(newWltPtr, nullptr);
       
@@ -8895,29 +8897,29 @@ TEST_F(BackupTests, BackupStrings_Legacy_SecurePrint)
    };
    assetWlt->setPassphrasePromptLambda(passLbd);
 
-   auto backupData = Armory::Backups::Helpers::getWalletBackup(assetWlt);
+   auto backupData = Armory::Seeds::Helpers::getWalletBackup(assetWlt);
 
    auto newPass = CryptoPRNG::generateRandom(10);
    auto newCtrl = CryptoPRNG::generateRandom(10);
    auto callback = [&backupData, &newPass, &newCtrl](
-      const Armory::Backups::RestorePromptType promptType,
+      const Armory::Seeds::RestorePromptType promptType,
       const vector<int> checksums, SecureBinaryData& extra)->bool
    {
       switch (promptType)
       {
-      case Armory::Backups::RestorePromptType::Passphrase:
+      case Armory::Seeds::RestorePromptType::Passphrase:
       {
          extra = newPass;
          return true;
       }
 
-      case Armory::Backups::RestorePromptType::Control:
+      case Armory::Seeds::RestorePromptType::Control:
       {
          extra = newCtrl;
          return true;
       }
 
-      case Armory::Backups::RestorePromptType::Id:
+      case Armory::Seeds::RestorePromptType::Id:
       {
          if (extra != SecureBinaryData::fromString(backupData.wltId_))
             return false;
@@ -8943,17 +8945,17 @@ TEST_F(BackupTests, BackupStrings_Legacy_SecurePrint)
       //try without sp pass
       try
       {
-         Armory::Backups::Helpers::restoreFromBackup(
+         Armory::Seeds::Helpers::restoreFromBackup(
             backupData.rootEncr_, {}, newHomeDir, callback);
          ASSERT_TRUE(false);
       }
-      catch (const Armory::Backups::RestoreUserException& e)
+      catch (const Armory::Seeds::RestoreUserException& e)
       {
          EXPECT_EQ(e.what(), string("user rejected id"));
       }
 
       //try with secure print now
-      auto newWltPtr = Armory::Backups::Helpers::restoreFromBackup(
+      auto newWltPtr = Armory::Seeds::Helpers::restoreFromBackup(
          backupData.rootEncr_, backupData.spPass_, newHomeDir, callback);
       EXPECT_NE(newWltPtr, nullptr);
      
@@ -8968,7 +8970,7 @@ TEST_F(BackupTests, BackupStrings_Legacy_SecurePrint)
 TEST_F(BackupTests, Easy16_AutoRepair)
 {
    /*NOTE: this test will lead to a lot of hashing*/
-   auto corruptLine = [](vector<string>& lines, 
+   auto corruptLine = [](vector<string>& lines,
       uint8_t lineSelect, uint8_t wordSelect, uint8_t charSelect, uint8_t newVal)
    {
       auto& line = lines[lineSelect];
@@ -8982,7 +8984,7 @@ TEST_F(BackupTests, Easy16_AutoRepair)
       char newChar;
       while (true)
       {
-         newChar = Armory::Backups::BackupEasy16::e16chars_[newVal % 16];
+         newChar = Armory::Seeds::BackupEasy16::e16chars_[newVal % 16];
          if (newChar != val)
             break;
 
@@ -9014,7 +9016,7 @@ TEST_F(BackupTests, Easy16_AutoRepair)
       auto wltID = computeWalletID(root);
       
       //encode the root
-      auto encoded = Armory::Backups::BackupEasy16::encode(root.getRef(), 0);
+      auto encoded = Armory::Seeds::BackupEasy16::encode(root.getRef(), 0);
       ASSERT_EQ(encoded.size(), 2ULL);
 
       //corrupt one character in one line
@@ -9030,7 +9032,7 @@ TEST_F(BackupTests, Easy16_AutoRepair)
       ASSERT_NE(encoded[lineSelect], corrupted[lineSelect]);
 
       //decode the corrupted data, should yield an incorrect value
-      auto decoded = Armory::Backups::BackupEasy16::decode(corrupted);
+      auto decoded = Armory::Seeds::BackupEasy16::decode(corrupted);
       ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       if (lineSelect == 0)
       {
@@ -9049,19 +9051,19 @@ TEST_F(BackupTests, Easy16_AutoRepair)
       try
       {
          auto userPrompt = [&wltID, &decoded, &succesfulRepairs](
-            Armory::Backups::RestorePromptType promptType,
+            Armory::Seeds::RestorePromptType promptType,
             const vector<int>& chksumIndexes,
             SecureBinaryData& extra)->bool
          {
             switch (promptType)
             {
-            case Armory::Backups::RestorePromptType::ChecksumError:
+            case Armory::Seeds::RestorePromptType::ChecksumError:
             {
                EXPECT_EQ(chksumIndexes, decoded.checksumIndexes_);
                return false;
             }
 
-            case Armory::Backups::RestorePromptType::Id:
+            case Armory::Seeds::RestorePromptType::Id:
             {
                EXPECT_EQ(chksumIndexes, decoded.checksumIndexes_);
                string extraStr(extra.toCharPtr(), extra.getSize());
@@ -9076,7 +9078,7 @@ TEST_F(BackupTests, Easy16_AutoRepair)
             }
          };
 
-         Armory::Backups::Helpers::restoreFromBackup(
+         Armory::Seeds::Helpers::restoreFromBackup(
             corrupted, BinaryDataRef(), string(), userPrompt);
       }
       catch (const exception&)
@@ -9106,29 +9108,29 @@ TEST_F(BackupTests, BackupStrings_LegacyWithChaincode_SecurePrint)
    };
    assetWlt->setPassphrasePromptLambda(passLbd);
 
-   auto backupData = Armory::Backups::Helpers::getWalletBackup(assetWlt);
+   auto backupData = Armory::Seeds::Helpers::getWalletBackup(assetWlt);
 
    auto newPass = CryptoPRNG::generateRandom(10);
    auto newCtrl = CryptoPRNG::generateRandom(10);
    auto callback = [&backupData, &newPass, &newCtrl](
-      const Armory::Backups::RestorePromptType promptType,
+      const Armory::Seeds::RestorePromptType promptType,
       const vector<int> checksums, SecureBinaryData& extra)->bool
    {
       switch (promptType)
       {
-      case Armory::Backups::RestorePromptType::Passphrase:
+      case Armory::Seeds::RestorePromptType::Passphrase:
       {
          extra = newPass;
          return true;
       }
 
-      case Armory::Backups::RestorePromptType::Control:
+      case Armory::Seeds::RestorePromptType::Control:
       {
          extra = newCtrl;
          return true;
       }
 
-      case Armory::Backups::RestorePromptType::Id:
+      case Armory::Seeds::RestorePromptType::Id:
       {
          if (extra != SecureBinaryData::fromString(backupData.wltId_))
             return false;
@@ -9164,17 +9166,17 @@ TEST_F(BackupTests, BackupStrings_LegacyWithChaincode_SecurePrint)
       //try without sp pass
       try
       {
-         Armory::Backups::Helpers::restoreFromBackup(
+         Armory::Seeds::Helpers::restoreFromBackup(
             backupData.rootEncr_, {}, newHomeDir, callback);
          ASSERT_TRUE(false);
       }
-      catch (const Armory::Backups::RestoreUserException& e)
+      catch (const Armory::Seeds::RestoreUserException& e)
       {
          EXPECT_EQ(e.what(), string("user rejected id"));
       }
 
       //try with secure print now
-      auto newWltPtr = Armory::Backups::Helpers::restoreFromBackup(
+      auto newWltPtr = Armory::Seeds::Helpers::restoreFromBackup(
          rootData, backupData.spPass_, newHomeDir, callback);
       EXPECT_NE(newWltPtr, nullptr);
      
@@ -9203,29 +9205,29 @@ TEST_F(BackupTests, BackupStrings_BIP32)
    };
    assetWlt->setPassphrasePromptLambda(passLbd);
 
-   auto backupData = Armory::Backups::Helpers::getWalletBackup(assetWlt);
+   auto backupData = Armory::Seeds::Helpers::getWalletBackup(assetWlt);
 
    auto newPass = CryptoPRNG::generateRandom(10);
    auto newCtrl = CryptoPRNG::generateRandom(10);
    auto callback = [&backupData, &newPass, &newCtrl](
-      const Armory::Backups::RestorePromptType promptType,
+      const Armory::Seeds::RestorePromptType promptType,
       const vector<int> checksums, SecureBinaryData& extra)->bool
    {
       switch (promptType)
       {
-      case Armory::Backups::RestorePromptType::Passphrase:
+      case Armory::Seeds::RestorePromptType::Passphrase:
       {
          extra = newPass;
          return true;
       }
 
-      case Armory::Backups::RestorePromptType::Control:
+      case Armory::Seeds::RestorePromptType::Control:
       {
          extra = newCtrl;
          return true;
       }
 
-      case Armory::Backups::RestorePromptType::Id:
+      case Armory::Seeds::RestorePromptType::Id:
       {
          EXPECT_EQ(extra, SecureBinaryData::fromString(backupData.wltId_));
          
@@ -9248,7 +9250,7 @@ TEST_F(BackupTests, BackupStrings_BIP32)
    string filename;
    {
       //restore wallet
-      auto newWltPtr = Armory::Backups::Helpers::restoreFromBackup(
+      auto newWltPtr = Armory::Seeds::Helpers::restoreFromBackup(
          backupData.rootClear_, {}, newHomeDir, callback);
       EXPECT_NE(newWltPtr, nullptr);
       
@@ -9277,30 +9279,30 @@ TEST_F(BackupTests, BackupStrings_BIP32_Custom)
    };
    assetWlt->setPassphrasePromptLambda(passLbd);
 
-   auto backupData = Armory::Backups::Helpers::getWalletBackup(
-      assetWlt, Armory::Backups::BackupType::BIP32_Seed_Virgin);
+   auto backupData = Armory::Seeds::Helpers::getWalletBackup(
+      assetWlt, Armory::Seeds::BackupType::BIP32_Seed_Virgin);
 
    auto newPass = CryptoPRNG::generateRandom(10);
    auto newCtrl = CryptoPRNG::generateRandom(10);
    auto callback = [&backupData, &newPass, &newCtrl](
-      const Armory::Backups::RestorePromptType promptType,
+      const Armory::Seeds::RestorePromptType promptType,
       const vector<int> checksums, SecureBinaryData& extra)->bool
    {
       switch (promptType)
       {
-      case Armory::Backups::RestorePromptType::Passphrase:
+      case Armory::Seeds::RestorePromptType::Passphrase:
       {
          extra = newPass;
          return true;
       }
 
-      case Armory::Backups::RestorePromptType::Control:
+      case Armory::Seeds::RestorePromptType::Control:
       {
          extra = newCtrl;
          return true;
       }
 
-      case Armory::Backups::RestorePromptType::Id:
+      case Armory::Seeds::RestorePromptType::Id:
       {
          EXPECT_EQ(extra, SecureBinaryData::fromString(backupData.wltId_));
          
@@ -9321,7 +9323,7 @@ TEST_F(BackupTests, BackupStrings_BIP32_Custom)
    mkdir(newHomeDir);
 
    //restore wallet
-   auto newWltPtr = Armory::Backups::Helpers::restoreFromBackup(
+   auto newWltPtr = Armory::Seeds::Helpers::restoreFromBackup(
       backupData.rootClear_, {}, newHomeDir, callback);
    EXPECT_NE(newWltPtr, nullptr);
       

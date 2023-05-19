@@ -9,12 +9,15 @@
 #include "ArmoryConfig.h"
 #include "Wallets.h"
 #include "WalletFileInterface.h"
+#include "Seeds/Seeds.h"
+#include "Seeds/Backups.h"
 
 using namespace std;
 using namespace Armory::Signer;
 using namespace Armory::Assets;
 using namespace Armory::Accounts;
 using namespace Armory::Wallets;
+using namespace Armory::Seed;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -1723,7 +1726,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbWithPubRoot(
    return walletPtr;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////// -- decrypt private key methods -- /////////////////////////////
 const SecureBinaryData& AssetWallet_Single::getDecryptedValue(
    shared_ptr<Encryption::EncryptedAssetData> assetPtr)
 {
@@ -1731,7 +1734,7 @@ const SecureBinaryData& AssetWallet_Single::getDecryptedValue(
    return decryptedData_->getClearTextAssetData(assetPtr);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+////////
 const SecureBinaryData& AssetWallet_Single::getDecryptedPrivateKeyForAsset(
    std::shared_ptr<AssetEntry_Single> assetPtr)
 {
@@ -1743,8 +1746,21 @@ const SecureBinaryData& AssetWallet_Single::getDecryptedPrivateKeyForAsset(
       assetPrivKey = account->fillPrivateKey(iface_,
          decryptedData_, assetPtr->getID());
    }
-   
+
    return getDecryptedValue(assetPrivKey);
+}
+
+////////
+const SecureBinaryData& AssetWallet_Single::getDecryptedPrivateKeyForId(
+   const AssetId& id) const
+{
+   return decryptedData_->getClearTextAssetData(id);
+}
+
+////////
+std::shared_ptr<EncryptedSeed> AssetWallet_Single::getEncryptedSeed() const
+{
+   return seed_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1781,13 +1797,6 @@ const AssetId& AssetWallet_Single::derivePrivKeyFromPath(
    //add to decrypted data container and return id
    return decryptedData_->insertClearTextAssetData(
       hdNode.private_key, BTC_ECKEY_PKEY_LENGTH);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& AssetWallet_Single::getDecrypedPrivateKeyForId(
-   const AssetId& id) const
-{
-   return decryptedData_->getClearTextAssetData(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

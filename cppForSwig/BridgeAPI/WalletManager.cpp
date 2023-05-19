@@ -7,7 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "WalletManager.h"
-#include "ArmoryBackups.h"
+#include "Wallets/Seeds/Backups.h"
 #include "PassphrasePrompt.h"
 
 #ifdef _WIN32
@@ -635,7 +635,7 @@ map<BinaryData, shared_ptr<AddressEntry>> WalletContainer::getUpdatedAddressMap(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-Armory::Backups::WalletBackup WalletContainer::getBackupStrings(
+Armory::Seeds::WalletBackup WalletContainer::getBackupStrings(
    const PassphraseLambda& passLbd) const
 {
    auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wallet_);
@@ -647,7 +647,7 @@ Armory::Backups::WalletBackup WalletContainer::getBackupStrings(
    }
 
    wltSingle->setPassphrasePromptLambda(passLbd);
-   auto backupStrings = Armory::Backups::Helpers::getWalletBackup(wltSingle);
+   auto backupStrings = Armory::Seeds::Helpers::getWalletBackup(wltSingle);
    wltSingle->resetPassphrasePromptLambda();
 
    return backupStrings;

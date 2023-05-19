@@ -38,7 +38,12 @@ namespace Armory
    namespace Signer
    {
       class BIP32_AssetPath;
-   };
+   }
+
+   namespace Seed
+   {
+      class EncryptedSeed;
+   }
 
    namespace Wallets
    {
@@ -251,7 +256,7 @@ namespace Armory
 
       protected:
          std::shared_ptr<Assets::AssetEntry_Single> root_ = nullptr;
-         std::shared_ptr<Assets::EncryptedSeed> seed_ = nullptr;
+         std::shared_ptr<Seed::EncryptedSeed> seed_ = nullptr;
 
       protected:
          //virtual
@@ -308,11 +313,10 @@ namespace Armory
             std::shared_ptr<Assets::AssetEntry_Single>);
          const AssetId& derivePrivKeyFromPath(
             const Signer::BIP32_AssetPath&);
-         const SecureBinaryData& getDecrypedPrivateKeyForId(
+         const SecureBinaryData& getDecryptedPrivateKeyForId(
             const AssetId&) const;
 
-         std::shared_ptr<Assets::EncryptedSeed> getEncryptedSeed(void) const
-         { return seed_; }
+         std::shared_ptr<Seed::EncryptedSeed> getEncryptedSeed(void) const;
 
          Signer::BIP32_AssetPath getBip32PathForAsset(
             std::shared_ptr<Assets::AssetEntry>) const;

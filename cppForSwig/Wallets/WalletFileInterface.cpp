@@ -11,10 +11,10 @@
 #include "DBUtils.h"
 #include "WalletHeader.h"
 #include "DecryptedDataContainer.h"
-#include "Assets.h"
+#include "Seeds/Seeds.h"
 
 using namespace std;
-using namespace Armory::Assets;
+using namespace Armory::Seed;
 using namespace Armory::Wallets::IO;
 using namespace Armory::Wallets::Encryption;
 

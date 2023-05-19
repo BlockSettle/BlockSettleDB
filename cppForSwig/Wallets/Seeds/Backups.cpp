@@ -1,15 +1,16 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2020, goatpig                                               //
+//  Copyright (C) 2020 - 2023, goatpig                                        //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "ArmoryBackups.h"
+#include "Backups.h"
 #include "EncryptionUtils.h"
 #include "BtcUtils.h"
-#include "Wallets/WalletIdTypes.h"
+#include "../WalletIdTypes.h"
+#include "Seeds.h"
 
 #define EASY16_CHECKSUM_LEN 2
 #define EASY16_INDEX_MAX   15
@@ -18,12 +19,12 @@
 #define WALLET_RESTORE_LOOKUP 1000
 
 using namespace std;
-using namespace Armory::Backups;
+using namespace Armory::Seeds;
 using namespace Armory::Assets;
 using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
-const vector<char> BackupEasy16::e16chars_ = 
+const vector<char> BackupEasy16::e16chars_ =
 {
    'a', 's', 'd', 'f',
    'g', 'h', 'j', 'k',
@@ -49,7 +50,7 @@ encryption IV and salt.  Using the first 256 digits of Pi for the
 the IV, and first 256 digits of e for the salt (hashed)
 */
 
-const string SecurePrint::digits_pi_ = 
+const string SecurePrint::digits_pi_ =
 {
    "ARMORY_ENCRYPTION_INITIALIZATION_VECTOR_"
    "1415926535897932384626433832795028841971693993751058209749445923"
@@ -58,7 +59,7 @@ const string SecurePrint::digits_pi_ =
    "9303819644288109756659334461284756482337867831652712019091456485"
 };
    
-const string SecurePrint::digits_e_ = 
+const string SecurePrint::digits_e_ =
 {
    "ARMORY_KEY_DERIVATION_FUNCTION_SALT_"
    "7182818284590452353602874713526624977572470936999595749669676277"

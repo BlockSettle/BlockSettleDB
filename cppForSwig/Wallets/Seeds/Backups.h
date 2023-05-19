@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2020, goatpig                                               //
+//  Copyright (C) 2020 - 2023, goatpig                                        //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -20,7 +20,7 @@
 
 namespace Armory
 {
-   namespace Backups
+   namespace Seeds
    {
       ////
       class RestoreUserException : public std::runtime_error

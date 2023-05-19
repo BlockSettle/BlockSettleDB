@@ -10,7 +10,7 @@
 #include "BridgeSocket.h"
 #include "TerminalPassphrasePrompt.h"
 #include "PassphrasePrompt.h"
-#include "../ArmoryBackups.h"
+#include "../Wallets/Seeds/Backups.h"
 #include "ProtobufConversions.h"
 #include "ProtobufCommandParser.h"
 #include "../Signer/ResolverFeed_Wallets.h"
@@ -271,7 +271,7 @@ void CppBridge::createBackupStringForWallet(const string& waaId,
          });
       auto lbd = passPromptObj->getLambda();
 
-      Armory::Backups::WalletBackup backupData;
+      Armory::Seeds::WalletBackup backupData;
       try
       {
          //grab wallet
