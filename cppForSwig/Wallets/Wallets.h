@@ -40,9 +40,12 @@ namespace Armory
       class BIP32_AssetPath;
    }
 
-   namespace Seed
+   namespace Seeds
    {
       class EncryptedSeed;
+      class ClearTextSeed;
+      class ClearTextSeed_Armory135;
+      class ClearTextSeed_BIP32;
    }
 
    namespace Wallets
@@ -256,7 +259,7 @@ namespace Armory
 
       protected:
          std::shared_ptr<Assets::AssetEntry_Single> root_ = nullptr;
-         std::shared_ptr<Seed::EncryptedSeed> seed_ = nullptr;
+         std::shared_ptr<Seeds::EncryptedSeed> seed_ = nullptr;
 
       protected:
          //virtual
@@ -284,7 +287,23 @@ namespace Armory
          static void importPublicData(const WalletPublicData&,
             std::shared_ptr<IO::WalletDBInterface>);
 
-         void setSeed(const SecureBinaryData&, const SecureBinaryData&);
+         void setSeed(std::unique_ptr<Armory::Seeds::ClearTextSeed>,
+            const SecureBinaryData&);
+
+         //wallet creation private statics
+         static std::shared_ptr<AssetWallet_Single> createFromSeed(
+            const std::string&, //folder
+            Seeds::ClearTextSeed_Armory135*,
+            const SecureBinaryData&, //pass
+            const SecureBinaryData&, //control pass
+            unsigned); //lookup
+
+         static std::shared_ptr<AssetWallet_Single> createFromSeed(
+            const std::string&, //folder
+            Seeds::ClearTextSeed_BIP32*,
+            const SecureBinaryData&, //pass
+            const SecureBinaryData&, //control pass
+            unsigned); //lookup
 
       public:
          //tors
@@ -316,7 +335,7 @@ namespace Armory
          const SecureBinaryData& getDecryptedPrivateKeyForId(
             const AssetId&) const;
 
-         std::shared_ptr<Seed::EncryptedSeed> getEncryptedSeed(void) const;
+         std::shared_ptr<Seeds::EncryptedSeed> getEncryptedSeed(void) const;
 
          Signer::BIP32_AssetPath getBip32PathForAsset(
             std::shared_ptr<Assets::AssetEntry>) const;
@@ -332,21 +351,11 @@ namespace Armory
             std::shared_ptr<Encryption::EncryptedAssetData>);
 
          //static
-         static std::shared_ptr<AssetWallet_Single> createFromBIP32Node(
-            const BIP32_Node& node,
-            std::set<std::shared_ptr<Accounts::AccountType_BIP32>> accountTypes,
-            const SecureBinaryData& passphrase,
-            const SecureBinaryData& controlPassphrase,
-            const std::string& folder);
-
-         static std::shared_ptr<AssetWallet_Single>
-         createFromPrivateRoot_Armory135(
-            const std::string& folder,
-            const SecureBinaryData& privateRoot,
-            SecureBinaryData chaincode,
-            const SecureBinaryData& passphrase,
-            const SecureBinaryData& controlPassphrase,
-            unsigned lookup);
+         static std::shared_ptr<AssetWallet_Single> createFromSeed(
+            std::unique_ptr<Armory::Seeds::ClearTextSeed>,
+            const SecureBinaryData&,
+            const SecureBinaryData&,
+            const std::string&, unsigned lookup = 1000);
 
          static std::shared_ptr<AssetWallet_Single>
          createFromPublicRoot_Armory135(
@@ -356,28 +365,10 @@ namespace Armory
             const SecureBinaryData& controlPassphrase,
             unsigned lookup);
 
-         static std::shared_ptr<AssetWallet_Single> createFromSeed_BIP32(
-            const std::string& folder,
-            const SecureBinaryData& seed,
-            const SecureBinaryData& passphrase,
-            const SecureBinaryData& controlPassphrase,
-            unsigned lookup);
-
-         static std::shared_ptr<AssetWallet_Single>
-         createFromSeed_BIP32_Blank(
-            const std::string& folder,
-            const SecureBinaryData& seed,
-            const SecureBinaryData& passphrase,
-            const SecureBinaryData& controlPassphrase);
-
          static std::shared_ptr<AssetWallet_Single> createBlank(
             const std::string& folder,
             const std::string& walletID,
             const SecureBinaryData& controlPassphrase);
-
-         static std::string computeWalletID(
-            std::shared_ptr<Assets::DerivationScheme>,
-            std::shared_ptr<Assets::AssetEntry>);
       };
 
       //////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016-20, goatpig                                            //
+//  Copyright (C) 2016-2023, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -9,6 +9,7 @@
 #include "WalletManager.h"
 #include "Wallets/Seeds/Backups.h"
 #include "PassphrasePrompt.h"
+#include "../Wallets/Seeds/Seeds.h"
 
 #ifdef _WIN32
 #include "leveldb_windows_port\win32_posix\dirent_win32.h"
@@ -20,6 +21,7 @@ using namespace std;
 using namespace Armory::Signer;
 using namespace Armory::Accounts;
 using namespace Armory::Wallets;
+using namespace Armory::Seeds;
 
 #define WALLET_135_HEADER "\xbaWALLET\x00"
 #define PYBTC_ADDRESS_SIZE 237
@@ -151,8 +153,11 @@ shared_ptr<WalletContainer> WalletManager::createNewWallet(
    if (extraEntropy.getSize() >= 32)
       root.XOR(extraEntropy);
 
-   auto wallet = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      path_, root, {}, pass, controlPass, lookup);
+   unique_ptr<ClearTextSeed> seed(new ClearTextSeed_Armory135(root,
+      ClearTextSeed_Armory135::LegacyType::Armory200));
+   auto wallet = AssetWallet_Single::createFromSeed(move(seed),
+      pass, controlPass,
+      path_, lookup);
    return addWallet(wallet, wallet->getMainAccountID());
 }
 
@@ -635,7 +640,7 @@ map<BinaryData, shared_ptr<AddressEntry>> WalletContainer::getUpdatedAddressMap(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-Armory::Seeds::WalletBackup WalletContainer::getBackupStrings(
+unique_ptr<Armory::Seeds::WalletBackup> WalletContainer::getBackupStrings(
    const PassphraseLambda& passLbd) const
 {
    auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wallet_);
@@ -932,9 +937,11 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
    }
    else
    {
-      wallet = AssetWallet_Single::createFromPrivateRoot_Armory135(
-         folder, decryptedRoot, chaincodeCopy,
-         privKeyPass, controlPass, highestIndex);
+      unique_ptr<ClearTextSeed> seed(new ClearTextSeed_Armory135(
+         decryptedRoot, chaincodeCopy));
+      wallet = AssetWallet_Single::createFromSeed(move(seed),
+         privKeyPass, controlPass,
+         folder, highestIndex);
    }
 
    //main account id, check it matches armory wallet id

@@ -11,6 +11,7 @@
 
 #include <vector>
 #include <string>
+#include <string_view>
 #include "SecureBinaryData.h"
 #include "EncryptionUtils.h"
 
@@ -18,11 +19,21 @@
 
 #define EASY16_INVALID_CHECKSUM_INDEX UINT8_MAX
 
+namespace BridgeProto
+{
+   class RestorePrompt;
+   class RestoreReply;
+}
+
 namespace Armory
 {
    namespace Seeds
    {
-      ////
+      //forward declarations
+      class ClearTextSeed;
+      class ClearTextSeed_BIP39;
+
+      //////////////////////////////////////////////////////////////////////////
       class RestoreUserException : public std::runtime_error
       {
       public:
@@ -31,6 +42,7 @@ namespace Armory
          {}
       };
 
+      ////
       class Easy16RepairError : public std::runtime_error
       {
       public:
@@ -40,52 +52,38 @@ namespace Armory
       };
 
       ////
-      enum BackupType
+      enum class BackupType : int
       {
-         /*
-         Armory135:
-            For wallets using the Armory specific derivation scheme.
-         */
-         Armory135               = 0,
+         //easy16, seed (2 or 4 lines), hash index is always 0
+         Armory135  = 0,
 
          /*
-         BIP32_Seed_Structured:
-            For wallets carrying BIP44/49/84 accounts. Restores to a bip32 wallet
-            with all these accounts.
+         easy16, seed (2 lines), hash index defines seed type:
+            - a: Armory legacy derivation, P2PKH + P2WPK + P2SH-2WPKH
+                 addresses in a single address account
+            - b: BIP32 with BIP44/49/84 chains, as individual address accounts
+            - c: BIP32 with no accounts
+            - d: BIP39 seed with BIP44/49/84 chains, as individual
+                 address accounts
          */
-         BIP32_Seed_Structured   = 1,
+         Armory200a  = 3,
+         Armory200b  = 4,
+         Armory200c  = 5,
+         Armory200d  = 6,
 
-         /*
-         BIP32_Root:
-            For bip32 wallets that do not carry their own seed. Support for this is
-            not implemented at the moment. This type of backup would have to carry
-            the root privkey and chaincode generated through the seed's hmac.
+         //state of an easy16 backup prior to decode
+         Easy16_Unkonwn = 10,
 
-            May implement support in the future.
-         */
-         BIP32_Root              = 2,
+         //bip32 mnemonic phrase (12~24 words), english dictionnary
+         BIP39       = 0xFFFF,
 
-         /*
-         BIP32_Seed_Virgin:
-            No info is provided about the wallet's structure, restores to an empt
-            bip32 wallet.
-         */
-         BIP32_Seed_Virgin       = 15,
+         Base58      = 58,
 
-         /*
-         Default marker value.
-         */
-         Invalid = UINT32_MAX
-      };
+         //raw binary of the seed in hexits, no extra info provided
+         Raw         = INT32_MAX - 1,
 
-      ////
-      struct WalletRootData
-      {
-         SecureBinaryData root_;
-         SecureBinaryData secondaryData_;
-
-         BackupType type_;
-         std::string wltId_;
+         //end marker
+         Invalid     = INT32_MAX
       };
 
       ////
@@ -95,10 +93,14 @@ namespace Armory
          std::vector<int> repairedIndexes_;
          std::vector<BinaryData> checksums_;
          SecureBinaryData data_;
+
+         bool isInitialized(void) const;
+         bool isValid(void) const;
+         int getIndex(void) const;
       };
 
       ////
-      struct BackupEasy16
+      struct Easy16Codec
       {
       public:
          /***
@@ -111,7 +113,7 @@ namespace Armory
          one another.
          ***/
 
-         static const std::set<uint8_t> eligibleIndexes_;
+         static const std::set<BackupType> eligibleIndexes_;
 
       private:
          static BinaryData getHash(const BinaryDataRef&, uint8_t);
@@ -120,8 +122,8 @@ namespace Armory
       public:
          const static std::vector<char> e16chars_;
 
-         static std::vector<std::string> encode(const BinaryDataRef, uint8_t);
-         static BackupEasy16DecodeResult decode(const std::vector<std::string>&);
+         static std::vector<SecureBinaryData> encode(const BinaryDataRef, BackupType);
+         static BackupEasy16DecodeResult decode(const std::vector<SecureBinaryData>&);
          static BackupEasy16DecodeResult decode(const std::vector<BinaryDataRef>&);
          static bool repair(BackupEasy16DecodeResult&);
       };
@@ -144,27 +146,96 @@ namespace Armory
          SecurePrint(void);
 
          std::pair<SecureBinaryData, SecureBinaryData> encrypt(
-            const SecureBinaryData&, const SecureBinaryData&);
+            BinaryDataRef, BinaryDataRef);
          SecureBinaryData decrypt(
             const SecureBinaryData&, const BinaryDataRef) const;
 
          const SecureBinaryData& getPassphrase(void) const { return passphrase_; }
       };
 
-      ////
-      struct WalletBackup
+      //////////////////////////////////////////////////////////////////////////
+      class WalletBackup
       {
-         std::vector<std::string> rootClear_;
-         std::vector<std::string> chaincodeClear_;
+         friend struct Helpers;
 
-         std::vector<std::string> rootEncr_;
-         std::vector<std::string> chaincodeEncr_;
-
-         SecureBinaryData spPass_;
+      protected:
+         const BackupType type_;
          std::string wltId_;
+
+      public:
+         WalletBackup(BackupType);
+         virtual ~WalletBackup(void) = 0;
+
+         const BackupType& type(void) const;
+         const std::string& getWalletId(void) const;
       };
 
       ////
+      class Backup_Easy16 : public WalletBackup
+      {
+         friend class Helpers;
+
+      public:
+         enum class LineIndex : int
+         {
+            One = 0,
+            Two = 1
+         };
+
+      private:
+         std::vector<SecureBinaryData> rootClear_;
+         std::vector<SecureBinaryData> chaincodeClear_;
+
+         std::vector<SecureBinaryData> rootEncr_;
+         std::vector<SecureBinaryData> chaincodeEncr_;
+
+         SecureBinaryData spPass_;
+
+      public:
+         Backup_Easy16(BackupType);
+         ~Backup_Easy16(void) override;
+
+         bool hasChaincode(void) const;
+         std::string_view getRoot(LineIndex, bool) const;
+         std::string_view getChaincode(LineIndex, bool) const;
+         std::string_view getSpPass(void) const;
+
+         static std::unique_ptr<Backup_Easy16> fromLines(
+            const std::vector<std::string_view>&,
+            std::string_view spPass = {});
+      };
+
+      ////
+      class Backup_Base58 : public WalletBackup
+      {
+      private:
+         SecureBinaryData b58String_;
+
+      public:
+         Backup_Base58(SecureBinaryData);
+         ~Backup_Base58(void) override;
+
+         std::string_view getBase58String(void) const;
+         static std::unique_ptr<Backup_Base58> fromString(
+            const std::string_view&);
+      };
+
+      ////
+      class Backup_BIP39 : public WalletBackup
+      {
+      private:
+         SecureBinaryData mnemonicString_;
+
+      public:
+         Backup_BIP39(SecureBinaryData);
+         ~Backup_BIP39(void) override;
+
+         std::string_view getMnemonicString(void) const;
+         static std::unique_ptr<Backup_BIP39> fromMnemonics(
+            const std::vector<std::string_view>&);
+      };
+
+      ////////
       enum RestorePromptType
       {
          //invalid backup format
@@ -194,34 +265,31 @@ namespace Armory
       ////
       struct Helpers
       {
-         using UserPrompt = std::function<bool(
-            RestorePromptType,
-            const std::vector<int>&,
-            SecureBinaryData&)>;
-
-         //getting root data from wallets
-         static WalletRootData getRootData(
-            std::shared_ptr<Wallets::AssetWallet_Single>);
-         static WalletRootData getRootData_Multisig(
-            std::shared_ptr<Wallets::AssetWallet_Multisig>);
+         using UserPrompt = std::function<BridgeProto::RestoreReply(
+            BridgeProto::RestorePrompt)>;
 
          //backup methods
-         static WalletBackup getWalletBackup(
-            std::shared_ptr<Wallets::AssetWallet_Single>, 
+         static std::unique_ptr<WalletBackup> getWalletBackup(
+            std::shared_ptr<Wallets::AssetWallet_Single>,
             BackupType bType = BackupType::Invalid);
-
-         static WalletBackup getWalletBackup(
-            WalletRootData&,
-            BackupType bType = BackupType::Invalid);
+         static std::unique_ptr<WalletBackup> getWalletBackup(
+            std::unique_ptr<ClearTextSeed>, BackupType);
+         static std::unique_ptr<WalletBackup> getEasy16BackupString(
+            std::unique_ptr<ClearTextSeed>);
+         static std::unique_ptr<WalletBackup> getBIP39BackupString(
+            std::unique_ptr<ClearTextSeed>);
+         static std::unique_ptr<Backup_Base58> getBase58BackupString(
+            std::unique_ptr<ClearTextSeed>);
 
          //restore methods
          static std::shared_ptr<Wallets::AssetWallet> restoreFromBackup(
-            const std::vector<std::string>&, const BinaryDataRef,
-            const std::string&, const UserPrompt&);
-
-         static std::shared_ptr<Wallets::AssetWallet> restoreFromBackup(
-            const std::vector<BinaryDataRef>&, const BinaryDataRef,
-            const std::string&, const UserPrompt&);
+            std::unique_ptr<WalletBackup>, const std::string&, const UserPrompt&);
+         static std::unique_ptr<ClearTextSeed> restoreFromEasy16(
+            std::unique_ptr<WalletBackup>, const UserPrompt&, BackupType&);
+         static std::unique_ptr<ClearTextSeed> restoreFromBase58(
+            std::unique_ptr<WalletBackup>);
+         static std::unique_ptr<ClearTextSeed> restoreFromBIP39(
+            std::unique_ptr<WalletBackup>, const UserPrompt&);
       };
    }; //namespace Backups
 }; //namespace Armory

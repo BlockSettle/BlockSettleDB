@@ -108,7 +108,7 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    BinaryData(void) : data_(0)                 {                         }
    explicit BinaryData(size_t sz)              { alloc(sz);              }
-   BinaryData(uint8_t const * inData, size_t sz)      
+   BinaryData(uint8_t const * inData, size_t sz)
                                                { copyFrom(inData, sz);   }
    BinaryData(char const * inData, size_t sz)  { copyFrom(inData, sz);   }
    BinaryData(uint8_t const * dstart, uint8_t const * dend )
@@ -561,16 +561,14 @@ protected:
    std::vector<uint8_t> data_;
 
 private:
-   void alloc(size_t sz) 
+   void alloc(size_t sz)
    { 
       if(sz != getSize())
       {
          data_.clear();
          data_.resize(sz);
       }
-
    }
-
 };
 
 

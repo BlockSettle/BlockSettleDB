@@ -9,6 +9,7 @@
 
 #include "TestUtils.h"
 #include "CoinSelection.h"
+#include "../Wallets/Seeds/Seeds.h"
 
 using namespace std;
 using namespace Armory::Signer;
@@ -388,14 +389,13 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
 
    //// create assetWlt ////
 
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt = AssetWallet_Single::createFromSeed(
+      move(seed),
+      {}, {},
       homedir_,
-      move(wltRoot), //root as a r value
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
-      5); //set lookup computation to 5 entries
+      5);
 
    //register with db
    vector<BinaryData> addrVec;
@@ -790,13 +790,11 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
 
    //// create assetWlt ////
 
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      SecureBinaryData(),
-      SecureBinaryData(),
-      5); //set lookup computation to 5 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Structured));
+   auto assetWlt = AssetWallet_Single::createFromSeed(move(seed),
+      {}, {}, homedir_, 5);
 
    //register with db
    vector<shared_ptr<AddressEntry>> addrVec;
@@ -1039,16 +1037,16 @@ TEST_F(SignerTest, SpendTest_MixedInputTypes)
 
    //// create assetWlt ////
 
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
+   auto rawEntropy = CryptoPRNG::generateRandom(32);
    BIP32_Node node;
-   node.initFromSeed(wltRoot);
+   node.initFromSeed(rawEntropy);
 
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_Armory135(rawEntropy));
+   auto assetWlt = AssetWallet_Single::createFromSeed(
+      move(seed),
+      {}, {},
       homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
       5); //set lookup computation to 3 entries
 
    //add a bip32 account
@@ -1304,33 +1302,23 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create 3 assetWlt ////
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed1(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Structured));
+   auto assetWlt_1 = AssetWallet_Single::createFromSeed(
+      move(seed1), {}, {}, homedir_, 3);
 
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed2(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Structured));
+   auto assetWlt_2 = AssetWallet_Single::createFromSeed(
+      move(seed2), {}, {}, homedir_, 3);
 
-   wltRoot = move(CryptoPRNG::generateRandom(32));
-   auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
-
-   wltRoot = move(CryptoPRNG::generateRandom(32));
-   auto assetWlt_3 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed3(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Structured));
+   auto assetWlt_3 = AssetWallet_Single::createFromSeed(
+      move(seed3), {}, {}, homedir_, 3);
 
    //create 1-of-3 multisig asset entry from 3 different wallets
    map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
@@ -1598,33 +1586,23 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create 3 assetWlt ////
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed1(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Structured));
+   auto assetWlt_1 = AssetWallet_Single::createFromSeed(
+      move(seed1), {}, {}, homedir_, 3);
 
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed2(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Structured));
+   auto assetWlt_2 = AssetWallet_Single::createFromSeed(
+      move(seed2), {}, {}, homedir_, 3);
 
-   wltRoot = move(CryptoPRNG::generateRandom(32));
-   auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
-
-   wltRoot = move(CryptoPRNG::generateRandom(32));
-   auto assetWlt_3 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed3(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Structured));
+   auto assetWlt_3 = AssetWallet_Single::createFromSeed(
+      move(seed3), {}, {}, homedir_, 3);
 
    //create 2-of-3 multisig asset entry from 3 different wallets
    map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
@@ -1992,22 +1970,15 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create 2 assetWlt ////
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed1(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt_1 = AssetWallet_Single::createFromSeed(
+      move(seed1), {}, {}, homedir_, 3);
 
-   auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      CryptoPRNG::generateRandom(32), //root as rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
-
-   auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(CryptoPRNG::generateRandom(32)), //root as rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed2(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt_2 = AssetWallet_Single::createFromSeed(
+      move(seed2), {}, {}, homedir_, 3);
 
    //register with db
    vector<shared_ptr<AddressEntry>> addrVec_1;
@@ -2289,22 +2260,15 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create 2 assetWlt ////
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed1(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt_1 = AssetWallet_Single::createFromSeed(
+      move(seed1), {}, {}, homedir_, 3);
 
-   auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      CryptoPRNG::generateRandom(32), //root as rvalue
-      {},
-      SecureBinaryData(), //empty passphrase
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
-
-   auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(CryptoPRNG::generateRandom(32)), //root as rvalue
-      {},
-      SecureBinaryData(), //empty passphrase
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed2(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt_2 = AssetWallet_Single::createFromSeed(
+      move(seed2), {}, {}, homedir_, 3);
 
    //register with db
    vector<shared_ptr<AddressEntry>> addrVec_1;
@@ -2622,19 +2586,17 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create 2 assetWlt ////
-   auto assetWlt_1 = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_,
-      CryptoPRNG::generateRandom(32), //root as rvalue
-      SecureBinaryData(), //empty passphrase
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed1(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Structured));
+   auto assetWlt_1 = AssetWallet_Single::createFromSeed(
+      move(seed1), {}, {}, homedir_, 3);
 
-   auto assetWlt_2 = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_,
-      move(CryptoPRNG::generateRandom(32)), //root as rvalue
-      SecureBinaryData(), //empty passphrase
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed2(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Structured));
+   auto assetWlt_2 = AssetWallet_Single::createFromSeed(
+      move(seed2), {}, {}, homedir_, 3);
 
    //register with db
    vector<shared_ptr<AddressEntry>> addrVec_1;
@@ -2988,20 +2950,16 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create 2 assetWlt ////
-   auto assetWlt_1 = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_,
-      CryptoPRNG::generateRandom(32), //root as rvalue
-      SecureBinaryData(), //empty passphrase
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed1(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Structured));
+   auto assetWlt_1 = AssetWallet_Single::createFromSeed(
+      move(seed1), {}, {}, homedir_, 3);
 
-   auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(CryptoPRNG::generateRandom(32)), //root as rvalue
-      {},
-      SecureBinaryData(), //empty passphrase
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed2(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt_2 = AssetWallet_Single::createFromSeed(
+      move(seed2), {}, {}, homedir_, 3);
 
    //register with db
    auto addr_type_nested_p2sh = AddressEntryType(AddressEntryType_P2WPKH | AddressEntryType_P2SH);
@@ -3412,20 +3370,16 @@ TEST_F(SignerTest, GetUnsignedTxId)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create 2 assetWlt ////
-   auto assetWlt_1 = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_,
-      CryptoPRNG::generateRandom(32), //root as rvalue
-      SecureBinaryData(), //empty passphrase
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed1(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Structured));
+   auto assetWlt_1 = AssetWallet_Single::createFromSeed(
+      move(seed1), {}, {}, homedir_, 3);
 
-   auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(CryptoPRNG::generateRandom(32)), //root as rvalue
-      {},
-      SecureBinaryData(), //empty passphrase
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed2(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt_2 = AssetWallet_Single::createFromSeed(
+      move(seed2), {}, {}, homedir_, 3);
 
    //register with db
    vector<shared_ptr<AddressEntry>> addrVec_1;
@@ -3796,12 +3750,11 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
    //// create assetWlt ////
 
    //create empty bip32 wallet
-   auto&& wltSeed = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-      homedir_,
-      wltSeed,
-      SecureBinaryData(),
-      SecureBinaryData());
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Virgin));
+   auto assetWlt = AssetWallet_Single::createFromSeed(move(seed),
+      {}, {}, homedir_);
 
    //add p2sh-p2wpkh account
    vector<unsigned> derPath = { 0x800061a5, 0x80000000 };
@@ -4053,17 +4006,17 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
 
    //// create assetWlt ////
 
-   auto&& wltSeed = CryptoPRNG::generateRandom(32);
+   auto rawEntropy = CryptoPRNG::generateRandom(32);
    string woPath, wltPath;
 
    Signer signer3;
    {
       //create bip32 wallet
-      auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-         homedir_,
-         wltSeed,
-         SecureBinaryData(),
-         SecureBinaryData());
+      unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+         new Armory::Seeds::ClearTextSeed_BIP32(
+            rawEntropy, Armory::Seeds::SeedType::BIP32_Virgin));
+      auto assetWlt = AssetWallet_Single::createFromSeed(move(seed),
+         {}, {}, homedir_);
 
       //add p2sh-p2wpkh account
       vector<unsigned> derPath = { 0x800061a5, 0x80000000 };
@@ -4092,11 +4045,11 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
       AssetWallet::loadMainWalletFromFile(woPath, nullptr));
 
    //recreate empty bip32 wallet
-   auto emptyWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-      homedir_,
-      wltSeed,
-      SecureBinaryData(),
-      SecureBinaryData());
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         rawEntropy, Armory::Seeds::SeedType::BIP32_Virgin));
+   auto emptyWlt = AssetWallet_Single::createFromSeed(move(seed),
+      {}, {}, homedir_);
 
    //// register with db ////
    vector<BinaryData> addrVec;
@@ -4343,12 +4296,12 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
    //// create assetWlt ////
 
    //create empty bip32 wallet
-   auto&& wltSeed = CryptoPRNG::generateRandom(32);
-   auto emptyWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-      homedir_,
-      wltSeed,
-      SecureBinaryData(),
-      SecureBinaryData());
+   auto rawEntropy = CryptoPRNG::generateRandom(32);
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         rawEntropy, Armory::Seeds::SeedType::BIP32_Virgin));
+   auto emptyWlt = AssetWallet_Single::createFromSeed(move(seed),
+      {}, {}, homedir_);
 
    //create empty WO wallet
    auto wltWO = AssetWallet_Single::createBlank(
@@ -4357,7 +4310,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
    //derive public root
    vector<unsigned> derPath = { 0x800061a5, 0x80000000 };
    BIP32_Node seedNode;
-   seedNode.initFromSeed(wltSeed);
+   seedNode.initFromSeed(rawEntropy);
    auto seedFingerprint = seedNode.getThisFingerprint();
    for (auto& derId : derPath)
       seedNode.derivePrivate(derId);
@@ -4613,15 +4566,13 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create assetWlt ////
-
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt = AssetWallet_Single::createFromSeed(
+      move(seed),
+      {}, {},
       homedir_,
-      move(wltRoot), //root as a r value
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
-      3); //lookup computation
+      3); //set lookup computation to 3 entries
 
    //register with db
    vector<BinaryData> addrVec;
@@ -4849,13 +4800,11 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create assetWlt ////
-
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      SecureBinaryData(),
-      SecureBinaryData());
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Virgin));
+   auto assetWlt = AssetWallet_Single::createFromSeed(move(seed),
+      {}, {}, homedir_);
 
    //add a bip32 account
    {
@@ -5246,12 +5195,11 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    //// create assetWlt ////
 
    auto passphrase = SecureBinaryData::fromString("test");
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-      homedir_,
-      wltRoot, //root as a rvalue
-      SecureBinaryData(),
-      passphrase);
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Virgin));
+   auto assetWlt = AssetWallet_Single::createFromSeed(move(seed),
+      passphrase, {}, homedir_);
 
    auto rootBip32 = dynamic_pointer_cast<
       AssetEntry_BIP32Root>(assetWlt->getRoot());
@@ -5528,14 +5476,14 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
    //// create assetWlt ////
 
    auto passphrase = SecureBinaryData::fromString("test");
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt = AssetWallet_Single::createFromSeed(
+      move(seed),
       passphrase,
       SecureBinaryData::fromString("control"),
-      5); //set lookup computation to 5 entries
+      homedir_,
+      5); //set lookup computation to 3 entries
 
    //register with db
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
@@ -5777,13 +5725,11 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    //// create assetWlt ////
 
    auto passphrase = SecureBinaryData::fromString("test");
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      passphrase,
-      SecureBinaryData::fromString("control"),
-      5); //set lookup computation to 5 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Structured));
+   auto assetWlt = AssetWallet_Single::createFromSeed(move(seed),
+      passphrase, SecureBinaryData::fromString("control"), homedir_, 5);
 
    //register with db
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
@@ -6025,12 +5971,11 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    //// create assetWlt ////
 
    auto passphrase = SecureBinaryData::fromString("test");
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-      homedir_,
-      wltRoot, //root as a rvalue
-      passphrase,
-      SecureBinaryData::fromString("control"));
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Virgin));
+   auto assetWlt = AssetWallet_Single::createFromSeed(move(seed),
+      passphrase, SecureBinaryData::fromString("control"), homedir_);
 
    auto rootBip32 = dynamic_pointer_cast<
       AssetEntry_BIP32Root>(assetWlt->getRoot());
@@ -6305,12 +6250,11 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    //// create assetWlt ////
 
    auto passphrase = SecureBinaryData::fromString("test");
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-      homedir_,
-      wltRoot, //root as a rvalue
-      passphrase,
-      SecureBinaryData::fromString("control"));
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Virgin));
+   auto assetWlt = AssetWallet_Single::createFromSeed(move(seed),
+      passphrase, SecureBinaryData::fromString("control"), homedir_);
 
    auto ecdhAccType = make_shared<AccountType_ECDH>(privKey, pubKey);
    ecdhAccType->setDefaultAddressType(
@@ -6576,14 +6520,11 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create assetWlt ////
-
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      SecureBinaryData(),
-      SecureBinaryData(),
-      5); //set lookup computation to 3 entries
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_BIP32(
+         Armory::Seeds::SeedType::BIP32_Structured));
+   auto assetWlt = AssetWallet_Single::createFromSeed(
+      move(seed), {}, {}, homedir_, 5);
 
    //register with db
    vector<shared_ptr<AddressEntry>> addrVec;
@@ -6963,31 +6904,28 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 
    //// create 3 assetWlt ////
 
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed1(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt_1 = AssetWallet_Single::createFromSeed(
+      move(seed1),
+      {}, {},
       homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
-   wltRoot = move(CryptoPRNG::generateRandom(32));
-   auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed2(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt_2 = AssetWallet_Single::createFromSeed(
+      move(seed2),
+      {}, {},
       homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
-   wltRoot = move(CryptoPRNG::generateRandom(32));
-   auto assetWlt_3 = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed3(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt_3 = AssetWallet_Single::createFromSeed(
+      move(seed3),
+      {}, {},
       homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
    //create 2-of-3 multisig asset entry from 3 different wallets
@@ -8652,8 +8590,8 @@ TEST_F(ExtrasTest, PSBT)
       auto txOut = tx.getTxOutCopy(index);
 
       UTXO utxo(
-         txOut.getValue(), 
-         UINT32_MAX, UINT32_MAX, index, 
+         txOut.getValue(),
+         UINT32_MAX, UINT32_MAX, index,
          hash, txOut.getScript());
 
       return utxo;
@@ -8713,15 +8651,16 @@ TEST_F(ExtrasTest, PSBT)
    auto b58seed = SecureBinaryData::fromString(
       "tprv8ZgxMBicQKsPd9TeAdPADNnSyH9SSUUbTVeFszDE23Ki6TBB5nCefAdHkK8Fm3qMQR6sHwA56zqRmKmxnHk37JkiFzvncDqoKmPWubu7hDF");
 
+   //create a wallet from that seed to test bip32 on the fly derivation
+   auto wallet = AssetWallet_Single::createFromSeed(
+      Armory::Seeds::ClearTextSeed_BIP32::fromBase58(b58seed),
+      SecureBinaryData(), SecureBinaryData(),
+      homedir_);
+
+   //create node
    BIP32_Node node;
    node.initFromBase58(b58seed);
    auto masterFingerprint = node.getThisFingerprint();
-
-   //create a wallet from that seed to test bip32 on the fly derivation
-   auto wallet = AssetWallet_Single::createFromBIP32Node(
-      node, {}, 
-      SecureBinaryData(), SecureBinaryData(), 
-      homedir_);
 
    // 0'/0'
    node.derivePrivate(0x80000000);
@@ -8764,7 +8703,7 @@ TEST_F(ExtrasTest, PSBT)
       EXPECT_EQ(psbtTestVal, signer2.toPSBT());
 
       Signer signer3(signer.serializeState());
-      EXPECT_EQ(psbtTestVal, signer3.toPSBT());     
+      EXPECT_EQ(psbtTestVal, signer3.toPSBT());
    }
 
    //resolve scripts
@@ -8997,7 +8936,7 @@ TEST_F(ExtrasTest, PSBT)
       EXPECT_EQ(psbtHalf2, signer2.toPSBT());
 
       Signer signer3(signer.serializeState());
-      EXPECT_EQ(psbtHalf2, signer3.toPSBT());     
+      EXPECT_EQ(psbtHalf2, signer3.toPSBT());
    }
 
    //combine sigs & finalize inputs
@@ -9158,10 +9097,10 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ExtrasTest_Mainnet, Bip32PathDiscovery)
 {
-   auto seed = CryptoPRNG::generateRandom(32);
+   auto rawEntropy = CryptoPRNG::generateRandom(32);
 
    BIP32_Node node;
-   node.initFromSeed(seed);
+   node.initFromSeed(rawEntropy);
    auto masterFingerprint = node.getThisFingerprint();
 
    vector<uint32_t> derPath = { 0x8000002C, 0x80000000, 0x80000000 };
@@ -9191,10 +9130,11 @@ TEST_F(ExtrasTest_Mainnet, Bip32PathDiscovery)
 
    string wltPath;
    {
-      auto wallet = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, 
-      SecureBinaryData(), SecureBinaryData(), 
-      10);
+      unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+         new Armory::Seeds::ClearTextSeed_BIP32(
+            rawEntropy, Armory::Seeds::SeedType::BIP32_Structured));
+      auto wallet = AssetWallet_Single::createFromSeed(
+         move(seed), {}, {}, homedir_, 10);
 
       wltPath = wallet->getDbFilename();
       auto woWalletPath = wallet->forkWatchingOnly(wltPath, passLbd);

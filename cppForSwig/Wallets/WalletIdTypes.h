@@ -19,7 +19,18 @@ namespace Armory
    namespace Bridge
    {
       class BridgePassphrasePrompt;
-   };
+   }
+
+   namespace Assets
+   {
+      class AssetEntry;
+      class DerivationScheme;
+   }
+
+   namespace Seeds
+   {
+      enum class SeedType;
+   }
 
    namespace Wallets
    {
@@ -183,6 +194,15 @@ namespace Armory
          BinaryData getSerializedKey(uint8_t) const;
          static EncryptionKeyId deserializeValue(BinaryRefReader&);
       };
-   };
-};
+
+      ////////////////////////////////////////////////////////////////////////
+      std::string generateWalletId(std::shared_ptr<Assets::DerivationScheme>,
+         std::shared_ptr<Assets::AssetEntry>, Seeds::SeedType);
+      std::string generateWalletId(SecureBinaryData, SecureBinaryData,
+         Seeds::SeedType);
+      std::string generateMasterId(const SecureBinaryData&,
+         const SecureBinaryData&);
+
+   }// namespace Wallets
+}
 #endif
