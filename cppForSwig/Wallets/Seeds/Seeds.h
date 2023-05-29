@@ -21,7 +21,9 @@ namespace Armory
    }
 
    /*** Wallet creation diagram ***
-
+                         Raw Entropy
+                              |
+                              v
       WalletBackup <---> ClearTextSeed <--------
                               |                 |
                               |                 |
