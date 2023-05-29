@@ -157,8 +157,8 @@ shared_ptr<BlockHeader> BlockData::createBlockHeader() const
    bh.isMainBranch_ = false;
    bh.isOrphan_ = true;
    
-   bh.numBlockBytes_ = size_;
-   bh.numTx_ = txns_.size();
+   bh.numBlockBytes_ = (uint32_t)size_;
+   bh.numTx_ = (uint32_t)txns_.size();
 
    bh.blkFileNum_ = fileID_;
    bh.blkFileOffset_ = offset_;
@@ -174,7 +174,7 @@ void BlockFiles::detectAllBlockFiles()
    if (folderPath_.size() == 0)
       throw runtime_error("empty block files folder path");
 
-   unsigned numBlkFiles = filePaths_.size();
+   unsigned numBlkFiles = (unsigned)filePaths_.size();
 
    while (numBlkFiles < UINT16_MAX)
    {

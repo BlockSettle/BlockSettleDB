@@ -1447,12 +1447,31 @@ shared_ptr<AssetWallet_Single>
       return controlPassphrase;
    };
 
-   //create wallet file and dbenv
-   stringstream pathSS;
-   pathSS << folder << "/armory_" << masterID << "_WatchingOnly.lmdb";
-   auto iface = getIfaceFromFile(pathSS.str(), false, controlPassLbd);
+   unordered_map<string, string> tmplVars{ {"master_id", masterID} };
+   if (isPublic) {
+      tmplVars["is_public"] = "WatchingOnly";
+   }
+   const auto walletID = generateWalletId(pubRoot, chainCode, SeedType::Armory135);
+   {
+      //walletID
+      auto chaincode_copy = node.getChaincode();
+      auto derScheme =
+         make_shared<DerivationScheme_ArmoryLegacy>(chaincode_copy);
 
-   auto walletID = generateWalletId(pubRoot, chainCode, SeedType::Armory135);
+      auto asset_single = make_shared<AssetEntry_Single>(
+         AssetId::getRootAssetId(),
+         pubkey, nullptr);
+
+      walletID = move(computeWalletID(derScheme, asset_single));
+      tmplVars["wallet_id"] = walletID;
+   }
+
+   const auto& walletPathName = substFileTemplate(fileTmpl, tmplVars);
+   if (walletPathName.empty()) {
+      throw runtime_error("invalid wallet pathname");
+   }
+   //create wallet file and dbenv
+   auto iface = getIfaceFromFile(walletPathName, false, controlPassLbd);
    auto rootPtr = make_shared<AssetEntry_ArmoryLegacyRoot>(
       AssetId::getRootAssetId(), pubRoot, nullptr, chainCode);
 

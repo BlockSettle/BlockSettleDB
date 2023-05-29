@@ -315,7 +315,7 @@ map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(BlockDataManager* bdm,
          bwHeader.put_uint32_t(getMagicWord());
 
          //block size
-         bwHeader.put_uint32_t(bwBlock.getSize());
+         bwHeader.put_uint32_t((uint32_t)bwBlock.getSize());
 
          fStream.write(
             (const char*)bwHeader.getDataRef().getPtr(), bwHeader.getSize());

@@ -888,7 +888,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
       auto chainStatus_proto = new ::Codec_NodeStatus::NodeChainStatus();
       chainStatus_proto->set_state((unsigned)nodeStatus.chainStatus_.state());
       chainStatus_proto->set_blockspeed(nodeStatus.chainStatus_.getBlockSpeed());
-      chainStatus_proto->set_eta(nodeStatus.chainStatus_.getETA());
+      chainStatus_proto->set_eta((uint32_t)nodeStatus.chainStatus_.getETA());
       chainStatus_proto->set_pct(nodeStatus.chainStatus_.getProgressPct());
       chainStatus_proto->set_blocksleft(nodeStatus.chainStatus_.getBlocksLeft());
       response->set_allocated_chainstatus(chainStatus_proto);
@@ -909,7 +909,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
       if (!command->has_value() || command->bindata_size() != 1)
          throw runtime_error("invalid command for estimateFee");
 
-      uint32_t blocksToConfirm = command->value();
+      uint32_t blocksToConfirm = (uint32_t)command->value();
       auto strat = command->bindata(0);
 
       auto feeByte = this->bdmPtr_->nodeRPC_->getFeeByte(
@@ -990,7 +990,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
       auto response = make_shared<::Codec_LedgerEntry::ManyLedgerEntry>();
       for (unsigned y = 0; y < wltGroup.getPageCount(); y++)
       {
-         auto&& histPage = wltGroup.getHistoryPage(y, false, false, UINT32_MAX);
+         auto&& histPage = wltGroup.getHistoryPage(y, UINT32_MAX, false, false);
 
          for (auto& le : histPage)
          {
@@ -1529,7 +1529,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
             auto outputCount = brr.get_var_int();
             for (unsigned y = 0; y < outputCount; y++)
             {
-               auto txOutIndex = brr.get_var_int();
+               const unsigned txOutIndex = (uint32_t)brr.get_var_int();
                auto opInsertIter = opMap.insert(make_pair(
                   txOutIndex, SpentnessResult()));
                if (dbkey.getSize() == 0 || !opInsertIter.second)
@@ -1599,7 +1599,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
 
       //create response object
       auto response = make_shared<::Codec_Utxo::Spentness_BatchData>();
-      response->set_count(spenderMap.size());
+      response->set_count((uint32_t)spenderMap.size());
       for (auto& txHashPair : spenderMap)
       {
          auto txData = response->add_txdata();
@@ -1664,7 +1664,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
 
             for (size_t y = 0; y < outputCount; y++)
             {
-               auto txOutIdx = brr.get_var_int();
+               const auto txOutIdx = (unsigned)brr.get_var_int();
                auto& spentnessData = opMap[txOutIdx];
                
                if (txPtr == nullptr)
@@ -1710,7 +1710,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
       
       //create response object
       auto response = make_shared<::Codec_Utxo::Spentness_BatchData>();
-      response->set_count(spenderMap.size());
+      response->set_count((uint32_t)spenderMap.size());
       for (auto& txHashPair : spenderMap)
       {
          auto txData = response->add_txdata();
@@ -1770,7 +1770,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
             for (unsigned y = 0; y < outputCount; y++)
             {
                //set txout index
-               uint16_t txOutId = brr.get_var_int();
+               const auto txOutId = (unsigned)brr.get_var_int();
                opSet.insert(txOutId);
             }
          }
@@ -2086,7 +2086,7 @@ void BDV_Server_Object::processNotification(
       auto chainStatus_proto = new Codec_NodeStatus::NodeChainStatus();
       chainStatus_proto->set_state((unsigned)nodeStatus.chainStatus_.state());
       chainStatus_proto->set_blockspeed(nodeStatus.chainStatus_.getBlockSpeed());
-      chainStatus_proto->set_eta(nodeStatus.chainStatus_.getETA());
+      chainStatus_proto->set_eta((uint32_t)nodeStatus.chainStatus_.getETA());
       chainStatus_proto->set_pct(nodeStatus.chainStatus_.getProgressPct());
       chainStatus_proto->set_blocksleft(nodeStatus.chainStatus_.getBlocksLeft());
       status->set_allocated_chainstatus(chainStatus_proto);
@@ -2956,7 +2956,7 @@ void Clients::broadcastThroughRPC()
             //set the tx body and batch promise
             auto txPtr = batchPtr->zcMap_.begin()->second;
             txPtr->tx_.unserialize(*packet.rawTx_);
-            txPtr->tx_.setTxTime(time(0));
+            txPtr->tx_.setTxTime((uint32_t)time(0));
             batchPtr->isReadyPromise_->set_value(ArmoryErrorCodes::Success);
          }
          catch (future_error&)

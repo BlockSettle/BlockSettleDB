@@ -92,7 +92,7 @@ namespace Armory
             if (csIter == lastCodeSeparatorMap_.end())
                return 0;
 
-            return csIter->second;
+            return (unsigned)csIter->second;
          }
       };
 
@@ -212,7 +212,7 @@ namespace Armory
          BinaryDataRef getWitnessData(unsigned inputId) const;
 
          uint32_t getVersion(void) const { return theTx_.version_; }
-         uint32_t getTxOutCount(void) const { return theTx_.txouts_.size(); }
+         uint32_t getTxOutCount(void) const { return (uint32_t)theTx_.txouts_.size(); }
          uint32_t getLockTime(void) const { return theTx_.lockTime_; }
 
          //sw

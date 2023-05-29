@@ -51,7 +51,7 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data)
       case 0x00000001:
       {
          //get chaincode;
-         auto len = brr.get_var_int();
+         const auto len = (uint32_t)brr.get_var_int();
          auto&& chainCode = SecureBinaryData(brr.get_BinaryDataRef(len));
          derScheme = make_shared<DerivationScheme_ArmoryLegacy>(
             chainCode);
@@ -73,7 +73,7 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data)
       case 0x00000001:
       {
          //chaincode;
-         auto len = brr.get_var_int();
+         const auto len = (uint32_t)brr.get_var_int();
          auto&& chainCode = SecureBinaryData(brr.get_BinaryDataRef(len));
 
          //bip32 node meta data
@@ -101,7 +101,7 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data)
       case 0x00000001:
       {
          //chaincode;
-         auto len = brr.get_var_int();
+         auto len = (uint32_t)brr.get_var_int();
          auto&& chainCode = SecureBinaryData(brr.get_BinaryDataRef(len));
 
          //bip32 node meta data
@@ -109,7 +109,7 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data)
          auto leafID = brr.get_uint32_t();
 
          //salt
-         len = brr.get_var_int();
+         len = (uint32_t)brr.get_var_int();
          auto&& salt = SecureBinaryData(brr.get_BinaryDataRef(len));
 
          //instantiate object
@@ -133,7 +133,7 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data)
       case 0x00000001:
       {
          //id
-         auto len = brr.get_var_int();
+         const auto len = (uint32_t)brr.get_var_int();
          auto id = brr.get_BinaryData(len);
          derScheme = make_shared<DerivationScheme_ECDH>(id);
 
@@ -666,7 +666,7 @@ void DerivationScheme_ECDH::getAllSalts(shared_ptr<IO::DBIfaceTransaction> txPtr
 
       auto value = dbIter->value();
       BinaryRefReader bdrData(value);
-      auto len = bdrData.get_var_int();
+      const auto len = (uint32_t)bdrData.get_var_int();
       auto&& salt = bdrData.get_SecureBinaryData(len);
 
       saltMap_.emplace(make_pair(move(salt), saltId));

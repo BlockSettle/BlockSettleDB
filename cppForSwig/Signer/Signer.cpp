@@ -1058,7 +1058,7 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
 
          while (brr.getSizeRemaining() > 0)
          {
-            auto len = brr.get_var_int();
+            const auto len = (uint32_t)brr.get_var_int();
             if (len == 0)
             {
                resolvedScriptItems.push_back(BinaryDataRef());
@@ -1335,7 +1335,7 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
       for (unsigned i=0; i<itemCount; i++)
       {
          //grab next data from the script as if it's push data
-         auto len = brSW.get_var_int();
+         const auto len = (uint32_t)brSW.get_var_int();
          auto val = brSW.get_BinaryDataRef(len);
 
          //hash it and add to the feed's hash map
@@ -1791,7 +1791,7 @@ void ScriptSpender::toPSBT(BinaryWriter& bw) const
       //tx
       const auto& supportingTx = getSupportingTx();
       bw.put_var_int(supportingTx.getSize());
-      bw.put_BinaryData(supportingTx.getPtr(), supportingTx.getSize());
+      bw.put_BinaryData(supportingTx.getPtr(), (uint32_t)supportingTx.getSize());
       
       hasSupportingOutput = true;
    }
@@ -2240,7 +2240,7 @@ bool ScriptSpender::haveSupportingTx() const
 const Tx& ScriptSpender::getSupportingTx() const
 {
    if (txMap_ == nullptr)
-      throw SpenderException("missing tx map");;
+      throw SpenderException("missing tx map");
 
    auto hash = getOutputHash();
    auto iter = txMap_->find(hash);
@@ -2637,7 +2637,7 @@ set<unsigned> Signer::resolvePublicData()
       const auto& serializedOutput = recipient->getSerializedScript();
       BinaryRefReader brr(serializedOutput);
       brr.advance(8);
-      auto len = brr.get_var_int();
+      const auto len = (uint32_t)brr.get_var_int();
       auto scriptRef = brr.get_BinaryDataRef(len);
 
       auto pubKeys = Signer::getPubkeysForScript(scriptRef, resolverPtr_);
@@ -4513,9 +4513,9 @@ uint64_t Signer::getTotalOutputsValue(void) const
 uint32_t Signer::getTxOutCount() const
 {
    uint32_t count = 0;
-   for (const auto& group : recipients_)
-      count += group.second.size();
-
+   for (const auto& group : recipients_) {
+      count += (uint32_t)group.second.size();
+   }
    return count;
 }
 
@@ -4687,7 +4687,7 @@ void Signer::prettyPrint() const
          auto serTxOut = rec->getSerializedScript();
          BinaryRefReader brr(serTxOut);
          brr.advance(8);
-         auto len = brr.get_var_int();
+         const auto len = (uint32_t)brr.get_var_int();
          auto txOutScript = brr.get_BinaryDataRef(len);
 
          auto scrRef = BtcUtils::getTxOutScrAddrNoCopy(txOutScript);

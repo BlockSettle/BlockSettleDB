@@ -80,7 +80,7 @@ public:
 
    bool isDone(void) const { return index_ >= packets_.size(); }
    BinaryData consumeNextPacket(void);
-   unsigned count(void) const { return packets_.size(); }
+   unsigned count(void) const { return (unsigned)packets_.size(); }
    void clear(void) { packets_.clear(); }
 };
 

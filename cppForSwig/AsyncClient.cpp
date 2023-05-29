@@ -1247,7 +1247,7 @@ void CallbackReturn_String::callback(
 
       if (msg.data_size() != 1)
          throw ClientMessageError(
-            "invalid message in CallbackReturn_String", -1);
+            "invalid message in CallbackReturn_String " + std::to_string(msg.data_size()), -1);
 
       auto str = msg.data(0);
       ReturnMessage<string> rm(str);
@@ -1762,7 +1762,7 @@ void CallbackReturn_Map_BD_U32::callback(
          if (addrData.value_size() != 1)
             throw runtime_error("invalid msg for CallbackReturn_Map_BD_U32");
 
-         bdmap[addrRef] = addrData.value(0);
+         bdmap[addrRef] = (unsigned int)addrData.value(0);
       }
 
       ReturnMessage<map<BinaryData, uint32_t>> rm(bdmap);

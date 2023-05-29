@@ -454,7 +454,7 @@ namespace Armory
          const RecipientMap& getRecipientMap(void) const { return recipients_; }
 
          //counts
-         uint32_t getTxInCount(void) const { return spenders_.size(); }
+         uint32_t getTxInCount(void) const { return (uint32_t)spenders_.size(); }
          uint32_t getTxOutCount(void) const override;
 
          //feeds setup

@@ -122,7 +122,7 @@ AddressAccountId AddressAccountId::deserializeValue(BinaryRefReader& brr)
 {
    try
    {
-      auto len = brr.get_var_int();
+      const auto len = (uint32_t)brr.get_var_int();
       return AddressAccountId(brr.get_BinaryData(len));
    }
    catch (const VarIntException&)
@@ -293,7 +293,7 @@ AssetAccountId AssetAccountId::deserializeValue(BinaryRefReader& brr)
    auto pos = brr.getPosition();
    try
    {
-      auto len = brr.get_var_int();
+      const auto len = (uint32_t)brr.get_var_int();
       return AssetAccountId(brr.get_BinaryData(len));
    }
    catch (const std::exception&)
@@ -524,7 +524,7 @@ void AssetId::serializeValue(BinaryWriter& bw) const
 ////////////////////////////////////////////////////////////////////////////////
 AssetId AssetId::deserializeValue(BinaryRefReader& brr)
 {
-   auto len = brr.get_var_int();
+   const auto len = (uint32_t)brr.get_var_int();
    return AssetId(brr.get_BinaryData(len));
 }
 
@@ -650,7 +650,7 @@ EncryptionKeyId EncryptionKeyId::deserializeValue(BinaryRefReader& brr)
 {
    try
    {
-      auto len = brr.get_var_int();
+      const auto len = (uint32_t)brr.get_var_int();
       return EncryptionKeyId(brr.get_BinaryData(len));
    }
    catch (const VarIntException&)

@@ -81,13 +81,15 @@ struct DIR
 DIR *opendir(const char *name)
 {
 	wchar_t *namew = (wchar_t*)malloc(sizeof(wchar_t)*(strlen(name)+1));
-	MultiByteToWideChar(CP_UTF8, 0, name, -1, namew, strlen(name)+1);
+	MultiByteToWideChar(CP_UTF8, 0, name, -1, namew, (int)strlen(name)+1);
 	
 	DIR *rtdir = opendir(namew);
 	free(namew);
 	
 	return rtdir;
 }
+
+#pragma warning(disable : 4996)
 
 DIR *opendir(const wchar_t *name)
 {

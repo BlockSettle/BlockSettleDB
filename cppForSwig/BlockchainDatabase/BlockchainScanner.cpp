@@ -530,7 +530,7 @@ void BlockchainScanner::processOutputsThread(ParserBatch* batch)
             stxo.txOutIndex_ = y;
             stxo.scrAddr_ = scrAddr;
             stxo.spentness_ = TXOUT_UNSPENT;
-            stxo.parentTxOutCount_ = txn.txouts_.size();
+            stxo.parentTxOutCount_ = (unsigned)txn.txouts_.size();
             stxo.isCoinbase_ = txn.isCoinbase_;
             auto value = stxo.getValue();
 
@@ -643,7 +643,7 @@ void BlockchainScanner::processInputsThread(ParserBatch* batch)
             //set spenderHash and parentTxOutCount to count and hash tallying
             //of spent txouts
             stxo.spenderHash_ = txn.getHash();
-            stxo.parentTxOutCount_ = txn.txouts_.size();
+            stxo.parentTxOutCount_ = (unsigned)txn.txouts_.size();
 
             //add to ssh_
             auto& ssh = sshMap[stxo.getScrAddress()];
@@ -715,7 +715,7 @@ void BlockchainScanner::writeBlockData()
    if (reportProgress_)
       progress_(BDMPhase_Rescan,
       calc.fractionCompleted(), UINT32_MAX,
-      initVal);
+      (unsigned)initVal);
 
    auto writeHintsLambda = 
       [&](ParserBatch* batch_ref)->void
@@ -845,8 +845,8 @@ void BlockchainScanner::writeBlockData()
       calc.advance(progVal);
       if (reportProgress_)
          progress_(BDMPhase_Rescan,
-         calc.fractionCompleted(), calc.remainingSeconds(),
-         progVal);
+         calc.fractionCompleted(), (unsigned)calc.remainingSeconds(),
+         (unsigned)progVal);
 
       topScannedBlockHash_ = topheader->getThisHash();
 
@@ -1093,10 +1093,10 @@ void BlockchainScanner::updateSSH(bool force, int32_t startHeight)
          }
 
          //build list of all referred hashes in txins
-         auto txinCount = tx.getNumTxIn();
+         const auto txinCount = (uint32_t)tx.getNumTxIn();
          auto dataPtr = tx.getPtr();
 
-         for (size_t i = 0; i < txinCount; i++)
+         for (uint32_t i = 0; i < txinCount; i++)
          {
             auto offset = tx.getTxInOffset(i);
             BinaryDataRef bdr(dataPtr + offset, 32);
@@ -1493,7 +1493,7 @@ void BlockchainScanner::processFilterHitsThread(
                {
                   if (txnHash == *hashIter)
                   {
-                     auto countAndHash = WRITE_UINT32_LE(txids.size());
+                     auto countAndHash = WRITE_UINT32_LE((uint32_t)txids.size());
                      countAndHash.append(txnHash);
                      result[countAndHash] = move(
                         DBUtils::getBlkDataKeyNoPrefix(
@@ -1672,7 +1672,7 @@ bool BlockchainScanner::resolveTxHashes()
 
    //process filter hits
    atomic<int> counter;
-   counter.store(resultMap.size() - 1, memory_order_relaxed);
+   counter.store(int(resultMap.size() - 1), memory_order_relaxed);
    map<BinaryData, BinaryData> resolverResults;
    vector<thread> resolverThreads;
 
@@ -1697,7 +1697,7 @@ bool BlockchainScanner::resolveTxHashes()
       auto intprog = hashCount - count;
       calc.advance(intprog);
       this->progress_(BDMPhase_ResolveHashes, 
-         calc.fractionCompleted(), calc.remainingSeconds(), count);
+         calc.fractionCompleted(), (unsigned)calc.remainingSeconds(), (unsigned)count);
    };
 
    auto resolverThr = [&](void)->void

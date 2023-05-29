@@ -92,7 +92,7 @@ shared_ptr<KeyDerivationFunction> KeyDerivationFunction::deserialize(
 
          //salt
          auto len = brr.get_var_int();
-         SecureBinaryData salt(move(brr.get_BinaryData(len)));
+         SecureBinaryData salt(move(brr.get_BinaryData((uint32_t)len)));
 
          kdfPtr = make_shared<KeyDerivationFunction_Romix>(
             iterations, memTarget, salt);
@@ -215,13 +215,13 @@ unique_ptr<Cipher> Cipher::deserialize(BinaryRefReader& brr)
 
       auto type = brr.get_uint8_t();
 
-      auto len = brr.get_var_int();
+      uint32_t len = (uint32_t)brr.get_var_int();
       auto&& kdfId = brr.get_BinaryData(len);
 
-      len = brr.get_var_int();
+      len = (uint32_t)brr.get_var_int();
       auto&& encryptionKeyId = brr.get_BinaryData(len);
 
-      len = brr.get_var_int();
+      len = (uint32_t)brr.get_var_int();
       auto&& iv = SecureBinaryData(brr.get_BinaryDataRef(len));
 
       switch (type)
@@ -377,16 +377,16 @@ unique_ptr<CipherData> CipherData::deserialize(BinaryRefReader& brr)
    {
    case 0x00000001:
    {
-      auto len = brr.get_var_int();
-      if (len > brr.getSizeRemaining())
+      uint32_t len = (uint32_t)brr.get_var_int();
+      if (len > (uint32_t)brr.getSizeRemaining()) {
          throw CipherException("invalid ciphertext length");
-
+      }
       auto&& cipherText = brr.get_SecureBinaryData(len);
 
-      len = brr.get_var_int();
-      if (len > brr.getSizeRemaining())
+      len = (uint32_t)brr.get_var_int();
+      if (len > (uint32_t)brr.getSizeRemaining()) {
          throw CipherException("invalid cipher length");
-
+      }
       auto&& cipher = Cipher::deserialize(brr);
       cipherDataPtr = make_unique<CipherData>(cipherText, move(cipher));
 
@@ -525,10 +525,10 @@ unique_ptr<EncryptionKey> EncryptionKey::deserialize(const BinaryDataRef& data)
          auto count = brr.get_var_int();
          for (unsigned i = 0; i < count; i++)
          {
-            auto len = brr.get_var_int();
-            if (len > brr.getSizeRemaining())
+            const uint32_t len = (uint32_t)brr.get_var_int();
+            if (len > (uint32_t)brr.getSizeRemaining()) {
                throw runtime_error("invalid serialized encrypted data len");
-
+            }
             auto cipherBdr = brr.get_BinaryDataRef(len);
             BinaryRefReader cipherBrr(cipherBdr);
 

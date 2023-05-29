@@ -70,7 +70,7 @@ public:
    
    time_t remainingSeconds() const
    {
-      return (total_-lastSample_)/unitsPerSecond();
+      return time_t((total_-lastSample_)/unitsPerSecond());
    }
 };
 

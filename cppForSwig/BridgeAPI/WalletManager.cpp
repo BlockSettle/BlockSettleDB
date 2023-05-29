@@ -870,11 +870,11 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
 
    auto folder = DBUtils::getBaseDir(path_);
 
-   auto highestIndex = highestUsedIndex_;
+   auto highestIndex = (unsigned)highestUsedIndex_;
    for (auto& addrPair : addrMap_)
    {
-      if (highestIndex < addrPair.second.chainIndex())
-         highestIndex = addrPair.second.chainIndex();
+      if (highestIndex < (unsigned)addrPair.second.chainIndex())
+         highestIndex = (unsigned)addrPair.second.chainIndex();
    }
    ++highestIndex;
 
@@ -899,7 +899,7 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
                   return {};
 
                //kdf it
-               KdfRomix myKdf(kdfMem_, kdfIter_, kdfSalt_);
+               KdfRomix myKdf((uint32_t)kdfMem_, kdfIter_, kdfSalt_);
                auto&& derivedPass = myKdf.DeriveKey(passphrase);
 
                //decrypt the privkey

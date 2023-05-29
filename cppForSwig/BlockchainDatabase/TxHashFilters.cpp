@@ -158,10 +158,10 @@ void BlockHashVector::serialize(BinaryWriter& bw) const
    if (blockKey_ == UINT32_MAX)
       throw runtime_error("[BlockHashVector::serialize] invalid block key");
 
-   uint32_t size = 12 + filterVector_.size() * sizeof(uint32_t);
+   const uint32_t size = 12 + (uint32_t)filterVector_.size() * sizeof(uint32_t);
    bw.put_uint32_t(size);
    bw.put_uint32_t(blockKey_);
-   bw.put_uint32_t(filterVector_.size());
+   bw.put_uint32_t((uint32_t)filterVector_.size());
 
    BinaryDataRef bdr(
       (uint8_t*)&filterVector_[0], filterVector_.size() * sizeof(uint32_t));
@@ -221,13 +221,13 @@ void BlockHashMap::update(const BinaryData& hash)
 
    uint32_t hashHead;
    memcpy(&hashHead, hash.getPtr(), sizeof(uint32_t));
-   auto id = len_++;
+   const auto id = (uint32_t)len_++;
    auto insertIter = filterMap_.emplace(
-      hashHead, set<uint32_t>{(uint32_t)id});
+      hashHead, set<uint32_t>{id});
 
-   if (insertIter.second)
+   if (insertIter.second) {
       return;
-
+   }
    insertIter.first->second.emplace(id);
 }
 
@@ -352,7 +352,7 @@ void TxFilterPoolWriter::serialize(BinaryWriter& bw) const
 
    if (!dataRef_.empty())
       len = getSizeFromPtr(dataRef_.getPtr());
-   len += pool_.size();
+   len += (uint32_t)pool_.size();
 
    //write count header as a 32bit integer
    bw.put_uint32_t(len);

@@ -354,7 +354,7 @@ int AuthPeerAssetConversion::addAsset(
       throw AccountException("invalid metadata account ptr");
 
    auto& accountID = account->ID_;
-   unsigned index = account->assets_.size();
+   const unsigned index = (unsigned)account->assets_.size();
 
    auto metaObject = make_shared<PeerPublicData>(accountID, index);
    metaObject->setPublicKey(pubkey);
@@ -379,7 +379,7 @@ void AuthPeerAssetConversion::addRootSignature(MetaDataAccount* account,
       throw AccountException("invalid metadata account ptr");
 
    auto& accountID = account->ID_;
-   unsigned index = account->assets_.size();
+   const unsigned index = (unsigned)account->assets_.size();
 
    auto metaObject = make_shared<PeerRootSignature>(accountID, index);
    metaObject->set(key, sig);
@@ -399,7 +399,7 @@ unsigned AuthPeerAssetConversion::addRootPeer(MetaDataAccount* account,
       throw AccountException("invalid metadata account ptr");
 
    auto& accountID = account->ID_;
-   unsigned index = account->assets_.size();
+   const unsigned index = (unsigned)account->assets_.size();
 
    auto metaObject = make_shared<PeerRootKey>(accountID, index);
    metaObject->set(desc, key);

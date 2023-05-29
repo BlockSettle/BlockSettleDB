@@ -876,7 +876,7 @@ void NetworkSettings::randomizeListenPort()
 
    //no custom listen port was provided and the db was spawned with a 
    //cookie file, listen port will be randomized
-   srand(time(0));
+   std::srand((unsigned int)time(0));
    while (1)
    {
       auto port = rand() % 15000 + 50000;
@@ -1231,9 +1231,9 @@ void BDV_Error_Struct::deserialize(const BinaryData& data)
 
    errCode_ = brr.get_int32_t();
    
-   auto len = brr.get_var_int();
+   uint32_t len = (uint32_t)brr.get_var_int();
    errData_ = brr.get_BinaryData(len);
 
-   len = brr.get_var_int();
+   len = (uint32_t)brr.get_var_int();
    errorStr_ = brr.get_String(len);
 }

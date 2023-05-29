@@ -152,9 +152,8 @@ size_t Payload::serialize(
    memcpy(msgtype, type.c_str(), type.size());
 
    //length
-   uint32_t msglen = payload_size;
    uint32_t* msglenptr = (uint32_t*)((uint8_t*)ptr + PAYLOAD_LENGTH_OFFSET);
-   *msglenptr = msglen;
+   *msglenptr = (uint32_t)payload_size;
 
    //checksum
    uint8_t* payloadptr = nullptr;
@@ -514,7 +513,7 @@ void Payload_Version::deserialize(uint8_t* data, size_t len)
    vheader_.nonce_ = *(uint64_t*)dataptr;
    dataptr += 8;
 
-   size_t remaining = len - USERAGENT_OFFSET;
+   const auto remaining = uint32_t(len - USERAGENT_OFFSET);
    uint64_t uaLen;
    auto varintlen = get_varint(uaLen, dataptr, remaining);
    dataptr += varintlen;
@@ -637,7 +636,7 @@ size_t Payload_Pong::serialize_inner(uint8_t* dataptr) const
 void Payload_Inv::deserialize(uint8_t* dataptr, size_t len)
 {
    uint64_t invCount;
-   auto varintlen = get_varint(invCount, dataptr, len);
+   auto varintlen = get_varint(invCount, dataptr, (uint32_t)len);
 
    if (invCount > INV_MAX)
       throw PayloadDeserError("inv count > INV_MAX");
@@ -715,7 +714,7 @@ size_t Payload_Inv::serialize_inner(uint8_t* dataptr) const
 void Payload_GetData::deserialize(uint8_t* dataptr, size_t len)
 {
    uint64_t invCount;
-   auto varintlen = get_varint(invCount, dataptr, len);
+   auto varintlen = get_varint(invCount, dataptr, (uint32_t)len);
 
    if (invCount > INV_MAX)
       throw PayloadDeserError("inv count > INV_MAX");
@@ -778,7 +777,7 @@ void Payload_Reject::deserialize(uint8_t* dataptr, size_t len)
    uint64_t typeLen;
 
    //message field size in bytes
-   auto varintlen = get_varint(typeLen, dataptr, len);
+   auto varintlen = get_varint(typeLen, dataptr, (uint32_t)len);
    auto ptr = dataptr + varintlen;
 
    //message type
@@ -798,7 +797,7 @@ void Payload_Reject::deserialize(uint8_t* dataptr, size_t len)
 
    //reason str size
    uint64_t reasonLen;
-   varintlen = get_varint(reasonLen, ptr, len);
+   varintlen = get_varint(reasonLen, ptr, (uint32_t)len);
    ptr += varintlen;
    
    //reason str

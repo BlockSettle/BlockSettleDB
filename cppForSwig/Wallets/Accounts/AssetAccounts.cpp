@@ -161,7 +161,7 @@ shared_ptr<AssetAccountData> AssetAccount::loadFromDisk(const BinaryData& key,
    brr.get_var_int();
 
    //der scheme
-   auto len = brr.get_var_int();
+   const uint32_t len = (uint32_t)brr.get_var_int();
    auto derSchemeBDR = DBUtils::getDataRefForPacket(brr.get_BinaryDataRef(len));
    auto derScheme = DerivationScheme::deserialize(derSchemeBDR);
    if (derScheme->getType() == DerivationSchemeType::ECDH)

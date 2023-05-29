@@ -64,10 +64,10 @@ public:
    
    uint64_t remainingSeconds() const
    {
-      if (lastSample_ > total_)
-         return UINT32_MAX;
-
-      return (total_-lastSample_)/unitsPerSecond();
+      if (lastSample_ > total_) {
+         return UINT64_MAX;
+      }
+      return uint64_t((total_-lastSample_)/unitsPerSecond());
    }
 };
 

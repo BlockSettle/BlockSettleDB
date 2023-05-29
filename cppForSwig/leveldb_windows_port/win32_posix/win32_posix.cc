@@ -11,11 +11,13 @@
 	next null bytes. Not only will this yield messed up reads, CRCs will fail and the DB won't setup, returning with an error.
 ***/
 
+#pragma warning(disable : 4996)
+
 int fread_unlockd(void *_DstBuf, size_t _EleSize, size_t _Count, FILE *_File)
 {
 	int fd = _fileno(_File);
 
-	unsigned int rt = _read(fd, _DstBuf, _EleSize*_Count);
+	int rt = _read(fd, _DstBuf, unsigned(_EleSize*_Count));
 	if(_eof(fd)) 
 	{
 		int abc;
@@ -176,7 +178,7 @@ int mkdir_win32(const char *path, int mode)
 	***/
 
 	wchar_t *rm_path = posix_path_to_win32(path);
-	int l = wcslen(rm_path), s=0, i=0;
+	int l = (int)wcslen(rm_path), s=0, i=0;
 
 	while(s<l)
 	{
@@ -242,7 +244,7 @@ int rmdir_resovled(wchar_t *win32_path)
 			{
 				wchar_t *filepath = (wchar_t*)malloc(sizeof(wchar_t)*MAX_PATH);
 				wcscpy(filepath, win32_path);
-				int fpl = wcslen(win32_path);
+				int fpl = (int)wcslen(win32_path);
 				if(win32_path[fpl-1]!=L'/') 
 				{
 					filepath[fpl++] = L'/';
@@ -297,7 +299,7 @@ int rmdir_win32(const char *path)
 		//get wild card
 		wchar_t *wildcard = (wchar_t*)malloc(sizeof(wchar_t)*MAX_PATH);
 		memset(wildcard, 0, sizeof(wchar_t)*MAX_PATH);
-		int l = wcslen(win32_path), s=l-1; //-1 for the *
+		int l = (int)wcslen(win32_path), s=l-1; //-1 for the *
 		int wildcard_length=0;
 
 		while(s)
@@ -319,7 +321,7 @@ int rmdir_win32(const char *path)
 		wchar_t *delpath = (wchar_t*)malloc((sizeof(wchar_t)*MAX_PATH));
 		wchar_t *checkwc = (wchar_t*)malloc((sizeof(wchar_t)*MAX_PATH));
 		wcscpy(delpath, win32_path);
-		int dpl = wcslen(win32_path);
+		int dpl = (int)wcslen(win32_path);
 
 		//find all directories in path
 		DIR* dirrm = opendir(win32_path);
@@ -400,7 +402,7 @@ FILE* fopen_win32(const char *path, const char *mode)
 	wchar_t *mode_win32 = (wchar_t*)malloc(10);
 	MultiByteToWideChar(CP_UTF8, 0, mode, -1, mode_win32, 10);
    
-   unsigned modesize = strlen(mode);
+   size_t modesize = strlen(mode);
    if(mode[modesize-1] != 'b')
    	wcscat(mode_win32, L"b");
 	
@@ -517,7 +519,7 @@ wchar_t *posix_path_to_win32(const char *posix_path)
 	/*** appends . to the begining of the filename if it starts by a \\ or / 
 	make sure only one type of slash is used on the file name***/
 
-	int l = strlen(posix_path), i=0;
+	int l = (int)strlen(posix_path), i=0;
 	char *win32_path = (char*)malloc(l+2);
 	
 	if(posix_path[0]=='\\' || posix_path[0]=='/')
@@ -535,7 +537,7 @@ wchar_t *posix_path_to_win32(const char *posix_path)
 	}
 
 	wchar_t *pathw = (wchar_t*)malloc(sizeof(wchar_t)*(strlen(win32_path)+1));
-	MultiByteToWideChar(CP_UTF8, 0, win32_path, -1, pathw, strlen(win32_path)+1);
+	MultiByteToWideChar(CP_UTF8, 0, win32_path, -1, pathw, (int)strlen(win32_path)+1);
 	free(win32_path);
 	
 	return pathw;
@@ -544,7 +546,7 @@ wchar_t *posix_path_to_win32(const char *posix_path)
 wchar_t *posix_path_to_win32_full(const char *posix_path)
 {
 	int i=0;
-	int l=strlen(posix_path) +1;
+	int l=(int)strlen(posix_path) +1;
 	char *win32_path = (char*)malloc(l +2);
 	
 	if(posix_path[0]=='/')
@@ -565,7 +567,7 @@ wchar_t *posix_path_to_win32_full(const char *posix_path)
 	}
 
 	wchar_t *pathw = (wchar_t*)malloc(sizeof(wchar_t)*(strlen(win32_path)+1));
-	MultiByteToWideChar(CP_UTF8, 0, win32_path, -1, pathw, strlen(win32_path)+1);
+	MultiByteToWideChar(CP_UTF8, 0, win32_path, -1, pathw, (int)strlen(win32_path)+1);
 	free(win32_path);
 
 	return pathw;

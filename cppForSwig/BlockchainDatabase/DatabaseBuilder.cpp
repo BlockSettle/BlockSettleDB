@@ -258,7 +258,7 @@ BlockOffset DatabaseBuilder::loadBlockHeadersFromDB(
       const time_t now = time(nullptr);
 
       // every ten minutes we get a block, how many blocks exist?
-      const unsigned blocks = (now - btcEpoch) / 60 / 10;
+      const unsigned blocks = unsigned(now - btcEpoch) / 60 / 10;
       return blocks;
    }();
 
@@ -283,7 +283,7 @@ BlockOffset DatabaseBuilder::loadBlockHeadersFromDB(
 
       calc.advance(counter);
       progress(BDMPhase_DBHeaders, 
-         calc.fractionCompleted(), calc.remainingSeconds(), counter);
+         calc.fractionCompleted(), (unsigned)calc.remainingSeconds(), counter);
    };
 
    db_->readAllHeaders(callback);
@@ -335,7 +335,7 @@ Blockchain::ReorganizationState DatabaseBuilder::updateBlocksInDB(
 
                calc.advance(fileID);
                progress(BDMPhase_BlockData,
-                  calc.fractionCompleted(), calc.remainingSeconds(),
+                  calc.fractionCompleted(), (unsigned)calc.remainingSeconds(),
                   fileID);
 
                baseID = fileID;

@@ -113,10 +113,10 @@ map<BinaryData, uint32_t> BtcWallet::getAddrTxnCounts(int32_t updateID) const
       if (sa.second->updateID_ <= lastPulledCountsID_)
          continue;
 
-      auto count = sa.second->getTxioCount();
-      if (count == 0 || count == UINT32_MAX)
+      const auto count = (uint32_t)sa.second->getTxioCount();
+      if (count == 0 || count == UINT32_MAX) {
          continue;
-
+      }
       countMap[sa.first] = count;
    }
 
@@ -409,12 +409,12 @@ vector<AddressBookEntry> BtcWallet::createAddressBook(void)
 
          for (unsigned i = 0; i < nOut; i++)
          {
-            unsigned offset = fullTx.getTxOutOffset(i);
-            unsigned outputSize = fullTx.getTxOutOffset(i + 1) - offset;
+            const auto offset = fullTx.getTxOutOffset(i);
+            const auto outputSize = fullTx.getTxOutOffset(i + 1) - offset;
             BinaryDataRef outputRef(txPtr + offset + 8, outputSize);
             
             BinaryRefReader brr(outputRef);
-            auto scriptSize = brr.get_var_int();
+            const auto scriptSize = (uint32_t)brr.get_var_int();
 
             auto&& scrRef = 
                BtcUtils::getTxOutScrAddrNoCopy(brr.get_BinaryDataRef(scriptSize));
@@ -603,7 +603,7 @@ map<uint32_t, uint32_t> BtcWallet::computeScrAddrMapHistSummary()
             }
          }
 
-         preHistAtHeight.second.txioCount_ = txKeys.size();
+         preHistAtHeight.second.txioCount_ = (uint32_t)txKeys.size();
       }
    
       histSummary[preHistAtHeight.first] = preHistAtHeight.second.txioCount_;
