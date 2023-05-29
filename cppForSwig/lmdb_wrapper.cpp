@@ -683,7 +683,7 @@ BinaryData LMDBBlockDatabase::getDBKeyForHash(const BinaryData& txhash,
    auto&& txHints = beginTransaction(TXHINTS, LMDB::ReadOnly);
    BinaryRefReader brrHints = getValueRef(TXHINTS, DB_PREFIX_TXHINTS, hash4);
 
-   uint32_t valSize = brrHints.getSize();
+   uint32_t valSize = (uint32_t)brrHints.getSize();
    if (valSize < 6)
       return BinaryData();
    uint32_t numHints = (uint32_t)brrHints.get_var_int();
@@ -810,7 +810,7 @@ void LMDBBlockDatabase::putValue(DB_SELECT db,
 {
    BinaryWriter bw;
    bw.put_uint8_t((uint8_t)prefix);
-   bw.put_BinaryData(key.getPtr(), key.getSize());
+   bw.put_BinaryData(key.getPtr(), (uint32_t)key.getSize());
    putValue(db, bw.getDataRef(), value);
 }
 
@@ -1249,7 +1249,7 @@ void LMDBBlockDatabase::readAllHeaders(
       auto regHead = make_shared<BlockHeader>();
 
       regHead->unserialize(sbh.dataCopy_);
-      regHead->setBlockSize(sbh.numBytes_);
+      regHead->setBlockSize((uint32_t)sbh.numBytes_);
       regHead->setNumTx(sbh.numTx_);
 
       regHead->setBlockFileNum(sbh.fileID_);
@@ -1787,7 +1787,7 @@ TxOut LMDBBlockDatabase::getTxOutCopy(
       StoredTxOut stxo;
       stxo.unserializeDBValue(brr.getRawRef());
       auto&& txout_raw = stxo.getSerializedTxOut();
-      txoOut.unserialize(txout_raw, txout_raw.getSize(), txOutIdx);
+      txoOut.unserialize(txout_raw, (uint32_t)txout_raw.getSize(), txOutIdx);
       return txoOut;
    }
    else
@@ -1803,7 +1803,7 @@ TxOut LMDBBlockDatabase::getTxOutCopy(
 
    brr.advance(2);
    txoOut.unserialize_checked(
-      brr.getCurrPtr(), brr.getSizeRemaining(), 0, (uint32_t)txOutIdx);
+      brr.getCurrPtr(), (uint32_t)brr.getSizeRemaining(), 0, (uint32_t)txOutIdx);
    return txoOut;
 }
 
@@ -1851,9 +1851,10 @@ TxIn LMDBBlockDatabase::getTxInCopy(
             return TxIn();
          }
          uint8_t const * txInStart = brr.exposeDataPtr() + 34 + offsetsIn[txInIdx];
-         uint32_t txInLength = offsetsIn[txInIdx + 1] - offsetsIn[txInIdx];
+         const auto txInLength = offsetsIn[txInIdx + 1] - offsetsIn[txInIdx];
          TxIn txin;
-         txin.unserialize_checked(txInStart, brr.getSize() - 34 - offsetsIn[txInIdx], txInLength, txInIdx);
+         txin.unserialize_checked(txInStart, uint32_t(brr.getSize() - 34 - offsetsIn[txInIdx])
+            , (uint32_t)txInLength, txInIdx);
          return txin;
       }
    }
@@ -2003,7 +2004,7 @@ BinaryData LMDBBlockDatabase::getRawBlock(shared_ptr<BlockHeader> bh) const
 bool LMDBBlockDatabase::getStoredTx( StoredTx & stx,
                                   BinaryData& txHashOrDBKey) const
 {
-   uint32_t sz = txHashOrDBKey.getSize();
+   const auto sz = txHashOrDBKey.getSize();
    if(sz == 32)
       return getStoredTx_byHash(txHashOrDBKey, &stx);
    else if(sz == 6 || sz == 7)
@@ -2103,7 +2104,7 @@ bool LMDBBlockDatabase::getStoredZcTx(StoredTx & stx,
    } while(ldbIter->advanceAndRead(DB_PREFIX_ZCDATA));
 
 
-   stx.numBytes_ = stx.haveAllTxOut() ? nbytes : UINT32_MAX;
+   stx.numBytes_ = stx.haveAllTxOut() ? (uint32_t)nbytes : UINT32_MAX;
 
    return true;
 }
@@ -2780,7 +2781,7 @@ uint32_t LMDBBlockDatabase::getStxoCountForTx(const BinaryData & dbKey6) const
 
          BinaryRefReader data_brr(data);
          data_brr.advance(32);
-         return data_brr.get_var_int();
+         return (uint32_t)data_brr.get_var_int();
       }
    }
 
@@ -2934,7 +2935,7 @@ void LMDBBlockDatabase::putMissingHashes(
    auto&& missingHashesKey = DBUtils::getMissingHashesKey(id);
 
    BinaryWriter bw;
-   bw.put_uint32_t(hashSet.size());
+   bw.put_uint32_t((uint32_t)hashSet.size());
    for (auto& hash : hashSet)
       bw.put_BinaryData(hash);
 
@@ -3361,7 +3362,7 @@ unsigned ShardFilter_ScrAddr::keyToId(BinaryDataRef keyRef) const
    {
       //id = exp((height/50k - 4)*1.6)
       auto val = (float(height) / 50000.0f - 4.0f) * 1.6f;
-      return expl(val);
+      return (unsigned)expl(val);
    }
 }
 
@@ -3371,7 +3372,7 @@ unsigned ShardFilter_ScrAddr::getHeightForId(unsigned id) const
    if (id == 0)
       return 0;
    else if (id <= thresholdId_)
-      return unsigned((logf(id) / 1.6f + 4.0f) * 50000.0f);
+      return unsigned((logf((float)id) / 1.6f + 4.0f) * 50000.0f);
    else
       return thresholdValue_ + (id - thresholdId_) * step_;
 }
@@ -3422,7 +3423,7 @@ unsigned ShardFilter_Spentness::keyToId(BinaryDataRef keyRef) const
    {
       //id = exp((height/50k - 4))
       auto val = (float(height) / 50000.0f - 4.0f);
-      return expl(val);
+      return (unsigned)expl(val);
    }
 }
 
@@ -3432,7 +3433,7 @@ unsigned ShardFilter_Spentness::getHeightForId(unsigned id) const
    if (id == 0)
       return 0;
    else if (id <= thresholdId_)
-      return unsigned((logf(id) + 4.0f) * 50000.0f);
+      return unsigned((logf((float)id) + 4.0f) * 50000.0f);
    else
       return thresholdValue_ + (id - thresholdId_) * step_;
 }

@@ -30,7 +30,7 @@ void hkdf_sha256(uint8_t *result, size_t resultSize,
                  const uint8_t *info, size_t isize)
 {
    unsigned int numSteps, totalHashBytes, hashInputSize;
-   unsigned int hashInputBytes = isize + 1;
+   unsigned int hashInputBytes = (unsigned)isize + 1;
 
    uint8_t prk[SHA256_DIGEST_LENGTH];
    uint8_t *t, *hashInput;
@@ -40,7 +40,7 @@ void hkdf_sha256(uint8_t *result, size_t resultSize,
    assert(resultSize > 0);
    assert(ksize > 0);
 
-   numSteps = (resultSize + SHA256_DIGEST_LENGTH - 1) / SHA256_DIGEST_LENGTH;
+   numSteps = (unsigned)(resultSize + SHA256_DIGEST_LENGTH - 1) / SHA256_DIGEST_LENGTH;
    totalHashBytes = numSteps * SHA256_DIGEST_LENGTH;
    hashInputSize = SHA256_DIGEST_LENGTH + hashInputBytes;
 
@@ -48,7 +48,7 @@ void hkdf_sha256(uint8_t *result, size_t resultSize,
    hashInput = (uint8_t*)malloc(hashInputSize);
 
    // Step 1 (Sect. 2.2) - Extract a pseudorandom key from the salt & key.
-   hmac_sha256(salt, ssize, key, ksize, prk);
+   hmac_sha256(salt, (uint32_t)ssize, key, (uint32_t)ksize, prk);
 
    // Step 2 (Sec. 2.3) - Expand
    memcpy(hashInput, info, isize);

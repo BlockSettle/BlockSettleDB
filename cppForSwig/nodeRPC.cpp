@@ -268,7 +268,7 @@ float NodeRPC::queryFeeByte(HttpSocket& sock, unsigned blocksToConfirm)
    if (feeBytePtr == nullptr)
       throw JSON_Exception("invalid response");
 
-   return feeBytePtr->val_;
+   return (float)feeBytePtr->val_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -317,15 +317,18 @@ FeeEstimateResult NodeRPC::queryFeeByteSmart(HttpSocket& sock,
       auto feeBytePtr = dynamic_pointer_cast<JSON_number>(feeByteObj);
       if (feeBytePtr != nullptr)
       {
-         fer.feeByte_ = feeBytePtr->val_;
+         fer.feeByte_ = (float)feeBytePtr->val_;
          fer.smartFee_ = true;
 
          auto blocksObj = resultPairPtr->getValForKey("blocks");
          auto blocksPtr = dynamic_pointer_cast<JSON_number>(blocksObj);
 
-         if (blocksPtr != nullptr)
-            if (blocksPtr->val_ != confTarget)
-               confTarget = blocksPtr->val_;
+         if (blocksPtr != nullptr) {
+            const auto val = (unsigned)blocksPtr->val_;
+            if (val != confTarget) {
+               confTarget = val;
+            }
+         }
       }
    }
 
@@ -459,7 +462,7 @@ bool NodeRPC::updateChainStatus(void)
    if (time_val == nullptr)
       throw JSON_Exception("invalid response");
 
-   nodeChainStatus_.appendHeightAndTime(height_val->val_, time_val->val_);
+   nodeChainStatus_.appendHeightAndTime((unsigned)height_val->val_, (unsigned)time_val->val_);
 
    //figure out state
    return nodeChainStatus_.processState(getblockchaininfo_object);
@@ -732,7 +735,7 @@ bool NodeChainStatus::processState(
    if (pct_val == nullptr)
       return false;
 
-   pct_ = min(pct_val->val_, 1.0);
+   pct_ = min((float)pct_val->val_, 1.0f);
    auto pct_int = unsigned(pct_ * 10000.0);
 
    if (pct_int != prev_pct_int_)
@@ -762,7 +765,7 @@ bool NodeChainStatus::processState(
    state_ = ChainState_Syncing;
 
    //average amount of blocks left to sync based on timestamp diff
-   auto blocksLeft = diff / 600;
+   const auto blocksLeft = unsigned(diff / 600);
 
    //compute block syncing speed based off of the last 20 top blocks
    auto iterend = heightTimeVec_.rbegin();

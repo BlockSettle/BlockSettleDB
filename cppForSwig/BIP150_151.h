@@ -42,7 +42,18 @@
 #include <secp256k1.h>
 #include <btc/ecc_key.h>
 extern "C" {
+#if defined(__GNUC__)
+#  if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2)
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wattributes"
+#  endif
+#endif
 #include "chachapoly_aead.h"
+#if defined(__GNUC__)
+  #if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2)
+    #pragma GCC diagnostic pop
+  #endif
+#endif // __GNUC__
 }
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
@@ -119,7 +130,7 @@ private:
    std::array<uint8_t, BIP151PRVKEYSIZE> sessionID_{}; // Session ID
    std::array<uint8_t, BIP151PRVKEYSIZE*2> hkdfKeySet_{}; // K1=Payload, K2=Data size
    btc_key genSymECDHPrivKey_; // Prv key for ECDH deriv. Delete ASAP once used.
-   uint32_t bytesOnCurKeys_ = 0; // Bytes ctr for when to switch
+   size_t bytesOnCurKeys_ = 0; // Bytes ctr for when to switch
    BIP151SymCiphers cipherType_ = BIP151SymCiphers::INVALID;
    uint32_t seqNum_ = 0;
    bool encinit_ = false;
@@ -161,7 +172,7 @@ public:
    bool handshakeComplete() const {
       return (encinit_ == true && encack_ == true);
    }
-   uint32_t getBytesOnCurKeys() const { return bytesOnCurKeys_; }
+   size_t getBytesOnCurKeys() const { return bytesOnCurKeys_; }
    void setOutgoing() { isOutgoing_ = true; }
    bool getOutgoing() const { return isOutgoing_; }
    bool getSeqNum() const { return seqNum_; }

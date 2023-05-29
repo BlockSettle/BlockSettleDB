@@ -249,7 +249,7 @@ void BIP151Session::calcChaCha20Poly1305Keys(const btc_key& sesECDHKey)
                ikm.size(), info2.getPtr(), info2.getSize());
    hkdf_sha256(hkdfKeySet_.data() + BIP151PRVKEYSIZE, BIP151PRVKEYSIZE, salt.getPtr(), salt.getSize(),
                ikm.data(), ikm.size(), info1.getPtr(), info1.getSize());
-   chacha20poly1305_init(&sessionCTX_, hkdfKeySet_.data(), hkdfKeySet_.size());
+   chacha20poly1305_init(&sessionCTX_, hkdfKeySet_.data(), (int)hkdfKeySet_.size());
 }
 
 // A helper function that calculates the session ID. See the "Symmetric
@@ -323,7 +323,7 @@ void BIP151Session::sessionRekey(const bool& bip151Rekey,
       }
 
       //upload new keys to chacha session
-      chacha20poly1305_init(&sessionCTX_, hkdfKeySet_.data(), hkdfKeySet_.size());
+      chacha20poly1305_init(&sessionCTX_, hkdfKeySet_.data(), (int)hkdfKeySet_.size());
 
       //reset session usage counter
       bytesOnCurKeys_ = 0;
@@ -375,7 +375,7 @@ int BIP151Session::encPayload(uint8_t* cipherData, const size_t cipherSize,
                              seqNum_,
                              cipherData,
                              plainData,
-                             plainSize - AUTHASSOCDATAFIELDLEN,
+      (uint32_t)plainSize - AUTHASSOCDATAFIELDLEN,
                              AUTHASSOCDATAFIELDLEN,
                              CHACHAPOLY1305_AEAD_ENC) == -1)
    {
@@ -418,7 +418,7 @@ int BIP151Session::decPayload(const uint8_t* cipherData,
                                &decryptedLen,
                                seqNum_,
                                cipherData,
-                               cipherSize);
+                               (uint32_t)cipherSize);
    //sanity check
    if (decryptedLen + POLY1305MACLEN + AUTHASSOCDATAFIELDLEN > cipherSize)
       return decryptedLen;
@@ -1206,13 +1206,13 @@ void BIP151Message::getEncStructMsg(uint8_t* outStruct,
    BinaryWriter payloadWriter(writerSize);
    payloadWriter.put_var_int(cmd_.getSize());
    payloadWriter.put_BinaryData(cmd_);
-   payloadWriter.put_uint32_t(payload_.getSize());
+   payloadWriter.put_uint32_t((uint32_t)payload_.getSize());
    payloadWriter.put_BinaryData(payload_);
 
    // Write a second, final buffer.
    finalStructSize = payloadWriter.getSize() + 4;
    BinaryWriter finalStruct(finalStructSize);
-   finalStruct.put_uint32_t(payloadWriter.getSize());
+   finalStruct.put_uint32_t((uint32_t)payloadWriter.getSize());
    finalStruct.put_BinaryData(payloadWriter.getData());
 
    std::copy(finalStruct.getData().getPtr(),
@@ -1690,7 +1690,7 @@ int BIP150StateMachine::processAuthreply(BinaryData& inData,
                          true,
                          inSes_->getSessionID(),
                          &derSig[0],
-                         derSigSize) == true)
+                         derSigSize) == (btc_bool)true)
    {
       retVal = 0;
    }
@@ -1806,8 +1806,8 @@ std::string BIP150StateMachine::getBIP150Fingerprint()
    addrData[1] = 0xff;
    addrData[2] = 0x01;
    std::copy(std::begin(hashStep2), std::end(hashStep2), &addrData[3]);
-   int outLen = btc_base58_encode_check(addrData.data(), addrData.size(),
-                                        b58IDAddr.data(), b58IDAddr.size());
+   int outLen = btc_base58_encode_check(addrData.data(), (int)addrData.size(),
+                                        b58IDAddr.data(), (int)b58IDAddr.size());
 
    std::string retFingerprint(b58IDAddr.data(), outLen-1);
    return retFingerprint;

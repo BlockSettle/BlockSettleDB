@@ -82,13 +82,13 @@ void OutPoint::unserialize(BinaryRefReader & brr)
 /////////////////////////////////////////////////////////////////////////////
 void OutPoint::unserialize(BinaryData const & bd)
 {
-   unserialize(bd.getPtr(), bd.getSize());
+   unserialize(bd.getPtr(), (uint32_t)bd.getSize());
 }
 
 /////////////////////////////////////////////////////////////////////////////
 void OutPoint::unserialize(BinaryDataRef const & bdRef)
 {
-   unserialize(bdRef.getPtr(), bdRef.getSize());
+   unserialize(bdRef.getPtr(), (uint32_t)bdRef.getSize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,7 +101,7 @@ void OutPoint::unserialize(BinaryDataRef const & bdRef)
 OutPoint TxIn::getOutPoint(void) const
 {
    OutPoint op;
-   op.unserialize(getPtr(), getSize());
+   op.unserialize(getPtr(), (uint32_t)getSize());
    return op;
 }
 
@@ -128,7 +128,7 @@ void TxIn::unserialize_checked(uint8_t const * ptr,
    uint32_t        idx)
 {
    index_ = idx;
-   uint32_t numBytes = (nbytes == 0 ? BtcUtils::TxInCalcLength(ptr, size) : nbytes);
+   uint32_t numBytes = (nbytes == 0 ? (uint32_t)BtcUtils::TxInCalcLength(ptr, size) : nbytes);
    if (size < numBytes)
       throw BlockDeserializingException();
    dataCopy_.copyFrom(ptr, numBytes);
@@ -146,20 +146,20 @@ void TxIn::unserialize_checked(uint8_t const * ptr,
 /////////////////////////////////////////////////////////////////////////////
 void TxIn::unserialize(BinaryRefReader & brr, uint32_t nbytes, uint32_t idx)
 {
-   unserialize_checked(brr.getCurrPtr(), brr.getSizeRemaining(), nbytes, idx);
+   unserialize_checked(brr.getCurrPtr(), (uint32_t)brr.getSizeRemaining(), nbytes, idx);
    brr.advance(getSize());
 }
 
 /////////////////////////////////////////////////////////////////////////////
 void TxIn::unserialize(BinaryData const & str, uint32_t nbytes, uint32_t idx)
 {
-   unserialize_checked(str.getPtr(), str.getSize(), nbytes, idx);
+   unserialize_checked(str.getPtr(), (uint32_t)str.getSize(), nbytes, idx);
 }
 
 /////////////////////////////////////////////////////////////////////////////
 void TxIn::unserialize(BinaryDataRef str, uint32_t nbytes, uint32_t idx)
 {
-   unserialize_checked(str.getPtr(), str.getSize(), nbytes, idx);
+   unserialize_checked(str.getPtr(), (uint32_t)str.getSize(), nbytes, idx);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -231,7 +231,7 @@ void TxIn::pprint(ostream & os, int nIndent, bool) const
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData TxOut::getScript(void)
+BinaryData TxOut::getScript(void) const
 {
    return BinaryData(dataCopy_.getPtr() + scriptOffset_, getScriptSize());
 }
@@ -249,7 +249,7 @@ void TxOut::unserialize_checked(uint8_t const * ptr,
    uint32_t idx)
 {
    index_ = idx;
-   uint32_t numBytes = (nbytes == 0 ? BtcUtils::TxOutCalcLength(ptr, size) : nbytes);
+   uint32_t numBytes = (nbytes == 0 ? (uint32_t)BtcUtils::TxOutCalcLength(ptr, size) : nbytes);
    if (size < numBytes)
       throw BlockDeserializingException();
    dataCopy_.copyFrom(ptr, numBytes);
@@ -265,19 +265,19 @@ void TxOut::unserialize_checked(uint8_t const * ptr,
 /////////////////////////////////////////////////////////////////////////////
 void TxOut::unserialize(BinaryData const & str, uint32_t nbytes, uint32_t idx)
 {
-   unserialize_checked(str.getPtr(), str.getSize(), nbytes, idx);
+   unserialize_checked(str.getPtr(), (uint32_t)str.getSize(), nbytes, idx);
 }
 
 /////////////////////////////////////////////////////////////////////////////
 void TxOut::unserialize(BinaryDataRef const & str, uint32_t nbytes, uint32_t idx)
 {
-   unserialize_checked(str.getPtr(), str.getSize(), nbytes, idx);
+   unserialize_checked(str.getPtr(), (uint32_t)str.getSize(), nbytes, idx);
 }
 
 /////////////////////////////////////////////////////////////////////////////
 void TxOut::unserialize(BinaryRefReader & brr, uint32_t nbytes, uint32_t idx)
 {
-   unserialize_checked(brr.getCurrPtr(), brr.getSizeRemaining(), nbytes, idx);
+   unserialize_checked(brr.getCurrPtr(), (uint32_t)brr.getSizeRemaining(), nbytes, idx);
    brr.advance(getSize());
 }
 
@@ -332,7 +332,7 @@ void Tx::unserialize(uint8_t const * ptr, size_t size)
 {
    isInitialized_ = false;
 
-   uint32_t nBytes = BtcUtils::TxCalcLength(ptr, size, 
+   const auto nBytes = BtcUtils::TxCalcLength(ptr, size, 
       &offsetsTxIn_, &offsetsTxOut_, &offsetsWitness_);
 
    if(nBytes > size)
@@ -342,7 +342,7 @@ void Tx::unserialize(uint8_t const * ptr, size_t size)
       throw BlockDeserializingException();
 
    usesWitness_ = BtcUtils::checkSwMarker(ptr + 4);
-   uint32_t numWitness = offsetsWitness_.size() - 1;
+   const auto numWitness = offsetsWitness_.size() - 1;
    version_ = READ_UINT32_LE(ptr);
    if(4 > size - offsetsWitness_[numWitness])
       throw BlockDeserializingException();
@@ -431,11 +431,11 @@ TxIn Tx::getTxInCopy(int i) const
    if (offsetsTxIn_.empty() || i >= (ssize_t)offsetsTxIn_.size() - 1)
       throw range_error("index out of bound");
 
-   uint32_t txinSize = offsetsTxIn_[i + 1] - offsetsTxIn_[i];
+   const auto txinSize = uint32_t(offsetsTxIn_[i + 1] - offsetsTxIn_[i]);
    TxIn out;
    out.unserialize_checked(
       dataCopy_.getPtr() + offsetsTxIn_[i],
-      dataCopy_.getSize() - offsetsTxIn_[i],
+      uint32_t(dataCopy_.getSize() - offsetsTxIn_[i]),
       txinSize, i);
 
    return out;
@@ -456,11 +456,11 @@ TxOut Tx::getTxOutCopy(int i) const
       throw range_error(errStr);
    }
 
-   uint32_t txoutSize = offsetsTxOut_[i + 1] - offsetsTxOut_[i];
+   const auto txoutSize = uint32_t(offsetsTxOut_[i + 1] - offsetsTxOut_[i]);
    TxOut out;
    out.unserialize_checked(
       dataCopy_.getPtr() + offsetsTxOut_[i], 
-      dataCopy_.getSize() - offsetsTxOut_[i], 
+      uint32_t(dataCopy_.getSize() - offsetsTxOut_[i]), 
       txoutSize, i);
 
    return out;
@@ -474,7 +474,7 @@ bool Tx::isRBF() const
 
    for (unsigned i = 0; i < offsetsTxIn_.size() - 1; i++)
    {
-      uint32_t sequenceOffset = offsetsTxIn_[i + 1] - 4;
+      const auto sequenceOffset = offsetsTxIn_[i + 1] - 4;
       uint32_t sequence;
       memcpy(&sequence,
          dataCopy_.getPtr() + sequenceOffset,
@@ -558,32 +558,32 @@ void Tx::pprint(ostream & os, int nIndent, bool pBigendian) const
 // supposed to be not NULL.  I'd like to try to force a segfault here, if it
 // is going to happen, instead of letting it kill my program where I don't 
 // know what happened.
-void Tx::pprintAlot(ostream &) const
+void Tx::pprintAlot(ostream &strm) const
 {
-   cout << "Tx hash:   " << thisHash_.toHexStr(true) << endl;
+   strm << "Tx hash:   " << thisHash_.toHexStr(true) << endl;
 
-   cout << endl << "NumTxIn:   " << getNumTxIn() << endl;
+   strm << endl << "NumTxIn:   " << getNumTxIn() << endl;
    for (uint32_t i = 0; i<getNumTxIn(); i++)
    {
       TxIn txin = getTxInCopy(i);
-      cout << "   TxIn: " << i << endl;
-      cout << "      Siz:  " << txin.getSize() << endl;
-      cout << "      Scr:  " << txin.getScriptSize() << "  Type: "
+      strm << "   TxIn: " << i << endl;
+      strm << "      Siz:  " << txin.getSize() << endl;
+      strm << "      Scr:  " << txin.getScriptSize() << "  Type: "
          << (int)txin.getScriptType() << endl;
-      cout << "      OPR:  " << txin.getOutPoint().getTxHash().toHexStr(true)
+      strm << "      OPR:  " << txin.getOutPoint().getTxHash().toHexStr(true)
          << txin.getOutPoint().getTxOutIndex() << endl;
-      cout << "      Seq:  " << txin.getSequence() << endl;
+      strm << "      Seq:  " << txin.getSequence() << endl;
    }
 
-   cout << endl << "NumTxOut:   " << getNumTxOut() << endl;
+   strm << endl << "NumTxOut:   " << getNumTxOut() << endl;
    for (uint32_t i = 0; i<getNumTxOut(); i++)
    {
       TxOut txout = getTxOutCopy(i);
-      cout << "   TxOut: " << i << endl;
-      cout << "      Siz:  " << txout.getSize() << endl;
-      cout << "      Scr:  " << txout.getScriptSize() << "  Type: "
+      strm << "   TxOut: " << i << endl;
+      strm << "      Siz:  " << txout.getSize() << endl;
+      strm << "      Scr:  " << txout.getScriptSize() << "  Type: "
          << (int)txout.getScriptType() << endl;
-      cout << "      Val:  " << txout.getValue() << endl;
+      strm << "      Val:  " << txout.getValue() << endl;
    }
 
 }
@@ -641,10 +641,10 @@ void UTXO::unserialize(const BinaryData& data)
    txIndex_ = brr.get_uint16_t();
    txOutIndex_ = brr.get_uint16_t();
 
-   auto hashSize = brr.get_var_int();
+   const auto hashSize = (uint32_t)brr.get_var_int();
    txHash_ = move(brr.get_BinaryData(hashSize));
 
-   auto scriptSize = brr.get_var_int();
+   const auto scriptSize = (uint32_t)brr.get_var_int();
    if (scriptSize == 0)
       throw runtime_error("no script data in raw utxo");
    script_ = move(brr.get_BinaryData(scriptSize));
@@ -657,7 +657,7 @@ void UTXO::unserializeRaw(const BinaryData& data)
 {
    BinaryRefReader brr(data.getRef());
    value_ = brr.get_uint64_t();
-   auto scriptSize = brr.get_var_int();
+   const auto scriptSize = (uint32_t)brr.get_var_int();
    script_ = brr.get_BinaryData(scriptSize);
 }
 
@@ -746,10 +746,11 @@ void AddressBookEntry::unserialize(const BinaryData& data)
 
    BinaryRefReader brr(data.getRef());
    
-   auto addrSize = brr.get_var_int();
+   const auto addrSize = (uint32_t)brr.get_var_int();
 
-   if (brr.getSizeRemaining() < addrSize + 1)
+   if ((uint32_t)brr.getSizeRemaining() < addrSize + 1) {
       throw runtime_error("invalid serialized AddressBookEntry");
+   }
    scrAddr_ = move(brr.get_BinaryData(addrSize));
 
    auto hashListCount = brr.get_var_int();

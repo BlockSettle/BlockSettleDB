@@ -286,7 +286,7 @@ OpCode ScriptParser::getNextOpcode(BinaryRefReader& brr) const
    }
    else
    {
-      unsigned len = 0;
+      uint32_t len = 0;
       switch (val.opcode_)
       {
       case OP_PUSHDATA1:
@@ -303,7 +303,7 @@ OpCode ScriptParser::getNextOpcode(BinaryRefReader& brr) const
 
       case OP_IF:
       case OP_NOTIF:
-         len = brr.getSizeRemaining();
+         len = (unsigned)brr.getSizeRemaining();
          break;
 
       default:
@@ -797,7 +797,7 @@ void StackInterpreter::op_checksig()
 
    //extract sig and sighash type
    BinaryRefReader brrSig(sigScript);
-   auto sigsize = sigScript.getSize() - 1;
+   const auto sigsize = (uint32_t)sigScript.getSize() - 1;
    auto sig = brrSig.get_BinaryDataRef(sigsize);
    auto hashType = getSigHashSingleByte(brrSig.get_uint8_t());
 
@@ -828,8 +828,8 @@ void StackInterpreter::op_checkmultisig()
 
    //pop n
    auto&& n = pop_back();
-   auto nI = rawBinaryToInt(n);
-   if (nI < 0 || nI > 20)
+   auto nI = (unsigned)rawBinaryToInt(n);
+   if (nI > 20)
       throw ScriptException("invalid n");
 
    //pop pubkeys
@@ -846,8 +846,8 @@ void StackInterpreter::op_checkmultisig()
 
    //pop m
    auto&& m = pop_back();
-   auto mI = rawBinaryToInt(m);
-   if (mI < 0 || mI > nI)
+   auto mI = (unsigned)rawBinaryToInt(m);
+   if (mI > nI)
       throw ScriptException("invalid m");
 
    txInEvalState_.n_ = nI;
@@ -1011,7 +1011,7 @@ void StackInterpreter::process_p2wpkh(const BinaryData& scriptHash)
 
    for (unsigned i = 0; i < itemCount; i++)
    {
-      auto len = brr.get_var_int();
+      const auto len = (uint32_t)brr.get_var_int();
       stack_.push_back(brr.get_BinaryData(len));
    }
    
@@ -1036,7 +1036,7 @@ void StackInterpreter::process_p2wsh(const BinaryData& scriptHash)
    
    for (unsigned i = 0; i < itemCount; i++)
    {
-      auto len = brr.get_var_int();
+      const auto len = (uint32_t)brr.get_var_int();
       stack_.push_back(brr.get_BinaryData(len));
    }
 
@@ -1483,9 +1483,9 @@ shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
    resolveStack();
 
    unsigned count = 0;
-   if (resolvedStack_ != nullptr)
-      count = resolvedStack_->stackSize();
-
+   if (resolvedStack_ != nullptr) {
+      count = (unsigned)resolvedStack_->stackSize();
+   }
    vector<shared_ptr<StackItem>> stackItemVec;
 
    for (auto& stackItem : stack_)

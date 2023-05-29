@@ -74,14 +74,14 @@ SecureBinaryData BIP32_Node::encodeBase58() const
       btc_hdnode_serialize_private(
          &node, 
          Armory::Config::BitcoinSettings::get_chain_params(), 
-         (char*)result.getPtr(), result_len);
+         (char*)result.getPtr(), (int)result_len);
    }
    else if (pubkey_.getSize() == BTC_ECKEY_COMPRESSED_LENGTH)
    {
       btc_hdnode_serialize_public(
          &node, 
          Armory::Config::BitcoinSettings::get_chain_params(), 
-         (char*)result.getPtr(), result_len);
+         (char*)result.getPtr(), (int)result_len);
    }
    else
    {
@@ -104,7 +104,7 @@ void BIP32_Node::decodeBase58(const char* str)
    //b58 decode 
    if(!btc_hdnode_deserialize(
       str, Armory::Config::BitcoinSettings::get_chain_params(), &node))
-      throw std::runtime_error("invalid bip32 serialized string");
+      throw std::runtime_error("invalid bip32 serialized string " + std::string(str));
 
    setupFromNode(&node);
 }
@@ -113,9 +113,9 @@ void BIP32_Node::decodeBase58(const char* str)
 void BIP32_Node::initFromSeed(const SecureBinaryData& seed)
 {
    btc_hdnode node;
-   if (!btc_hdnode_from_seed(seed.getPtr(), seed.getSize(), &node))
+   if (!btc_hdnode_from_seed(seed.getPtr(), (int)seed.getSize(), &node)) {
       throw std::runtime_error("failed to setup seed");
-
+   }
    setupFromNode(&node);
 }
 

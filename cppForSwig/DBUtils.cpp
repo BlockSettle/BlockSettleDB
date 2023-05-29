@@ -469,7 +469,7 @@ BinaryDataRef DBUtils::getDataRefForPacket(
    if (len != brr.getSizeRemaining())
       throw runtime_error("on disk data length mismatch");
 
-   return brr.get_BinaryDataRef(brr.getSizeRemaining());
+   return brr.get_BinaryDataRef((uint32_t)brr.getSizeRemaining());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -492,7 +492,7 @@ struct stat DBUtils::getPathStat(const char* path, unsigned len)
 ////////////////////////////////////////////////////////////////////////////////
 struct stat DBUtils::getPathStat(const string& path)
 {
-   return getPathStat(path.c_str(), path.size());
+   return getPathStat(path.c_str(), (unsigned)path.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -646,8 +646,8 @@ void DBUtils::expandPath(string& path)
 string DBUtils::getBaseDir(const string& path)
 {
    //crawl back until folder market is hit
-   int pos = -1;
-   for (int i=path.size() - 1; i>-1; i--)
+   size_t pos = SIZE_MAX;
+   for (size_t i=path.size() - 1; i!=SIZE_MAX; i--)
    {
       auto charPtr = path.c_str() + i;
       if (*charPtr == '/' || *charPtr == '\\')
@@ -657,8 +657,8 @@ string DBUtils::getBaseDir(const string& path)
       }
    }
 
-   if (pos == -1)
-      return string();
-
+   if (pos == SIZE_MAX) {
+      return {};
+   }
    return path.substr(0, pos);
 }

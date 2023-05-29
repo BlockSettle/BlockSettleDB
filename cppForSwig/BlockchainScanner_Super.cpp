@@ -752,7 +752,7 @@ void BlockchainScanner_Super::commitSshBatch()
    if (reportProgress_)
       progress_(BDMPhase_Rescan,
       calc.fractionCompleted(), UINT32_MAX,
-      initVal);
+      (unsigned)initVal);
 
    while (1)
    {
@@ -823,8 +823,8 @@ void BlockchainScanner_Super::commitSshBatch()
       calc.advance(progVal);
       if (reportProgress_)
          progress_(BDMPhase_Rescan,
-         calc.fractionCompleted(), calc.remainingSeconds(),
-         progVal);
+         calc.fractionCompleted(), (unsigned)calc.remainingSeconds(),
+         (unsigned)progVal);
 
       topScannedBlockHash_ = topheader->getThisHash();
       completedBatches_.fetch_add(1, memory_order_relaxed);
@@ -870,7 +870,7 @@ void BlockchainScanner_Super::scanSpentness()
    //spentness db should carry last scanned height for spentness
    int end = 0;
    if (sdbi.metaInt_ != UINT64_MAX)
-      end = sdbi.metaInt_ + 1;
+      end = (int)sdbi.metaInt_ + 1;
 
    int start = blockchain_->top()->getBlockHeight();
 
@@ -1344,7 +1344,7 @@ void StxoRef::unserializeDBValue(const BinaryDataRef& bdr)
    theData_ = bdr;
 
    BinaryRefReader brr(bdr.getPtr() + 10, bdr.getSize() - 8);
-   auto len = brr.get_var_int();
+   const auto len = (uint32_t)brr.get_var_int();
    scriptRef_ = brr.get_BinaryDataRef(len);
 }
 

@@ -241,12 +241,12 @@ map<BinaryData, LedgerEntry> ScrAddrObj::updateLedgers(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint64_t ScrAddrObj::getTxioCountFromSSH(bool withZc) const
+uint32_t ScrAddrObj::getTxioCountFromSSH(bool withZc) const
 {
    StoredScriptHistory ssh;
    db_->getStoredScriptHistorySummary(ssh, scrAddr_);
 
-   uint32_t count = ssh.totalTxioCount_;
+   uint32_t count = (uint32_t)ssh.totalTxioCount_;
 
    if (withZc)
    {
@@ -458,19 +458,19 @@ vector<UnspentTxOut> ScrAddrObj::getFullTxOutList(uint32_t currBlk,
    auto utxoVec = getSpendableTxOutList(ignoreZc);
 
    auto utxoIter = utxoVec.rbegin();
-   uint32_t cutOff = UINT32_MAX;
+   size_t cutOff = SIZE_MAX;
 
    while (utxoIter != utxoVec.rend())
-   {
+   {  // could lead to infinite loop as utxoIter is not incremented
       if (utxoIter->getTxHeight() <= currBlk)
       {
          cutOff = utxoVec.size() - (utxoIter - utxoVec.rbegin());
          break;
       }
    }
-
-   utxoVec.erase(utxoVec.begin() + cutOff, utxoVec.end());
-
+   if (cutOff != SIZE_MAX) {
+      utxoVec.erase(utxoVec.begin() + cutOff, utxoVec.end());
+   }
    return utxoVec;
 }
 

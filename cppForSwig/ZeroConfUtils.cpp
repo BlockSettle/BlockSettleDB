@@ -35,7 +35,7 @@ void preprocessTx(ParsedTx& tx, LMDBBlockDatabase* db)
    }
 
    uint8_t const * txStartPtr = tx.tx_.getPtr();
-   unsigned len = tx.tx_.getSize();
+   const auto len = tx.tx_.getSize();
 
    auto nTxIn = tx.tx_.getNumTxIn();
    auto nTxOut = tx.tx_.getNumTxOut();
@@ -110,7 +110,7 @@ void preprocessTx(ParsedTx& tx, LMDBBlockDatabase* db)
       BinaryRefReader brr(txStartPtr + offset, len);
       txOut.value_ = brr.get_uint64_t();
 
-      auto scriptLen = brr.get_var_int();
+      const auto scriptLen = (uint32_t)brr.get_var_int();
       auto scriptRef = brr.get_BinaryDataRef(scriptLen);
       txOut.scrAddr_ = move(BtcUtils::getTxOutScrAddr(scriptRef));
 
@@ -366,9 +366,10 @@ FilteredZeroConfData filterParsedTx(
       txio->setTxHashOfOutput(input.opRef_.getTxHashRef());
       txio->setTxHashOfInput(txHash);
       txio->setValue(input.value_);
-      auto tx_time = input.opRef_.getTime();
-      if (tx_time == UINT64_MAX)
+      auto tx_time = (uint32_t)input.opRef_.getTime();
+      if (tx_time == UINT32_MAX) {
          tx_time = parsedTx.tx_.getTxTime();
+      }
       txio->setTxTime(tx_time);
       txio->setRBF(parsedTx.isRBF_);
       txio->setChained(parsedTx.isChainedZc_);
@@ -466,7 +467,7 @@ void OutPointRef::unserialize(uint8_t const * ptr, uint32_t remaining)
 ////////////////////////////////////////////////////////////////////////////////
 void OutPointRef::unserialize(BinaryDataRef bdr)
 {
-   unserialize(bdr.getPtr(), bdr.getSize());
+   unserialize(bdr.getPtr(), (uint32_t)bdr.getSize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

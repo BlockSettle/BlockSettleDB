@@ -465,7 +465,7 @@ void PersistentSocket::socketService_win()
 
       WSABUF wsaBuffer;
       wsaBuffer.buf = (char*)&payload[0] + writeOffset_;
-      wsaBuffer.len = payload.size() - writeOffset_;
+      wsaBuffer.len = ULONG(payload.size() - writeOffset_);
 
       DWORD bytessent;
       if (WSASend(sockfd_, &wsaBuffer, 1, &bytessent, 0, nullptr, nullptr) ==
@@ -537,7 +537,7 @@ void PersistentSocket::socketService_win()
          int readAmt;
 
          while ((readAmt =
-            recv(sockfd_, (char*)&readdata[0] + totalread, readIncrement, 0))
+            recv(sockfd_, (char*)&readdata[0] + totalread, (int)readIncrement, 0))
             != 0)
          {
             if (readAmt < 0)
@@ -882,7 +882,7 @@ vector<uint8_t> SimpleSocket::readFromSocket(void)
          int readAmt;
 
          while ((readAmt =
-            recv(sockfd_, (char*)&readdata[0] + totalread, readIncrement, 0))
+            recv(sockfd_, (char*)&readdata[0] + totalread, (int)readIncrement, 0))
             != 0)
          {
             if (readAmt < 0)
@@ -932,7 +932,7 @@ vector<uint8_t> SimpleSocket::readFromSocket(void)
 ///////////////////////////////////////////////////////////////////////////////
 int SimpleSocket::writeToSocket(vector<uint8_t>& payload)
 {
-   return send(sockfd_, (char*)&payload[0], payload.size(), 0);
+   return send(sockfd_, (char*)&payload[0], (int)payload.size(), 0);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1108,5 +1108,5 @@ void WritePayload_Protobuf::serialize(vector<uint8_t>& data)
       return;
 
    data.resize(message_->ByteSizeLong());
-   message_->SerializeToArray(&data[0], data.size());
+   message_->SerializeToArray(&data[0], (int)data.size());
 }

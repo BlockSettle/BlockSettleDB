@@ -451,7 +451,7 @@ void ShardedSshParser::mapSubSshDBThread(unsigned index)
          if (key_id != current_id)
             break;
 
-         auto key = keyReader.get_BinaryDataRef(keyReader.getSizeRemaining());
+         auto key = keyReader.get_BinaryDataRef((uint32_t)keyReader.getSizeRemaining());
          auto ptr = key.getPtr();
 
          ++sshMapping.count_;
@@ -617,7 +617,7 @@ void ShardedSshParser::parseSshThread()
             //get ssh from map
             brr_key.advance(4);
             auto scrAddrRef =
-               brr_key.get_BinaryDataRef(brr_key.getSizeRemaining());
+               brr_key.get_BinaryDataRef((uint32_t)brr_key.getSizeRemaining());
             auto ssh_iter = sshMap.find(scrAddrRef);
             if (ssh_iter == sshMap.end())
             {
@@ -705,7 +705,7 @@ void ShardedSshParser::parseSshThread()
                auto subsshHeight = base_height + subssh_height;
                if (subsshHeight < firstHeight_)
                   continue;
-               if(!checkDupId(subsshHeight, subssh_dupid) && !undo_)
+               if(!checkDupId((unsigned)subsshHeight, subssh_dupid) && !undo_)
                   continue;
 
                ssh.totalUnspent_ += totalValue;
@@ -716,7 +716,7 @@ void ShardedSshParser::parseSshThread()
             if (totalTxioCount > 0)
             {
                ssh.totalTxioCount_ += totalTxioCount;
-               ssh.subsshSummary_[current_id] = totalTxioCount;
+               ssh.subsshSummary_[current_id] = (uint32_t)totalTxioCount;
             }
 
          } while (dbIter->advanceAndRead());

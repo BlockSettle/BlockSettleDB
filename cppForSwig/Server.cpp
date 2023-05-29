@@ -605,7 +605,7 @@ void WebSocketServer::prepareWriteThread()
       {
          serializedData.resize(msg->message_->ByteSizeLong());
          auto result = msg->message_->SerializeToArray(
-            &serializedData[0], serializedData.size());
+            &serializedData[0], (int)serializedData.size());
          if (!result)
          {
             LOGERR << "failed to serialize message";
@@ -899,7 +899,7 @@ void ClientConnection::processReadQueue(shared_ptr<Clients> clients)
 
          //process command 
          auto message = make_shared<::Codec_BDVCommand::StaticCommand>();
-         if (!message->ParseFromArray(messageRef.getPtr(), messageRef.getSize()))
+         if (!message->ParseFromArray(messageRef.getPtr(), (int)messageRef.getSize()))
          {
             //invalid msg, kill connection
             continue;

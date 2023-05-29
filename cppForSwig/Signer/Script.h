@@ -200,7 +200,7 @@ namespace Armory
                   if (depth > 0)
                      break;
 
-                  brr.rewind(1 + data.dataRef_.getSize());
+                  brr.rewind(1 + (uint32_t)data.dataRef_.getSize());
                   return;
                }
                }
@@ -256,7 +256,7 @@ namespace Armory
 
             //get block ref for this if block
             BinaryRefReader thisIfBlock(
-               brr.get_BinaryDataRef(innerBlock.getPosition()));
+               brr.get_BinaryDataRef((uint32_t)innerBlock.getPosition()));
 
             try
             {
@@ -287,7 +287,7 @@ namespace Armory
                seekToNextIfSwitch(innerBlock);
 
                thisIfBlock = BinaryRefReader(
-                  brr.get_BinaryDataRef(innerBlock.getPosition()));
+                  brr.get_BinaryDataRef((uint32_t)innerBlock.getPosition()));
 
                //process block
                processScript(thisIfBlock, isOutputScript);

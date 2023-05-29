@@ -35,7 +35,7 @@ shared_ptr<ScriptRecipient> ScriptRecipient::fromScript(BinaryDataRef dataRef)
    BinaryRefReader brr(dataRef);
 
    auto value = brr.get_uint64_t();
-   auto script = brr.get_BinaryDataRef(brr.getSizeRemaining());
+   auto script = brr.get_BinaryDataRef((uint32_t)brr.getSizeRemaining());
 
    BinaryRefReader brr_script(script);
 
@@ -363,7 +363,7 @@ void Recipient_OPRETURN::serialize() const
    bw.put_uint64_t(0);
 
    BinaryWriter bw_msg;
-   auto size = message_.getSize();
+   const auto size = (uint8_t)message_.getSize();
    if (size > 75)
    {
       bw_msg.put_uint8_t(OP_PUSHDATA1);
@@ -377,7 +377,7 @@ void Recipient_OPRETURN::serialize() const
    if (size > 0)
       bw_msg.put_BinaryData(message_);
 
-   bw.put_uint8_t(bw_msg.getSize() + 1);
+   bw.put_uint8_t((uint8_t)bw_msg.getSize() + 1);
    bw.put_uint8_t(OP_RETURN);
    bw.put_BinaryData(bw_msg.getData());
 
