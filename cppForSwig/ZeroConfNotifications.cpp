@@ -13,7 +13,7 @@
 #include "ZeroConf.h"
 #include "BDM_Server.h"
 #include "LedgerEntry.h"
-#include "txio.h"
+#include "BlockchainDatabase/txio.h"
 
 using namespace std;
 using namespace ::Codec_BDVCommand;

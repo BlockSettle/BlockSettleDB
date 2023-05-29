@@ -12,7 +12,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "BDM_mainthread.h"
-#include "BlockUtils.h"
 #include "BlockDataViewer.h"
 
 #include "nodeRPC.h"

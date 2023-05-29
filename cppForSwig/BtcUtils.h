@@ -1739,23 +1739,18 @@ public:
    {
       //sanity checks
       if (b58.size() == 0)
-         throw std::range_error("empty BinaryData");
+         throw std::range_error("empty b58 string");
 
       size_t size = b58.size();
-      uint8_t* result = new uint8_t[size];
+      BinaryData result(size);
 
-      if (!btc_base58_decode(result, &size, b58.c_str()) ||
+      if (!btc_base58_decode(result.getPtr(), &size, b58.c_str()) ||
          size > b58.size())
       {
-         delete[] result;
          throw std::runtime_error("failed to decode b58 string");
       }
 
-      BinaryData result_bd(size);
-      memcpy(result_bd.getPtr(), result + b58.size() - size, size);
-
-      delete[] result;
-      return result_bd;
+      return result.getSliceCopy(b58.size() - size, size);
    }
 
    static BinaryData extractRSFromDERSig(BinaryDataRef bdr)
@@ -1857,13 +1852,13 @@ public:
 
    static std::string computeID(const SecureBinaryData& pubkey);
 
+   //HMAC
    static BinaryData getHMAC256(
       const SecureBinaryData& key,
       const SecureBinaryData& message);
    static BinaryData getHMAC512(
       const SecureBinaryData& key,
       const SecureBinaryData& message);
-
 
    static BinaryData getHMAC256(
       const BinaryData& key,
@@ -1876,12 +1871,14 @@ public:
       const std::string& key,
       const SecureBinaryData& message);
 
-
-
    static void getHMAC256(const uint8_t* keyptr, size_t keylen,
       const char* msg, size_t msglen, uint8_t* digest);
    static void getHMAC512(const void* keyptr, size_t keylen,
       const void* msg, size_t msglen, void* digest);
+
+   static BinaryData getBotchedArmoryHMAC256(
+      const BinaryData& key, const BinaryData& msg);
+   
 
    static SecureBinaryData computeChainCode_Armory135(
       const SecureBinaryData& privateRoot);

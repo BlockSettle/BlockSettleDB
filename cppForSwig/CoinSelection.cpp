@@ -1470,7 +1470,7 @@ void CoinSelectionInstance::checkSpendVal(uint64_t spendableBalance) const
 void CoinSelectionInstance::processCustomUtxoList(
    vector<UTXO>& utxos, uint64_t fee, float fee_byte, unsigned flags)
 {
-   if (utxos.size() == 0)
+   if (utxos.empty())
       throw CoinSelectionException("empty custom utxo list!");
    
    selectUTXOs(utxos, fee, fee_byte, flags);

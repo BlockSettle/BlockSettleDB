@@ -11,14 +11,42 @@
 
 #include "BinaryData.h"
 
+namespace BridgeProto
+{
+   class BlockchainService;
+   class Wallet;
+   class CoinSelection;
+   class Signer;
+   class Utils;
+   class ScriptUtils;
+   class CallbackReply;
+};
+
 namespace Armory
 {
    namespace Bridge
    {
       class CppBridge;
 
-      struct ProtobufCommandParser
+      class ProtobufCommandParser
       {
+      private:
+         static bool processBlockchainServiceCommands(CppBridge*, unsigned,
+            const BridgeProto::BlockchainService&);
+         static bool processWalletCommands(CppBridge*, unsigned,
+            const BridgeProto::Wallet&);
+         static bool processCoinSelectionCommands(CppBridge*, unsigned,
+            const BridgeProto::CoinSelection&);
+         static bool processSignerCommands(CppBridge*, unsigned,
+            const BridgeProto::Signer&);
+         static bool processUtilsCommands(CppBridge*, unsigned,
+            const BridgeProto::Utils&);
+         static bool processScriptUtilsCommands(CppBridge*, unsigned,
+            const BridgeProto::ScriptUtils&);
+         static bool processCallbackReply(CppBridge*,
+            const BridgeProto::CallbackReply&);
+
+      public:
          static bool processData(CppBridge*, BinaryDataRef);
       };
    }; //namespace Bridge

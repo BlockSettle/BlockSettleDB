@@ -328,21 +328,18 @@ void WritePayload_Bridge::serialize(std::vector<uint8_t>& data)
       return;
 
    auto msgSize = message_->ByteSizeLong();
-   data.resize(msgSize + 9 + POLY1305MACLEN);
+   data.resize(msgSize + 5 + POLY1305MACLEN);
 
    //set packet size
-   uint32_t sizeVal = msgSize + 5;
+   uint32_t sizeVal = msgSize + 1;
    memcpy(&data[0], &sizeVal, sizeof(uint32_t));
 
-   //set id
-   memcpy(&data[5], &id_, sizeof(uint32_t));
-
    //serialize protobuf message
-   message_->SerializeToArray(&data[9], msgSize);
+   message_->SerializeToArray(&data[5], msgSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 size_t WritePayload_Bridge::getSerializedSize(void) const
 {
-   return message_->ByteSizeLong() + 9 + POLY1305MACLEN;
+   return message_->ByteSizeLong() + 5 + POLY1305MACLEN;
 }

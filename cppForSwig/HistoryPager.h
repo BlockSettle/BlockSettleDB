@@ -15,7 +15,7 @@
 #include "ThreadSafeClasses.h"
 #include "BinaryData.h"
 #include "LedgerEntry.h"
-#include "BlockObj.h"
+#include "BlockchainDatabase/BlockObj.h"
 
 class AlreadyPagedException
 {};

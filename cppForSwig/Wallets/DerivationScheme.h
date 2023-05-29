@@ -275,6 +275,8 @@ namespace Armory
          void putAllSalts(std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
          void getAllSalts(std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
          Wallets::AssetKeyType getIdForSalt(const SecureBinaryData&);
+         const std::map<SecureBinaryData, Wallets::AssetKeyType>&
+            getSaltMap(void) const;
       };
    }; //namespace Assets
 }; //namespace Armory

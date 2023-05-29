@@ -41,7 +41,7 @@ unique_ptr<AddressAccount> AddressAccount::make_new(
 
    unique_ptr<AddressAccount> addressAccountPtr;
    const auto& addressAccountId = accType->getAccountID();
-   addressAccountPtr.reset(new AddressAccount(dbName, accType->getAccountID()));
+   addressAccountPtr.reset(new AddressAccount(dbName, addressAccountId));
 
    //create root asset
    auto createRootAsset =
@@ -286,8 +286,8 @@ unique_ptr<AddressAccount> AddressAccount::make_new(
          //create assets
          auto cipherData = make_unique<Encryption::CipherData>(
             encrypted_root, move(cipher_copy));
-         auto priv_asset =
-            make_shared<Asset_PrivateKey>(assetId, move(cipherData));
+         auto priv_asset = make_shared<Asset_PrivateKey>(
+            assetId, move(cipherData));
          rootAsset = make_shared<AssetEntry_Single>(
             assetId, pubkey, priv_asset);
       }
@@ -918,13 +918,30 @@ AddressAccountPublicData AddressAccount::exportPublicData() const
          rootData = woRoot->serialize();
 
       SecureBinaryData derData;
+      std::shared_ptr<AssetAccountExtendedData> extended = nullptr;
       if (assetData->derScheme_ != nullptr)
+      {
          derData = assetData->derScheme_->serialize();
+
+         //check for salts
+         auto derEcdh = dynamic_pointer_cast<DerivationScheme_ECDH>(
+            assetData->derScheme_);
+         if (derEcdh != nullptr)
+         {
+            auto saltMap = derEcdh->getSaltMap();
+            auto salts = std::make_shared<AssetAccountSaltMap>();
+
+            for (const auto& saltPair : saltMap)
+               salts->salts_.emplace(saltPair.second, saltPair.first);
+            extended = salts;
+         }
+      }
 
       AssetAccountPublicData assaPD {
          assetData->id_,
          rootData, derData,
          accPtr->getHighestUsedIndex(), accPtr->getLastComputedIndex() };
+      assaPD.extendedData = extended;
 
       aapd.accountDataMap_.emplace(assetData->id_, move(assaPD));
    }
@@ -946,6 +963,37 @@ void AddressAccount::importPublicData(const AddressAccountPublicData& aapd)
       if (accPtr == nullptr)
          throw AccountException("[importPublicData] missing asset account");
 
+      switch (accPtr->type())
+      {
+         case AssetAccountTypeEnum::AssetAccountTypeEnum_ECDH:
+         {
+            //ecdh account, inject the existing salts
+            auto accEcdh = dynamic_cast<AssetAccount_ECDH*>(accPtr.get());
+            if (accEcdh == nullptr)
+               throw AccountException("[importPublicData] account isnt ECDH");
+
+            auto saltMap = dynamic_pointer_cast<AssetAccountSaltMap>(
+               assapd.second.extendedData);
+            if (saltMap == nullptr)
+            {
+               throw AccountException("[importPublicData]"
+                  " imported data missing salt map");
+            }
+
+            for (const auto& saltPair : saltMap->salts_)
+            {
+               if (accEcdh->addSalt(nullptr, saltPair.second) != saltPair.first)
+               {
+                  throw AccountException("[importPublicData]"
+                     " injected salt order mismtach");
+               }
+            }
+         }
+
+         default:
+            break;
+      }
+
       //do not allow rollbacks
       if (assapd.second.lastComputedIndex_ > accPtr->getLastComputedIndex())
       {
@@ -960,7 +1008,7 @@ void AddressAccount::importPublicData(const AddressAccountPublicData& aapd)
    //sync address set
    instantiatedAddressTypes_ = aapd.instantiatedAddressTypes_;
 
-   //check the assets for addresses do exist
+   //TODO: check the assets for addresses do exist
 
 }
 

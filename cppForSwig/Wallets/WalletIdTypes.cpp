@@ -1,12 +1,15 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2021-2021, goatpig                                          //
+//  Copyright (C) 2021-2023, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "WalletIdTypes.h"
+#include "DerivationScheme.h"
+#include "Assets.h"
+#include "WalletHeader.h"
 
 using namespace Armory::Wallets;
 
@@ -654,4 +657,64 @@ EncryptionKeyId EncryptionKeyId::deserializeValue(BinaryRefReader& brr)
    {
       throw IdException("EncryptionKeyId::deserializeValue");
    }
+}
+
+///////////////////////// - wallet & master id - ///////////////////////////////
+std::string Armory::Wallets::generateWalletId(
+   std::shared_ptr<Armory::Assets::DerivationScheme> derScheme,
+   std::shared_ptr<Armory::Assets::AssetEntry> rootEntry,
+   Armory::Seeds::SeedType sType)
+{
+   auto addrVec = derScheme->extendPublicChain(rootEntry,
+      1, 1 + (int)sType, nullptr);
+   if (addrVec.size() != (int)sType+1)
+      throw WalletException("unexpected chain derivation output");
+
+   auto entry = std::dynamic_pointer_cast<Armory::Assets::AssetEntry_Single>(
+      addrVec[int(sType)]);
+   if (entry == nullptr)
+      throw WalletException("unexpected asset entry type");
+
+   return BtcUtils::computeID(entry->getPubKey()->getUncompressedKey());
+}
+
+////
+std::string Armory::Wallets::generateWalletId(
+   SecureBinaryData pubkey,
+   SecureBinaryData chaincode,
+   Armory::Seeds::SeedType sType)
+{
+   //sanity checks
+   if (pubkey.empty())
+      throw WalletException("[generateWalletId] empty pubkey");
+
+   if (chaincode.empty())
+      throw WalletException("[generateWalletId] empty chaincode");
+
+   //create legacy armory derviation scheme from chaincode
+   auto derScheme = std::make_shared<
+      Armory::Assets::DerivationScheme_ArmoryLegacy>(chaincode);
+
+   //create root pubkey asset
+   auto asset_single = std::make_shared<
+      Armory::Assets::AssetEntry_Single>(
+         Armory::Wallets::AssetId::getRootAssetId(),
+         pubkey,
+         nullptr);
+
+   //derive '(int)sType' amount of addresses, use last one as id
+   return Armory::Wallets::generateWalletId(derScheme, asset_single, sType);
+}
+
+////////
+std::string Armory::Wallets::generateMasterId(const SecureBinaryData& pubkey,
+   const SecureBinaryData& chaincode)
+{
+   BinaryWriter bw;
+   bw.put_BinaryData(pubkey);
+   bw.put_BinaryData(chaincode);
+   auto hmacMasterMsg = SecureBinaryData::fromString("MetaEntry");
+   auto masterID_long = BtcUtils::getHMAC256(
+      bw.getData(), hmacMasterMsg);
+   return BtcUtils::computeID(masterID_long);
 }

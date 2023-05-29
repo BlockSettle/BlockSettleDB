@@ -189,6 +189,40 @@ void BtcUtils::getHMAC512(const void* keyptr, size_t keylen,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+BinaryData BtcUtils::getBotchedArmoryHMAC256(
+   const BinaryData& key, const BinaryData& msg)
+{
+   BinaryData hmacKey;
+   if (key.getSize() > 32)
+   {
+      hmacKey = BtcUtils::getSha256(key);
+   }
+   else if (key.getSize() <= 32)
+   {
+      hmacKey.resize(32);
+      memcpy(hmacKey.getPtr(), key.getPtr(), key.getSize());
+      memset(hmacKey.getPtr() + key.getSize(), 0, 32 - key.getSize());
+   }
+
+   BinaryData oxor(32), ixor(32);
+   for (int i=0; i<32; i++)
+   {
+      oxor.getPtr()[i] = hmacKey.getPtr()[i] ^ 0x5c;
+      ixor.getPtr()[i] = hmacKey.getPtr()[i] ^ 0x36;
+   }
+
+   ixor.append(msg);
+   auto iHash = BtcUtils::getSha256(ixor);
+
+   BinaryWriter bw;
+   bw.put_BinaryData(oxor);
+   bw.put_BinaryData(iHash);
+
+   return BtcUtils::getSha256(bw.getData());
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
 SecureBinaryData BtcUtils::computeChainCode_Armory135(
    const SecureBinaryData& privateRoot)
 {
@@ -197,18 +231,16 @@ SecureBinaryData BtcUtils::computeChainCode_Armory135(
    key: double SHA256 of the root key
    message: 'Derive Chaincode from Root Key'
 
-   TODO: The Armory Python code uses a botched self implemented HMAC256, 
+   TODO: The Armory Python code uses a botched self implemented HMAC256,
    reproduce it here.
    */
 
-   auto&& hmacKey = BtcUtils::hash256(privateRoot);
-   string hmacMsg("Derive Chaincode from Root Key");
-   SecureBinaryData chainCode(32);
+   auto hmacKey = BtcUtils::hash256(privateRoot);
+   auto hmacMsg = BinaryData::fromString("Derive Chaincode from Root Key");
 
-   getHMAC256(hmacKey.getPtr(), hmacKey.getSize(),
-      hmacMsg.c_str(), hmacMsg.size(), chainCode.getPtr());
-
-   return chainCode;
+   //use key as is for invalid armory hmac256: armory erroneously uses the
+   //output size for sha256 (32 bytes) instead of the block size (64 bytes)
+   return getBotchedArmoryHMAC256(hmacKey, hmacMsg);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -239,13 +271,13 @@ BinaryData BtcUtils::getScrAddrForAddrStr(const string& addrStr)
 
    try
    {
-      scrAddr = move(base58toScrAddr(addrStr));
+      scrAddr = base58toScrAddr(addrStr);
    }
    catch (const exception&)
    {
-      auto scrAddrPair = move(BtcUtils::segWitAddressToScrAddr(addrStr));
+      auto scrAddrPair = BtcUtils::segWitAddressToScrAddr(addrStr);
       if (scrAddrPair.second != 0)
-         throw runtime_error("[createRecipient] unsupported sw version");
+         throw runtime_error("[getScrAddrForAddrStr] unsupported sw version");
 
       switch (scrAddrPair.first.getSize())
       {
@@ -438,28 +470,28 @@ TxOutScriptRef BtcUtils::getTxOutScrAddrNoCopy(BinaryDataRef script)
    case(TXOUT_SCRIPT_STDHASH160) :
    {
       outputRef.type_ = p2pkh_prefix;
-      outputRef.scriptRef_ = move(script.getSliceRef(3, 20));
+      outputRef.scriptRef_ = script.getSliceRef(3, 20);
       break;
    }
 
    case(TXOUT_SCRIPT_P2WPKH) :
    {
       outputRef.type_ = SCRIPT_PREFIX_P2WPKH;
-      outputRef.scriptRef_ = move(script.getSliceRef(2, 20));
+      outputRef.scriptRef_ = script.getSliceRef(2, 20);
       break;
    }
 
    case(TXOUT_SCRIPT_P2WSH) :
    {
       outputRef.type_ = SCRIPT_PREFIX_P2WSH;
-      outputRef.scriptRef_ = move(script.getSliceRef(2, 32));
+      outputRef.scriptRef_ = script.getSliceRef(2, 32);
       break;
    }
 
    case(TXOUT_SCRIPT_STDPUBKEY65) :
    {
       outputRef.type_ = p2pkh_prefix;
-      outputRef.scriptCopy_ = move(getHash160(script.getSliceRef(1, 65)));
+      outputRef.scriptCopy_ = getHash160(script.getSliceRef(1, 65));
       outputRef.scriptRef_.setRef(outputRef.scriptCopy_);
       break;
    }
@@ -467,7 +499,7 @@ TxOutScriptRef BtcUtils::getTxOutScrAddrNoCopy(BinaryDataRef script)
    case(TXOUT_SCRIPT_STDPUBKEY33) :
    {
       outputRef.type_ = p2pkh_prefix;
-      outputRef.scriptCopy_ = move(getHash160(script.getSliceRef(1, 33)));
+      outputRef.scriptCopy_ = getHash160(script.getSliceRef(1, 33));
       outputRef.scriptRef_.setRef(outputRef.scriptCopy_);
       break;
    }
@@ -475,14 +507,14 @@ TxOutScriptRef BtcUtils::getTxOutScrAddrNoCopy(BinaryDataRef script)
    case(TXOUT_SCRIPT_P2SH) :
    {
       outputRef.type_ = p2sh_prefix;
-      outputRef.scriptRef_ = move(script.getSliceRef(2, 20));
+      outputRef.scriptRef_ = script.getSliceRef(2, 20);
       break;
    }
 
    case(TXOUT_SCRIPT_NONSTANDARD) :
    {
       outputRef.type_ = SCRIPT_PREFIX_NONSTD;
-      outputRef.scriptCopy_ = move(getHash160(script));
+      outputRef.scriptCopy_ = getHash160(script);
       outputRef.scriptRef_.setRef(outputRef.scriptCopy_);
       break;
    }
@@ -490,7 +522,7 @@ TxOutScriptRef BtcUtils::getTxOutScrAddrNoCopy(BinaryDataRef script)
    case(TXOUT_SCRIPT_MULTISIG) :
    {
       outputRef.type_ = SCRIPT_PREFIX_MULTISIG;
-      outputRef.scriptCopy_ = move(getMultisigUniqueKey(script));
+      outputRef.scriptCopy_ = getMultisigUniqueKey(script);
       outputRef.scriptRef_.setRef(outputRef.scriptCopy_);
       break;
    }

@@ -13,7 +13,7 @@
 
 #include "log.h"
 #include "bdmenums.h"
-#include "Blockchain.h"
+#include "BlockchainDatabase/Blockchain.h"
 #include "LedgerEntry.h"
 #include "ZeroConf.h"
 #include "nodeRPC.h"

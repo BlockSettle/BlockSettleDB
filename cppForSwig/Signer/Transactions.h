@@ -15,7 +15,7 @@
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
 #include "BtcUtils.h"
-#include "BlockDataMap.h"
+#include "BlockchainDatabase/BlockDataMap.h"
 #include "Script.h"
 #include "SigHashEnum.h"
 

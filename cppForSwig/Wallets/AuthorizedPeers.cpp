@@ -14,6 +14,7 @@
 #include "AuthorizedPeers.h"
 #include "btc/ecc.h"
 #include "WalletFileInterface.h"
+#include "Seeds/Seeds.h"
 
 #include "TerminalPassphrasePrompt.h"
 
@@ -21,6 +22,7 @@ using namespace std;
 using namespace Armory::Assets;
 using namespace Armory::Accounts;
 using namespace Armory::Wallets;
+using namespace Armory::Seeds;
 
 ////////////////////////////////////////////////////////////////////////////////
 AuthorizedPeers::AuthorizedPeers(
@@ -170,10 +172,10 @@ void AuthorizedPeers::createWallet(
       derPath.push_back(0xF0000000);
 
       //generate bip32 node from random seed
-      auto&& seed = CryptoPRNG::generateRandom(32);
-
-      wallet_ = AssetWallet_Single::createFromSeed_BIP32_Blank(
-         baseDir, seed, password, controlPassphrase);
+      wallet_ = AssetWallet_Single::createFromSeed(
+         make_unique<ClearTextSeed_BIP32>(
+            CryptoPRNG::generateRandom(32), SeedType::BIP32_Virgin),
+         password, controlPassphrase, baseDir);
       auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wallet_);
 
       auto rootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(
