@@ -128,7 +128,8 @@ UtxoSelection CoinSelection::getUtxoSelection(
    //sanity check
    auto utxoVecVal = tallyValue(utxoVec);
    if (utxoVecVal < payStruct.spendVal())
-      throw CoinSelectionException("spend value > usable balance");
+      throw CoinSelectionException("spend value " + std::to_string(payStruct.spendVal())
+         + " > usable balance " + std::to_string(utxoVecVal));
 
    if (topHeight_ == UINT32_MAX)
       throw CoinSelectionException("uninitialized top height");
@@ -1043,7 +1044,8 @@ void UtxoSelection::computeSizeAndFee(
    }
 
    if (targetVal > value_)
-      throw CoinSelectionException("targetVal > value");
+      throw CoinSelectionException("targetVal " + std::to_string(targetVal)
+         + " > value " + std::to_string(value_));
 
    size_ = 10 + txOutSize + txInSize;
    if (sw)

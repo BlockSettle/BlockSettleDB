@@ -1247,7 +1247,7 @@ void CallbackReturn_String::callback(
 
       if (msg.data_size() != 1)
          throw ClientMessageError(
-            "invalid message in CallbackReturn_String", -1);
+            "invalid message in CallbackReturn_String " + std::to_string(msg.data_size()), -1);
 
       auto str = msg.data(0);
       ReturnMessage<string> rm(str);

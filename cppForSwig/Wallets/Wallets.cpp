@@ -1405,7 +1405,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
-   const string& folder,
+   const string& fileTmpl,
    const SecureBinaryData& seed,
    const SecureBinaryData& passphrase,
    const SecureBinaryData& controlPassphrase)
@@ -1427,12 +1427,59 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
       accountTypes,
       passphrase,
       controlPassphrase,
-      folder);
+      fileTmpl);
 
    //save the seed
    walletPtr->setSeed(seed, passphrase);
 
    return walletPtr;
+}
+
+/* substitutes variables from vars into tmpl with syntax "<var_name>" -> "var_value"
+* Available var names:
+*   * master_id
+*   * wallet_id
+*   * is_public = WatchingOnly if this flag is set
+*/
+static string substFileTemplate(const string& tmpl
+   , const unordered_map<string, string>& vars)
+{
+   if (tmpl.empty()) {
+      return {};
+   }
+   if (tmpl[tmpl.size() - 1] == '/') {    // compatibility mode - folder only
+      string result = tmpl;
+      string masterId;
+      const bool isPublic = (vars.find("is_public") != vars.end());
+      try {
+         masterId = vars.at("master_id");
+      }
+      catch (const exception&) {}
+      if (!isPublic) {
+         result += "armory_" + masterId + "_wallet.lmdb";
+      } else {
+         result += "armory_" + masterId + "_" + vars.at("is_public") + ".lmdb";
+      }
+      return result;
+   }
+   string str = tmpl;
+   size_t itStart = string::npos;
+   while ((itStart = str.find('<')) != string::npos) {
+      const auto itEnd = str.find('>', itStart);
+      if (itEnd == string::npos) {
+         break;
+      }
+      const auto& key = str.substr(itStart + 1, itEnd - itStart - 1);
+      string value;
+      try {
+         value = vars.at(key);
+      }
+      catch (const exception&) {
+         value = "_";
+      }
+      str.replace(itStart, itEnd - itStart + 1, value);
+   }
+   return str;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1441,7 +1488,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
    set<shared_ptr<AccountType_BIP32>> accountTypes,
    const SecureBinaryData& passphrase,
    const SecureBinaryData& controlPassphrase,
-   const string& folder)
+   const string& fileTmpl)
 {
    bool isPublic = false;
    if (node.isPublic())
@@ -1464,15 +1511,10 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
       return controlPassphrase;
    };
 
-   //create wallet file and dbenv
-   stringstream pathSS;
-   if (!isPublic)
-      pathSS << folder << "/armory_" << masterID << "_wallet.lmdb";
-   else
-      pathSS << folder << "/armory_" << masterID << "_WatchingOnly.lmdb";
-
-   auto iface = getIfaceFromFile(pathSS.str(), false, controlPassLbd);
-
+   unordered_map<string, string> tmplVars{ {"master_id", masterID} };
+   if (isPublic) {
+      tmplVars["is_public"] = "WatchingOnly";
+   }
    string walletID;
    {
       //walletID
@@ -1485,7 +1527,15 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
          pubkey, nullptr);
 
       walletID = move(computeWalletID(derScheme, asset_single));
+      tmplVars["wallet_id"] = walletID;
    }
+
+   const auto& walletPathName = substFileTemplate(fileTmpl, tmplVars);
+   if (walletPathName.empty()) {
+      throw runtime_error("invalid wallet pathname");
+   }
+   //create wallet file and dbenv
+   auto iface = getIfaceFromFile(walletPathName, false, controlPassLbd);
 
    //create wallet
    shared_ptr<AssetWallet_Single> walletPtr = nullptr;

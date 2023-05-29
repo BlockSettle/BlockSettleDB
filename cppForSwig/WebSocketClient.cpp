@@ -235,7 +235,14 @@ bool WebSocketClient::connectToRemote()
 
    serviceThr_ = thread(serviceLBD);
 
-   return connectedFut.get();
+   if (connectedFut.wait_for(std::chrono::seconds{ 7 }) == std::future_status::ready) {
+      return connectedFut.get();
+   }
+   else {
+      shutdown();
+      cleanUp();
+      return false;
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,7 +254,7 @@ void WebSocketClient::service(lws_context* contextPtr)
    while (run_.load(memory_order_relaxed) != 0 && n >= 0)
    {
       n = lws_service(contextPtr, 500);
-      if (!currentWriteMessage_.isDone() || !writeQueue_->empty())
+      if (!currentWriteMessage_.isDone() || !writeQueue_ || !writeQueue_->empty())
          lws_callback_on_writable(wsiPtr);
    }
 
@@ -263,11 +270,10 @@ void WebSocketClient::shutdown()
       return;
 
    auto context = (struct lws_context*)contextPtr_.load(memory_order_acquire);
-   if (context == nullptr)
-      return;
-
+   if (context != nullptr) {
+      lws_cancel_service(context);
+   }
    run_.store(0, memory_order_relaxed);
-   lws_cancel_service(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

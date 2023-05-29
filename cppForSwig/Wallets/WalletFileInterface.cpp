@@ -271,7 +271,7 @@ unique_ptr<DBIfaceTransaction> WalletDBInterface::beginWriteTransaction(
             dbEnv_.get(), controlDb_.get(), true);
       }
 
-      throw WalletInterfaceException("invalid db name");
+      throw WalletInterfaceException("[beginWriteTransaction] invalid db name " + dbName);
    }
 
    return make_unique<WalletIfaceTransaction>(this, iter->second.get(), true);
@@ -290,7 +290,7 @@ unique_ptr<DBIfaceTransaction> WalletDBInterface::beginReadTransaction(
             dbEnv_.get(), controlDb_.get(), false);
       }
 
-      throw WalletInterfaceException("invalid db name");
+      throw WalletInterfaceException("[beginReadTransaction] invalid db name " + dbName);
    }
 
    return make_unique<WalletIfaceTransaction>(this, iter->second.get(), false);
@@ -590,12 +590,14 @@ void WalletDBInterface::setDbCount(unsigned count)
 ////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::openDbEnv(bool fileExists)
 {
-   if (DBUtils::fileExists(path_, 0) != fileExists)
-      throw WalletInterfaceException("[openEnv] file flag mismatch");
-
-   if (dbEnv_ != nullptr)
+   const bool fileFlag = DBUtils::fileExists(path_, 0);
+   if (fileFlag != fileExists) {
+      throw WalletInterfaceException("[openEnv] file " + path_ + " flag mismatch: "
+         + std::to_string(fileFlag) + " vs " + std::to_string(fileExists));
+   }
+   if (dbEnv_ != nullptr) {
       throw WalletInterfaceException("[openEnv] dbEnv already instantiated");
-
+   }
    dbEnv_ = make_unique<LMDBEnv>(dbCount_);
    dbEnv_->open(path_, MDB_NOTLS);
    dbEnv_->setMapSize(100*1024*1024ULL);
