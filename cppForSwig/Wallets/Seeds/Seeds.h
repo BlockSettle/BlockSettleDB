@@ -205,11 +205,21 @@ namespace Armory
       ////////
       class ClearTextSeed_BIP39 : public ClearTextSeed_BIP32
       {
+      public:
+         enum class Dictionnary : int
+         {
+            English_Trezor = 1,
+         };
+
       private:
-         const unsigned int dictionnaryId_ = 1;
+         const Dictionnary dictionnary_;
+
+      private:
+         void setupRootNode(void) const;
 
       public:
-         ClearTextSeed_BIP39(const SecureBinaryData&, unsigned int);
+         ClearTextSeed_BIP39(const SecureBinaryData&, Dictionnary);
+         ClearTextSeed_BIP39(Dictionnary);
          ~ClearTextSeed_BIP39(void) override;
 
          void serialize(BinaryWriter&) const override;
@@ -217,7 +227,7 @@ namespace Armory
          BackupType getPreferedBackupType(void) const override;
 
          std::shared_ptr<BIP32_Node> getRootNode(void) const override;
-         unsigned int getDictionnaryId(void) const;
+         Dictionnary getDictionnaryId(void) const;
       };
 
       //////////////////////////////////////////////////////////////////////////

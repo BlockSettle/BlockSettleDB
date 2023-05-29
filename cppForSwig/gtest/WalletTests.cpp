@@ -4466,12 +4466,14 @@ TEST_F(WalletsTest, ID_fromSeeds)
       EXPECT_EQ(base58->getMasterId(), "2d9H95rzK");
    }
 
-   /*
+
    //BIP39
-      auto bip32 = make_unique<ClearTextSeed_BIP39>(rawSBD, 1);
-      EXPECT_EQ(bip32->getWalletId(), "abcd");
-      EXPECT_EQ(bip32->getMasterId(), "abcd");
-   */
+   {
+      auto bip32 = make_unique<ClearTextSeed_BIP39>(rawSBD,
+         ClearTextSeed_BIP39::Dictionnary::English_Trezor);
+      EXPECT_EQ(bip32->getWalletId(), "vUXT83m9");
+      EXPECT_EQ(bip32->getMasterId(), "WLKZBhnX");
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -8582,6 +8584,7 @@ public:
          //
          EXPECT_EQ(address->getPrefixedHash(), newAddr->getPrefixedHash());
          EXPECT_EQ(privKey, newKey);
+         EXPECT_EQ(assetID.first, newID.first);
       }
 
       METHOD_ASSERT_EQ(keyPassCount, 10U);
@@ -9738,6 +9741,177 @@ TEST_F(BackupTests, BackupStrings_BIP32_FromBase58)
       auto backupBase58 = dynamic_cast<Backup_Base58*>(backupData.get());
       EXPECT_EQ(backupBase58->getBase58String(), b58seed);
    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(BackupTests, BackupStrings_BIP39)
+{
+   //create a legacy wallet
+   string filename;
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new ClearTextSeed_BIP39(
+         ClearTextSeed_BIP39::Dictionnary::English_Trezor));
+   auto assetWlt = AssetWallet_Single::createFromSeed(
+      move(seed), //root as a r value
+      SecureBinaryData::fromString("passphrase"),
+      SecureBinaryData::fromString("control"),
+      homedir_,
+      4); //set lookup computation to 4 entries
+
+   auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
+   {
+      return SecureBinaryData::fromString("passphrase");
+   };
+   auto walletId = assetWlt->getID();
+   assetWlt->setPassphrasePromptLambda(passLbd);
+   auto backupDataBIP39 = Armory::Seeds::Helpers::getWalletBackup(
+      assetWlt, BackupType::BIP39);
+   auto backupDataArmory200d = Armory::Seeds::Helpers::getWalletBackup(
+      assetWlt, BackupType::Armory200d);
+
+   EXPECT_EQ(walletId, backupDataBIP39->getWalletId());
+   EXPECT_EQ(walletId, backupDataArmory200d->getWalletId());
+
+   //restore Armory200d lambda
+   auto newPass = CryptoPRNG::generateRandom(10);
+   auto newCtrl = CryptoPRNG::generateRandom(10);
+   auto callback = [&walletId, &newPass, &newCtrl](
+      BridgeProto::RestorePrompt prompt)->BridgeProto::RestoreReply
+   {
+      BridgeProto::RestoreReply reply;
+      switch (prompt.prompt_case())
+      {
+      case BridgeProto::RestorePrompt::kGetPassphrases:
+      {
+         auto passphrases = reply.mutable_passphrases();
+         passphrases->set_privkey(newPass.toCharPtr(), newPass.getSize());
+         passphrases->set_control(newCtrl.toCharPtr(), newCtrl.getSize());
+         reply.set_success(true);
+         break;
+      }
+
+      case BridgeProto::RestorePrompt::kCheckWalletId:
+      {
+         auto checkWalleIdMsg = prompt.check_wallet_id();
+         EXPECT_EQ(checkWalleIdMsg.wallet_id(), walletId);
+         EXPECT_EQ(checkWalleIdMsg.backup_type(), (int)BackupType::Armory200d);
+         reply.set_success(true);
+         break;
+      }
+
+      default:
+         reply.set_success(false);
+      }
+      return reply;
+   };
+
+   string newHomeDir("./newhomedir");
+   DBUtils::removeDirectory(newHomeDir);
+   mkdir(newHomeDir);
+
+   {
+      auto backupE16 = dynamic_cast<Backup_Easy16*>(backupDataArmory200d.get());
+      ASSERT_NE(backupE16, nullptr);
+      auto backupE16Copy = Backup_Easy16::fromLines({
+         backupE16->getRoot(Backup_Easy16::LineIndex::One, false),
+         backupE16->getRoot(Backup_Easy16::LineIndex::Two, false),
+      });
+      auto newWltPtr = Armory::Seeds::Helpers::restoreFromBackup(
+         move(backupE16Copy), newHomeDir, callback);
+      ASSERT_NE(newWltPtr, nullptr);
+
+      auto passLbd2 = [&newPass](const set<EncryptionKeyId>&)->SecureBinaryData
+      {
+         return newPass;
+      };
+      newWltPtr->setPassphrasePromptLambda(passLbd2);
+
+      auto newWalletSingle = dynamic_pointer_cast<AssetWallet_Single>(newWltPtr);
+      auto backupData2 = Armory::Seeds::Helpers::getWalletBackup(
+         newWalletSingle, BackupType::Armory200d);
+      auto backupE16_2 = dynamic_cast<Backup_Easy16*>(backupData2.get());
+
+      EXPECT_EQ(backupE16->getRoot(Backup_Easy16::LineIndex::One, false),
+         backupE16_2->getRoot(Backup_Easy16::LineIndex::One, false));
+      EXPECT_EQ(backupE16->getRoot(Backup_Easy16::LineIndex::Two, false),
+         backupE16_2->getRoot(Backup_Easy16::LineIndex::Two, false));
+      EXPECT_EQ(backupE16->getWalletId(), backupE16_2->getWalletId());
+
+      filename = newWltPtr->getDbFilename();
+   }
+
+   EXPECT_TRUE(compareWalletWithBackup(assetWlt, filename, newPass, newCtrl));
+   DBUtils::removeDirectory(newHomeDir);
+   mkdir(newHomeDir);
+
+   //restore BIP39 lambda
+   auto newPass2 = CryptoPRNG::generateRandom(10);
+   auto newCtrl2 = CryptoPRNG::generateRandom(10);
+   auto callbackBip39 = [&walletId, &newPass2, &newCtrl2](
+      BridgeProto::RestorePrompt prompt)->BridgeProto::RestoreReply
+   {
+      BridgeProto::RestoreReply reply;
+      switch (prompt.prompt_case())
+      {
+      case BridgeProto::RestorePrompt::kGetPassphrases:
+      {
+         auto passphrases = reply.mutable_passphrases();
+         passphrases->set_privkey(newPass2.toCharPtr(), newPass2.getSize());
+         passphrases->set_control(newCtrl2.toCharPtr(), newCtrl2.getSize());
+         reply.set_success(true);
+         break;
+      }
+
+      case BridgeProto::RestorePrompt::kCheckWalletId:
+      {
+         auto checkWalleIdMsg = prompt.check_wallet_id();
+         EXPECT_EQ(checkWalleIdMsg.wallet_id(), walletId);
+         EXPECT_EQ(checkWalleIdMsg.backup_type(), (int)BackupType::BIP39);
+         reply.set_success(true);
+         break;
+      }
+
+      default:
+         reply.set_success(false);
+      }
+      return reply;
+   };
+
+   //restore from mnemonic string
+   {
+      //restore wallet
+      auto backupBIP39 = dynamic_cast<Backup_BIP39*>(backupDataBIP39.get());
+      ASSERT_NE(backupBIP39, nullptr);
+
+      auto backupBIP39Copy = Backup_BIP39::fromMnemonicString(
+         backupBIP39->getMnemonicString());
+      auto newWltPtr = Armory::Seeds::Helpers::restoreFromBackup(
+         move(backupBIP39Copy), newHomeDir, callbackBip39);
+      ASSERT_NE(newWltPtr, nullptr);
+
+      auto passLbd2 = [&newPass2](const set<EncryptionKeyId>&)->SecureBinaryData
+      {
+         return newPass2;
+      };
+      newWltPtr->setPassphrasePromptLambda(passLbd2);
+
+      auto newWalletSingle = dynamic_pointer_cast<AssetWallet_Single>(newWltPtr);
+      auto backupData2 = Armory::Seeds::Helpers::getWalletBackup(newWalletSingle);
+      auto backupBIP39_2 = dynamic_cast<Backup_BIP39*>(backupData2.get());
+
+      EXPECT_EQ(backupBIP39->getMnemonicString(), backupBIP39_2->getMnemonicString());
+      EXPECT_EQ(backupBIP39->getWalletId(), backupBIP39_2->getWalletId());
+
+      filename = newWltPtr->getDbFilename();
+
+      //grab 10 addresses from restored wallet to get in sync with original
+      //otherwise the comparision will fail
+      for (int i=0; i<10; i++)
+         newWltPtr->getNewAddress();
+   }
+
+   EXPECT_TRUE(compareWalletWithBackup(assetWlt, filename, newPass2, newCtrl2));
+   DBUtils::removeDirectory(newHomeDir);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

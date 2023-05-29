@@ -64,15 +64,16 @@ namespace Armory
             - b: BIP32 with BIP44/49/84 chains, as individual address accounts
             - c: BIP32 with no accounts
             - d: BIP39 seed with BIP44/49/84 chains, as individual
-                 address accounts
+                 address accounts, Trezor English dicionnary
          */
          Armory200a  = 3,
          Armory200b  = 4,
          Armory200c  = 5,
-         Armory200d  = 6,
+
+         Armory200d  = 10,
 
          //state of an easy16 backup prior to decode
-         Easy16_Unkonwn = 10,
+         Easy16_Unkonwn = 30,
 
          //bip32 mnemonic phrase (12~24 words), english dictionnary
          BIP39       = 0xFFFF,
@@ -226,13 +227,15 @@ namespace Armory
       private:
          SecureBinaryData mnemonicString_;
 
+      private:
+         Backup_BIP39(void);
+
       public:
-         Backup_BIP39(SecureBinaryData);
          ~Backup_BIP39(void) override;
 
          std::string_view getMnemonicString(void) const;
-         static std::unique_ptr<Backup_BIP39> fromMnemonics(
-            const std::vector<std::string_view>&);
+         static std::unique_ptr<Backup_BIP39> fromMnemonicString(
+            std::string_view);
       };
 
       ////////
@@ -289,7 +292,7 @@ namespace Armory
          static std::unique_ptr<ClearTextSeed> restoreFromBase58(
             std::unique_ptr<WalletBackup>);
          static std::unique_ptr<ClearTextSeed> restoreFromBIP39(
-            std::unique_ptr<WalletBackup>, const UserPrompt&);
+            std::unique_ptr<WalletBackup>);
       };
    }; //namespace Backups
 }; //namespace Armory

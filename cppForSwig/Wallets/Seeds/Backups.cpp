@@ -12,6 +12,9 @@
 #include "../WalletIdTypes.h"
 #include "Seeds.h"
 #include "protobuf/BridgeProto.pb.h"
+extern "C" {
+#include <trezor-crypto/bip39.h>
+}
 
 #define EASY16_CHECKSUM_LEN 2
 #define EASY16_INDEX_MAX   15
@@ -975,20 +978,31 @@ unique_ptr<WalletBackup> Helpers::getBIP39BackupString(
       throw runtime_error("[getBIP39BackupString] invalid seed type");
 
    auto seedBip39 = dynamic_cast<ClearTextSeed_BIP39*>(seed.get());
-   SecureBinaryData mnemonicString;
+   unique_ptr<Backup_BIP39> result;
    switch (seedBip39->getDictionnaryId())
    {
-      case 1:
+      case ClearTextSeed_BIP39::Dictionnary::English_Trezor:
       {
-         //convert raw entropy to mnemonic string
+         //clear libbtc/trezor bip39 mnemonic buffer
+         mnemonic_clear();
+
+         //convert raw entropy to mnemonic phrase
+         auto mnemonicPtr = mnemonic_from_data(
+            seedBip39->getRawEntropy().getPtr(),
+            seedBip39->getRawEntropy().getSize());
+         string_view mnemonicView(mnemonicPtr, strlen(mnemonicPtr));
+
+         //copy mnemonic phrase
+         result = Backup_BIP39::fromMnemonicString(mnemonicView);
+
+         //clear libbtc/trezor bip39 mnemonic buffer
+         mnemonic_clear();
          break;
       }
 
       default:
          throw runtime_error("[getBIP39BackupString] invalid dictionnary id");
    }
-
-   auto result = make_unique<Backup_BIP39>(move(mnemonicString));
    return result;
 }
 
@@ -1031,7 +1045,7 @@ shared_ptr<AssetWallet> Helpers::restoreFromBackup(
          break;
 
       case BackupType::BIP39:
-         seed = restoreFromBIP39(move(backup), callback);
+         seed = restoreFromBIP39(move(backup));
          break;
 
       default:
@@ -1044,7 +1058,7 @@ shared_ptr<AssetWallet> Helpers::restoreFromBackup(
       prompt.mutable_type_error()->set_error(
          "failed to create seed from backup");
       callback(move(prompt));
-      return nullptr;
+      throw RestoreUserException("failed to create seed from backup");
    }
 
    //prompt user to verify id
@@ -1271,7 +1285,8 @@ unique_ptr<ClearTextSeed> Helpers::restoreFromEasy16(
       {
          //empty BIP32 wallet
          seedPtr = std::move(std::make_unique<ClearTextSeed_BIP39>(
-            primaryData.data_, 1));
+            primaryData.data_,
+            ClearTextSeed_BIP39::Dictionnary::English_Trezor));
          break;
       }
 
@@ -1303,17 +1318,33 @@ unique_ptr<ClearTextSeed> Helpers::restoreFromBase58(
 
 ////////
 unique_ptr<ClearTextSeed> Helpers::restoreFromBIP39(
-   unique_ptr<WalletBackup> backup, const UserPrompt& callback)
+   unique_ptr<WalletBackup> backup)
 {
    auto backupBIP39 = dynamic_cast<Backup_BIP39*>(backup.get());
    if (backupBIP39 == nullptr)
       return nullptr;
 
-   //TODO: convert words to raw entropy
-   SecureBinaryData rawEntropy;
+   const char* mnemonic = backupBIP39->getMnemonicString().data();
+
+   //check mnemonic phrase
+   if (mnemonic_check(mnemonic) == 0)
+      return nullptr;
+
+   //convert mnemonic phrase to raw entropy
+   SecureBinaryData rawEntropy(33); //max entropy size + checksum
+   auto lenInBits = mnemonic_to_bits(mnemonic, rawEntropy.getPtr());
+
+   if (lenInBits == 0)
+      return nullptr;
+
+   //strip out checksum bits
+   auto lenInBytes = lenInBits / 8;
+   lenInBytes -= lenInBytes % 8;
+   rawEntropy.resize(lenInBytes);
 
    //entropy to seed
-   return make_unique<ClearTextSeed_BIP39>(rawEntropy, 1);
+   return make_unique<ClearTextSeed_BIP39>(rawEntropy,
+      ClearTextSeed_BIP39::Dictionnary::English_Trezor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1470,9 +1501,27 @@ unique_ptr<Backup_Base58> Backup_Base58::fromString(const string_view& strV)
 }
 
 ///////////////////////////////// Backup_BIP39 /////////////////////////////////
-Backup_BIP39::Backup_BIP39(SecureBinaryData mnemonicString) :
-   WalletBackup(BackupType::BIP39), mnemonicString_(move(mnemonicString))
+Backup_BIP39::Backup_BIP39() :
+   WalletBackup(BackupType::BIP39), mnemonicString_()
 {}
 
 Backup_BIP39::~Backup_BIP39()
 {}
+
+unique_ptr<Backup_BIP39> Backup_BIP39::fromMnemonicString(string_view strV)
+{
+   //create a SBD with 1 extra byte to account for terminating 0,
+   //as trezor-crypto expects null terminate strings
+   SecureBinaryData mnemonicSBD(strV.size() + 1);
+   memset(mnemonicSBD.getPtr(), 0, strV.size() + 1);
+   memcpy(mnemonicSBD.getPtr(), strV.data(), strV.size());
+
+   unique_ptr<Backup_BIP39> result(new Backup_BIP39());
+   result->mnemonicString_ = move(mnemonicSBD);
+   return result;
+}
+
+string_view Backup_BIP39::getMnemonicString() const
+{
+   return string_view(mnemonicString_.toCharPtr(), mnemonicString_.getSize());
+}

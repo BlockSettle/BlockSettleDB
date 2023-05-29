@@ -15,6 +15,9 @@
 #include "Seeds.h"
 #include "Backups.h"
 #include "BtcUtils.h"
+extern "C" {
+#include <trezor-crypto/bip39.h>
+}
 
 using namespace std;
 using namespace Armory;
@@ -327,7 +330,7 @@ unique_ptr<ClearTextSeed> ClearTextSeed::deserialize(
       case SeedType::BIP39:
       {
          BinaryDataRef rawEntropy;
-         unsigned int dictionnary = 0;
+         ClearTextSeed_BIP39::Dictionnary dictionnary;
          while (!brr.isEndOfStream())
          {
             auto prefix = (Prefix)brr.get_uint8_t();
@@ -342,7 +345,8 @@ unique_ptr<ClearTextSeed> ClearTextSeed::deserialize(
 
                case Prefix::Dictionnary:
                {
-                  dictionnary = brr.get_uint32_t();
+                  dictionnary =
+                     (ClearTextSeed_BIP39::Dictionnary)brr.get_uint32_t();
                   break;
                }
 
@@ -628,12 +632,14 @@ BackupType ClearTextSeed_BIP32::getPreferedBackupType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 ClearTextSeed_BIP39::ClearTextSeed_BIP39(const SecureBinaryData& raw,
-   unsigned int dictId) :
-   ClearTextSeed_BIP32(raw, SeedType::BIP39), dictionnaryId_(dictId)
-{
-   if (dictionnaryId_ == 0)
-      throw runtime_error("[ClearTextSeed_BIP39] invalid dictionnary id");
-}
+   Dictionnary dictType) :
+   ClearTextSeed_BIP32(raw, SeedType::BIP39), dictionnary_(dictType)
+{}
+
+ClearTextSeed_BIP39::ClearTextSeed_BIP39(Dictionnary dictType) :
+   ClearTextSeed_BIP32(CryptoPRNG::generateRandom(32), SeedType::BIP39),
+   dictionnary_(dictType)
+{}
 
 ClearTextSeed_BIP39::~ClearTextSeed_BIP39()
 {}
@@ -642,21 +648,63 @@ ClearTextSeed_BIP39::~ClearTextSeed_BIP39()
 std::shared_ptr<BIP32_Node> ClearTextSeed_BIP39::getRootNode() const
 {
    if (rootNode_ == nullptr)
-   {
-      //convert raw entropy to BIP39 mnemonic phrase based on dictionnary
-
-      //convert mnemonic to seed
-      SecureBinaryData seed{};
-
-      rootNode_ = make_shared<BIP32_Node>();
-      rootNode_->initFromSeed(seed);
-   }
+      setupRootNode();
    return rootNode_;
 }
 
-unsigned int ClearTextSeed_BIP39::getDictionnaryId(void) const
+////
+void ClearTextSeed_BIP39::setupRootNode() const
 {
-   return dictionnaryId_;
+   //sanity checks
+   if (rawEntropy_.empty())
+   {
+      throw runtime_error("[ClearTextSeed_BIP39::setupRootNode]"
+         " missing raw entropy");
+   }
+
+   if (rootNode_ != nullptr)
+   {
+      throw runtime_error("[ClearTextSeed_BIP39::setupRootNode]"
+         " already have root node");
+   }
+
+   switch (dictionnary_)
+   {
+      case Dictionnary::English_Trezor:
+      {
+         //clear libbtc/trezor bip39 mnemonic buffer
+         mnemonic_clear();
+
+         //convert raw entropy to mnemonic phrase
+         auto mnemonicPtr = mnemonic_from_data(
+            rawEntropy_.getPtr(), rawEntropy_.getSize());
+
+         //convert mnemonic phrase to seed
+         SecureBinaryData seed64(64);
+         mnemonic_to_seed(
+            mnemonicPtr, //the mnemonic string
+            "", //passphrase, null for now
+            seed64.getPtr(), //result buffer
+            nullptr); //progress callback, dont care for now
+
+         //clean up libbtc buffer
+         mnemonic_clear();
+
+         //setup root node
+         rootNode_ = make_shared<BIP32_Node>();
+         rootNode_->initFromSeed(seed64);
+         break;
+      }
+
+      default:
+         throw runtime_error("[ClearTextSeed_BIP39::setupRootNode]"
+            " unexpected dictionnary id");
+   }
+}
+
+ClearTextSeed_BIP39::Dictionnary ClearTextSeed_BIP39::getDictionnaryId() const
+{
+   return dictionnary_;
 }
 
 ////
@@ -671,7 +719,8 @@ void ClearTextSeed_BIP39::serialize(BinaryWriter& bw) const
    inner.put_BinaryData(rawEntropy_);
 
    //dictionnary id
-   inner.put_uint32_t(dictionnaryId_);
+   inner.put_uint8_t((uint8_t)Prefix::Dictionnary);
+   inner.put_uint32_t((uint32_t)dictionnary_);
 
    /* append to writer */
 
