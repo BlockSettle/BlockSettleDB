@@ -15,7 +15,7 @@ from PySide2.QtWidgets import QPushButton, QGridLayout, QFrame, QLabel, \
 from qtdialogs.qtdefines import STYLE_RAISED, QLabelButton
 from armoryengine.BDM import TheBDM
 from armoryengine.CppBridge import TheBridge
-from armoryengine.PyBtcAddress import AddressEntryType_P2PKH, \
+from armoryengine.AddressUtils import AddressEntryType_P2PKH, \
    AddressEntryType_P2PK, AddressEntryType_P2WPKH, \
    AddressEntryType_Multisig, AddressEntryType_Uncompressed, \
    AddressEntryType_P2SH, AddressEntryType_P2WSH
@@ -145,7 +145,7 @@ class AddressLabelFrame(object):
 
    def setType(self, _type):
       self.addrType = _type
-      addrTypeStr = TheBridge.getNameForAddrType(_type)
+      addrTypeStr = TheBridge.utils.getNameForAddrType(_type)
       self.typeLabel.setText(\
          self.main.tr("<u><font color='blue'>%s</font></u>" \
          % addrTypeStr))

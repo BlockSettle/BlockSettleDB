@@ -6,7 +6,7 @@ from __future__ import (absolute_import, division,
 # Distributed under the GNU Affero General Public License (AGPL v3)            #
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
-# Copyright (C) 2016-2021, goatpig                                             #
+# Copyright (C) 2016-2023, goatpig                                             #
 #  Distributed under the MIT license                                           #
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                      #
 #                                                                              #
@@ -20,23 +20,25 @@ from PySide2.QtWidgets import QPushButton, QGridLayout, QFrame, \
    QVBoxLayout, QLabel, QMessageBox, QTextEdit, QSizePolicy, \
    QApplication, QRadioButton
 
+from ui.QtExecuteSignal import TheSignalExecution
+from armoryengine.Transaction import UnsignedTransaction, \
+   USTX_TYPE_MODERN, USTX_TYPE_LEGACY, USTX_TYPE_PSBT, USTX_TYPE_UNKNOWN
+from armoryengine.ArmoryUtils import LOGEXCEPT, LOGERROR, LOGINFO, \
+   CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, coin2str, enum, binary_to_hex, \
+   coin2strNZS, NetworkIDError, UnserializeError, OS_WINDOWS
+from armoryengine.Settings import TheSettings
+from armoryengine.AddressUtils import script_to_scrAddr, BadAddressError
+
 from qtdialogs.qtdefines import ArmoryFrame, tightSizeNChar, \
    GETFONT, QRichLabel, HLINE, QLabelButton, USERMODE, \
    VERTICAL, HORIZONTAL, STYLE_RAISED, relaxedSizeNChar, STYLE_SUNKEN, \
    relaxedSizeStr, makeLayoutFrame, tightSizeStr, NETWORKMODE, \
-   MSGBOX
+   MSGBOX, STRETCH, createToolTipWidget
 
-from qtdialogs.qtdialogs import STRETCH
 from qtdialogs.DlgDispTxInfo import DlgDispTxInfo, extractTxInfo
 from qtdialogs.DlgConfirmSend import DlgConfirmSend
 from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
 
-from armoryengine.Transaction import UnsignedTransaction, \
-   USTX_TYPE_MODERN, USTX_TYPE_LEGACY, USTX_TYPE_PSBT, USTX_TYPE_UNKNOWN
-from armoryengine.ArmoryUtils import LOGEXCEPT, LOGERROR, LOGINFO, \
-   CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, coin2str, enum, \
-   script_to_scrAddr, binary_to_hex, coin2strNZS, BadAddressError, \
-   NetworkIDError, UnserializeError
 
 ################################################################################
 class SignBroadcastOfflineTxFrame(ArmoryFrame):
@@ -102,20 +104,20 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
 
       # ##
       self.infoLbls.append([])
-      self.infoLbls[-1].append(self.main.createToolTipWidget(\
+      self.infoLbls[-1].append(createToolTipWidget(\
             self.tr('This is wallet from which the offline transaction spends bitcoins')))
       self.infoLbls[-1].append(QRichLabel('<b>Wallet:</b>'))
       self.infoLbls[-1].append(QRichLabel(''))
 
       # ##
       self.infoLbls.append([])
-      self.infoLbls[-1].append(self.main.createToolTipWidget(self.tr('The name of the wallet')))
+      self.infoLbls[-1].append(createToolTipWidget(self.tr('The name of the wallet')))
       self.infoLbls[-1].append(QRichLabel(self.tr('<b>Wallet Label:</b>')))
       self.infoLbls[-1].append(QRichLabel(''))
 
       # ##
       self.infoLbls.append([])
-      self.infoLbls[-1].append(self.main.createToolTipWidget(self.tr(
+      self.infoLbls[-1].append(createToolTipWidget(self.tr(
          'A unique string that identifies an <i>unsigned</i> transaction.  '
          'This is different than the ID that the transaction will have when '
          'it is finally broadcast, because the broadcast ID cannot be '
@@ -125,7 +127,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
 
       # ##
       self.infoLbls.append([])
-      self.infoLbls[-1].append(self.main.createToolTipWidget(\
+      self.infoLbls[-1].append(createToolTipWidget(\
                                self.tr('Net effect on this wallet\'s balance')))
       self.infoLbls[-1].append(QRichLabel(self.tr('<b>Transaction Amount:</b>')))
       self.infoLbls[-1].append(QRichLabel(''))
@@ -251,13 +253,13 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
          self.makeReviewFrame()
          return
       elif not self.enoughSigs:
-         if not self.main.getSettingOrSetDefault('DNAA_ReviewOfflineTx', False):
+         if not TheSettings.getSettingOrSetDefault('DNAA_ReviewOfflineTx', False):
             result = MsgBoxWithDNAA(self, self.main, MSGBOX.Warning, title=self.tr('Offline Warning'), \
                   msg=self.tr('<b>Please review your transaction carefully before '
                   'signing and broadcasting it!</b>  The extra security of '
                   'using offline wallets is lost if you do '
                   'not confirm the transaction is correct!'), dnaaMsg=None)
-            self.main.writeSetting('DNAA_ReviewOfflineTx', result[1])
+            TheSettings.set('DNAA_ReviewOfflineTx', result[1])
          self.lblStatus.setText(self.tr('<b><font color="red">Unsigned</font></b>'))
          self.btnSign.setEnabled(True)
          self.btnBroadcast.setEnabled(False)
@@ -440,17 +442,21 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
       if not dlg.exec_():
          return
 
-      def completeSignProcess():
-         def signTxLastStep():
-            serTx = self.ustxObj.serialize(self.signerTypeSelect.fromType())
-            self.txtUSTX.setText(serTx)
+      def completeSignProcess(success):
+         def signTxLastStep(success):
+            if success:
+               serTx = self.ustxObj.serialize(self.signerTypeSelect.fromType())
+               self.txtUSTX.setText(serTx)
 
-            if not self.fileLoaded == None:
-               self.saveTxAuto()
+               if not self.fileLoaded == None:
+                  self.saveTxAuto()
+            else:
+               QMessageBox.warning(self, self.tr('Error'),
+                  self.tr('Failed to sign transaction!'),
+                  QMessageBox.Ok)
+         TheSignalExecution.executeMethod(signTxLastStep, success)
 
-         self.main.signalExecution.executeMethod([signTxLastStep])
-
-      self.ustxObj.signTx(self.wlt.uniqueIDB58, completeSignProcess)
+      self.ustxObj.signTx(self.wlt.uniqueIDB58, completeSignProcess, self)
 
    def broadTx(self):
       if self.main.netMode == NETWORKMODE.Disconnected:

@@ -8,6 +8,8 @@ BUILT_SOURCES =
 
 LIBBTC = $(LIBBTC_LIBDIR)/libbtc.la
 LIBCHACHA20POLY1305 = chacha20poly1305/libchacha20poly1305.la
+LIBHKDF = hkdf/libhkdf.la
+LIBTREZORCRYPTO = libTrezorCrypto.la
 
 LIBARMORYWALLETS = libArmoryWallets.la
 LIBARMORYSIGNER = libArmorySigner.la
@@ -16,7 +18,6 @@ LIBARMORYCOMMON = libArmoryCommon.la
 LIBARMORYGUI = libArmoryGUI.la
 LIBARMORYCLI = libArmoryCLI.la
 LIBLMDBPP = liblmdbpp.la
-LIBHKDF = hkdf/libhkdf.la
 LIBSECP256K1 = $(LIBBTC_LIBDIR)/src/secp256k1/libsecp256k1.la
 LIBWEBSOCKETS_STATIC = $(WEBSOCKETS_LIBDIR)/libwebsockets.a
 LIBPROTOBUF_STATIC = -lprotobuf
@@ -57,11 +58,10 @@ AM_CXXFLAGS =
 #LDFLAGS += -Wl,-rpath,. -Wl,-rpath,'$$ORIGIN/../more/libs/here' -Wl,-z,origin
 
 protobuf/%.pb.cc protobuf/%.pb.h: protobuf/%.proto
-#	@test -f proto
 	protoc --cpp_out=protobuf --proto_path=$(srcdir)/protobuf $<
 
 INCLUDE_FILES = -I$(srcdir)/lmdbpp \
-	-I$(srcdir)/chacha20poly1305 -I$(LIBBTC_LIBDIR)/src/secp256k1/include \
+	-I$(srcdir)/chacha20poly1305 -I$(LIBBTC_LIBDIR)/src/secp256k1/include -I$(LIBBTC_LIBDIR)/src \
 	-I$(LIBBTC_LIBDIR)/include $(LWS_CFLAGS) -I$(srcdir)/hkdf -I$(srcdir)/Wallets -I$(srcdir)/Signer
 
 # Files should *not* be marked as "common" if at all possible. Also, a refactor
@@ -78,6 +78,13 @@ CPPBRIDGE_SOURCE_FILES = BridgeAPI/CppBridge.cpp \
 	BridgeAPI/ProtobufCommandParser.cpp \
 	BridgeAPI/PassphrasePrompt.cpp
 
+LIBTREZORCRYPTO_SOURCE_FILES = $(LIBBTC_LIBDIR)/src/trezor-crypto/bip39.c \
+	$(LIBBTC_LIBDIR)/src/trezor-crypto/pbkdf2.c \
+	$(LIBBTC_LIBDIR)/src/trezor-crypto/memzero.c \
+	$(LIBBTC_LIBDIR)/src/trezor-crypto/hmac.c \
+	$(LIBBTC_LIBDIR)/src/trezor-crypto/sha2.c \
+	$(LIBBTC_LIBDIR)/src/trezor-crypto/rand.c
+
 ARMORYWALLETS_SOURCE_FILES = Wallets/BIP32_Node.cpp \
 	Wallets/Addresses.cpp \
 	Wallets/DecryptedDataContainer.cpp \
@@ -93,7 +100,9 @@ ARMORYWALLETS_SOURCE_FILES = Wallets/BIP32_Node.cpp \
 	Wallets/WalletFileInterface.cpp \
 	Wallets/AssetEncryption.cpp \
 	Wallets/Wallets.cpp \
-	Wallets/AuthorizedPeers.cpp
+	Wallets/AuthorizedPeers.cpp \
+	Wallets/Seeds/Backups.cpp \
+	Wallets/Seeds/Seeds.cpp
 
 ARMORYSIGNER_SOURCE_FILES = Signer/Script.cpp \
 	Signer/ScriptRecipient.cpp \
@@ -156,7 +165,6 @@ ARMORYCOMMON_SOURCE_FILES = AsyncClient.cpp \
 	BitcoinSettings.cpp \
 	ReentrantLock.cpp \
 	SecureBinaryData.cpp \
-	ArmoryBackups.cpp \
 	SocketObject.cpp \
 	TxClasses.cpp \
 	TxOutScrRef.cpp \
@@ -167,7 +175,7 @@ ARMORYCOMMON_SOURCE_FILES = AsyncClient.cpp \
 PROTOBUF_PROTO = protobuf/AddressBook.proto \
 	protobuf/AddressData.proto \
 	protobuf/BDVCommand.proto \
-	protobuf/ClientProto.proto \
+	protobuf/BridgeProto.proto \
 	protobuf/CommonTypes.proto \
 	protobuf/FeeEstimate.proto \
 	protobuf/LedgerEntry.proto \
@@ -178,7 +186,7 @@ PROTOBUF_PROTO = protobuf/AddressBook.proto \
 PROTOBUF_CC = protobuf/AddressBook.pb.cc \
 	protobuf/AddressData.pb.cc \
 	protobuf/BDVCommand.pb.cc \
-	protobuf/ClientProto.pb.cc \
+	protobuf/BridgeProto.pb.cc \
 	protobuf/CommonTypes.pb.cc \
 	protobuf/FeeEstimate.pb.cc \
 	protobuf/LedgerEntry.pb.cc \
@@ -189,7 +197,7 @@ PROTOBUF_CC = protobuf/AddressBook.pb.cc \
 PROTOBUF_H = protobuf/AddressBook.pb.h \
 	protobuf/AddressData.pb.h \
 	protobuf/BDVCommand.pb.h \
-	protobuf/ClientProto.pb.h \
+	protobuf/BridgeProto.pb.h \
 	protobuf/CommonTypes.pb.h \
 	protobuf/FeeEstimate.pb.h \
 	protobuf/LedgerEntry.pb.h \
@@ -209,6 +217,13 @@ liblmdbpp_la_CPPFLAGS = -Ilmdbpp -fPIC
 liblmdbpp_la_LIBADD = -llmdb
 liblmdbpp_la_LDFLAGS = -static
 
+# libTrezorCrypto
+noinst_LTLIBRARIES += $(LIBTREZORCRYPTO)
+libTrezorCrypto_la_SOURCES = $(LIBTREZORCRYPTO_SOURCE_FILES)
+libTrezorCrypto_la_CPPFLAGS = $(AM_CPPFLAGS)
+libTrezorCrypto_la_CXXFLAGS = $(AM_CXXFLAGS) -fPIC
+libTrezorCrypto_la_LDFLAGS = $(LDFLAGS) -static
+
 # libArmoryWallets
 noinst_LTLIBRARIES += $(LIBARMORYWALLETS)
 libArmoryWallets_la_SOURCES = $(ARMORYWALLETS_SOURCE_FILES)
@@ -216,7 +231,8 @@ libArmoryWallets_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 libArmoryWallets_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
 			      $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmoryWallets_la_LIBADD = $(LIBBTC) \
-				$(LIBSECP256K1)
+				$(LIBSECP256K1) \
+				$(LIBTREZORCRYPTO)
 libArmoryWallets_la_LDFLAGS = $(LDFLAGS)
 
 # libArmorySigner
@@ -226,7 +242,8 @@ libArmorySigner_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 libArmorySigner_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
 			      $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmorySigner_la_LIBADD = $(LIBBTC) \
-				$(LIBSECP256K1)
+				$(LIBSECP256K1) \
+				$(LIBTREZORCRYPTO)
 libArmorySigner_la_LDFLAGS = $(LDFLAGS)
 
 
@@ -252,6 +269,7 @@ libArmoryCommon_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
 libArmoryCommon_la_LIBADD = $(LIBHKDF) \
 				$(LIBBTC) \
 				$(LIBSECP256K1) \
+				$(LIBTREZORCRYPTO) \
 				$(LIBARMORYWALLETS) \
 				$(LIBARMORYSIGNER) \
 				$(LIBBLOCKCHAINDB) \
@@ -274,6 +292,7 @@ libArmoryCLI_la_LIBADD = $(LIBCHACHA20POLY1305) \
 			 $(LIBHKDF) \
 			 $(LIBBTC) \
 			 $(LIBSECP256K1) \
+			 $(LIBTREZORCRYPTO) \
 			 -llmdb \
 			 -lpthread
 libArmoryCLI_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS)
@@ -292,6 +311,7 @@ ArmoryDB_LDADD = $(LIBARMORYWALLETS) \
 		 $(LIBHKDF) \
 		 $(LIBBTC) \
 		 $(LIBSECP256K1) \
+		 $(LIBTREZORCRYPTO) \
 		 $(LIBCHACHA20POLY1305) \
 		 $(LIBLMDBPP) \
 		 -llmdb \
@@ -326,6 +346,7 @@ BIP150KeyManager_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBHKDF) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
+		 $(LIBTREZORCRYPTO) \
 		 $(LIBLMDBPP) \
 		 -llmdb \
 		 $(LIBPROTOBUF_STATIC) \
@@ -343,6 +364,7 @@ CppBridge_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBHKDF) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
+		 $(LIBTREZORCRYPTO) \
 		 $(LIBLMDBPP) \
 		 -llmdb \
 		 $(LIBPROTOBUF_STATIC) \

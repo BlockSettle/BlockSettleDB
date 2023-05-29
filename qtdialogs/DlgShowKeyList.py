@@ -11,6 +11,7 @@
 ##############################################################################
 
 from qtdialogs.ArmoryDialog import ArmoryDialog
+from armoryengine.AddressUtils import encodePrivKeyBase58
 
 ################################################################################
 class DlgShowKeyList(ArmoryDialog):
@@ -288,7 +289,7 @@ class DlgShowKeyList(ArmoryDialog):
 
    def saveToFile(self):
       if self.havePriv:
-         if not self.main.getSettingOrSetDefault('DNAA_WarnPrintKeys', False):
+         if not TheSettings.getSettingOrSetDefault('DNAA_WarnPrintKeys', False):
             result = MsgBoxWithDNAA(self, self.main, MSGBOX.Warning, title=self.tr('Plaintext Private Keys'), \
                   msg=self.tr('<font color="red"><b>REMEMBER:</b></font> The data you '
                   'are about to save contains private keys.  Please make sure '
@@ -297,7 +298,7 @@ class DlgShowKeyList(ArmoryDialog):
                   dnaaMsg=None, wCancel=True)
             if not result[0]:
                return
-            self.main.writeSetting('DNAA_WarnPrintKeys', result[1])
+            TheSettings.set('DNAA_WarnPrintKeys', result[1])
 
       wltID = self.wlt.uniqueIDB58
       fn = self.main.getFileSave(title=self.tr('Save Key List'), \

@@ -16,10 +16,8 @@ from PySide2.QtWidgets import QLabel, QSpacerItem, QSizePolicy, QCheckBox, \
    QGridLayout, QDialogButtonBox, QPushButton
 
 from qtdialogs.qtdefines import QRichLabel, GETFONT, \
-   makeLayoutFrame, VERTICAL, HORIZONTAL
-
+   makeLayoutFrame, VERTICAL, HORIZONTAL, STRETCH
 from qtdialogs.ArmoryDialog import ArmoryDialog
-from qtdialogs.qtdialogs import STRETCH
 
 ################################################################################
 class DlgIntroMessage(ArmoryDialog):

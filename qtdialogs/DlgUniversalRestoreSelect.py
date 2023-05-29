@@ -15,14 +15,13 @@ from PySide2.QtWidgets import QCheckBox, QDialogButtonBox, QPushButton, \
 from armoryengine.ArmoryUtils import LOGINFO
 from qtdialogs.qtdefines import HLINE, QRichLabel
 from qtdialogs.ArmoryDialog import ArmoryDialog
-from qtdialogs.DlgRestoreSingle import DlgRestoreSingle
-from qtdialogs.DlgRestoreFragged import DlgRestoreFragged
-from qtdialogs.DlgRestoreWOData import DlgRestoreWOData
+from qtdialogs.DlgRestore import DlgRestoreSingle, DlgRestoreFragged, \
+   DlgRestoreWOData
 
 ################################################################################
 class DlgUniversalRestoreSelect(ArmoryDialog):
 
-    #############################################################################
+   #############################################################################
    def __init__(self, parent, main):
       super(DlgUniversalRestoreSelect, self).__init__(parent, main)
 

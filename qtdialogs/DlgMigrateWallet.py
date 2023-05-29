@@ -16,13 +16,9 @@ from PySide2.QtWidgets import QLabel, QLineEdit, QFrame, \
    QDialogButtonBox, QGridLayout, QPushButton, QVBoxLayout, \
    QSizePolicy, QRadioButton, QButtonGroup, QLayout
 
-from qtdialogs.qtdefines import tightSizeStr, \
-   makeHorizFrame
-from qtdialogs.qtdialogs import MIN_PASSWD_WIDTH, LetterButton, \
-   STRETCH
-
+from qtdialogs.qtdefines import tightSizeStr, STRETCH, \
+   makeHorizFrame, MIN_PASSWD_WIDTH, LetterButton, createToolTipWidget
 from qtdialogs.ArmoryDialog import ArmoryDialog
-
 from armoryengine.CppBridge import TheBridge
 
 ################################################################################
@@ -62,7 +58,7 @@ class DlgMigrateWallet(ArmoryDialog):
       ##### Lower layout
       # Add scrambled keyboard (EN-US only)
 
-      ttipScramble = self.main.createToolTipWidget(\
+      ttipScramble = createToolTipWidget(\
          self.tr('Using a visual keyboard to enter your passphrase '
          'protects you against simple keyloggers.   Scrambling '
          'makes it difficult to use, but prevents even loggers '
@@ -77,7 +73,7 @@ class DlgMigrateWallet(ArmoryDialog):
       btngrp.addButton(self.rdoScrambleLite)
       btngrp.addButton(self.rdoScrambleFull)
       btngrp.setExclusive(True)
-      defaultScramble = self.main.getSettingOrSetDefault('ScrambleDefault', 0)
+      defaultScramble = TheSettings.getSettingOrSetDefault('ScrambleDefault', 0)
       if defaultScramble == 0:
          self.rdoScrambleNone.setChecked(True)
       elif defaultScramble == 1:
@@ -96,7 +92,7 @@ class DlgMigrateWallet(ArmoryDialog):
       self.frmKeyboard = QFrame()
       self.frmKeyboard.setLayout(self.layoutKeyboard)
 
-      showOSD = self.main.getSettingOrSetDefault('KeybdOSD', False)
+      showOSD = TheSettings.getSettingOrSetDefault('KeybdOSD', False)
       self.layoutLower = QGridLayout()
       self.layoutLower.addWidget(btnRowFrm , 0, 0)
       self.layoutLower.addWidget(self.frmKeyboard , 1, 0)

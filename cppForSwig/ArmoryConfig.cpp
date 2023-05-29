@@ -131,6 +131,7 @@ const string& Armory::Config::getDataDir()
 void Armory::Config::parseArgs(int argc, char* argv[], ProcessType procType)
 {
    vector<string> lines;
+   lines.reserve(argc);
    for (int i=1; i<argc; i++)
       lines.emplace_back(argv[i], strlen(argv[i]));
 

@@ -173,7 +173,7 @@ class PluginObject(object):
    
    def injectShutdownFunc(self):
       try:
-         self.main.writeSetting('DustLedgerCols', saveTableView(self.dustTableView))
+         TheSettings.set('DustLedgerCols', saveTableView(self.dustTableView))
       except:
          LOGEXCEPT('Strange error during shutdown')
     

@@ -10,14 +10,15 @@
 #                                                                            #
 ##############################################################################
 
-from PySide2.QtCore import QSize
+from PySide2.QtCore import Qt, QSize
 from PySide2.QtGui import QPainter, QColor
-from PySide2.QtWidgets import QWidget
+from PySide2.QtWidgets import QWidget, QApplication, QVBoxLayout
 
 from ui.QrCodeMatrix import CreateQRMatrix
-
 from armoryengine.ArmoryUtils import LOGERROR
-from qtdialogs.DlgInflatedQR import DlgInflatedQR
+
+from qtdialogs.qtdefines import makeHorizFrame, makeVertFrame, QRichLabel
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 class QRCodeWidget(QWidget):
 
@@ -100,3 +101,29 @@ class QRCodeWidget(QWidget):
 
    def mouseDoubleClickEvent(self, *args):
       DlgInflatedQR(self.parent, self.theData).exec_()
+
+class DlgInflatedQR(ArmoryDialog):
+   def __init__(self, parent, dataToQR):
+      super(DlgInflatedQR, self).__init__(parent, parent.main)
+
+      sz = QApplication.desktop().size()
+      w,h = sz.width(), sz.height()
+      qrSize = int(min(w,h)*0.8)
+      qrDisp = QRCodeWidget(dataToQR, prefSize=qrSize)
+
+      def closeDlg(*args):
+         self.accept()
+      qrDisp.mouseDoubleClickEvent = closeDlg
+      self.mouseDoubleClickEvent = closeDlg
+
+      lbl = QRichLabel(self.tr('<b>Double-click or press ESC to close</b>'))
+      lbl.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+
+      frmQR = makeHorizFrame(['Stretch', qrDisp, 'Stretch'])
+      frmFull = makeVertFrame(['Stretch',frmQR, lbl, 'Stretch'])
+
+      layout = QVBoxLayout()
+      layout.addWidget(frmFull)
+
+      self.setLayout(layout)
+      self.showFullScreen()

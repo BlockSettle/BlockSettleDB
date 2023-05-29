@@ -18,14 +18,14 @@ from PySide2.QtWidgets import QPushButton, QCheckBox, QGridLayout, \
 from armorymodels import AllWalletsDispModel, WLTVIEWCOLS, \
    SentToAddrBookModel, SentAddrSortProxy, ADDRBOOKCOLS, \
    WalletAddrDispModel, WalletAddrSortProxy, ADDRESSCOLS
-from armoryengine.ArmoryUtils import DEFAULT_RECEIVE_TYPE, \
-   addrStr_to_hash160, P2SHBYTE
+from armoryengine.ArmoryUtils import DEFAULT_RECEIVE_TYPE, P2SHBYTE
+from armoryengine.AddressUtils import addrStr_to_hash160
 from armoryengine.MultiSigUtils import isBareLockbox, isP2SHLockbox
+from armoryengine.Settings import TheSettings
 
-from qtdialogs.qtdialogs import STRETCH
-from qtdialogs.qtdefines import QRichLabel, tightSizeStr, \
+from qtdialogs.qtdefines import QRichLabel, tightSizeStr, STRETCH, \
    initialColResize, USERMODE, HLINE, makeHorizFrame, restoreTableView, \
-   saveTableView
+   saveTableView, createToolTipWidget
 from qtdialogs.DlgSetComment import DlgSetComment
 from qtdialogs.ArmoryDialog import ArmoryDialog
 
@@ -177,9 +177,9 @@ class DlgAddressBook(ArmoryDialog):
 
 
 
-      ttipSendWlt = self.main.createToolTipWidget(\
+      ttipSendWlt = createToolTipWidget(\
          self.tr('The next unused address in that wallet will be calculated and selected. '))
-      ttipSendAddr = self.main.createToolTipWidget(\
+      ttipSendAddr = createToolTipWidget(\
          self.tr('Addresses that are in other wallets you own are <b>not showns</b>.'))
 
 
@@ -187,7 +187,7 @@ class DlgAddressBook(ArmoryDialog):
       self.btnSelectWlt = QPushButton(self.tr('No Wallet Selected'))
       self.useBareMultiSigCheckBox = QCheckBox(self.tr('Use Bare Multi-Sig (No P2SH)'))
       self.useBareMultiSigCheckBox.setVisible(False)
-      self.ttipBareMS = self.main.createToolTipWidget( self.tr(
+      self.ttipBareMS = createToolTipWidget( self.tr(
          'EXPERT OPTION:  Do not check this box unless you know what it means '
                          'and you need it!  Forces Armory to exposes public '
                          'keys to the blockchain before the funds are spent. '
@@ -252,10 +252,10 @@ class DlgAddressBook(ArmoryDialog):
 
       self.setMinimumWidth(300)
 
-      hexgeom = self.main.settings.get('AddrBookGeometry')
-      wltgeom = self.main.settings.get('AddrBookWltTbl')
-      rxgeom = self.main.settings.get('AddrBookRxTbl')
-      txgeom = self.main.settings.get('AddrBookTxTbl')
+      hexgeom = TheSettings.get('AddrBookGeometry')
+      wltgeom = TheSettings.get('AddrBookWltTbl')
+      rxgeom = TheSettings.get('AddrBookRxTbl')
+      txgeom = TheSettings.get('AddrBookTxTbl')
       if len(hexgeom) > 0:
          if type(hexgeom) == str:
             geom = QByteArray(bytes.fromhex(hexgeom))
@@ -271,10 +271,10 @@ class DlgAddressBook(ArmoryDialog):
 
    #############################################################################
    def saveGeometrySettings(self):
-      self.main.writeSetting('AddrBookGeometry', self.saveGeometry().toHex())
-      self.main.writeSetting('AddrBookWltTbl', saveTableView(self.wltDispView))
-      self.main.writeSetting('AddrBookRxTbl', saveTableView(self.addrBookRxView))
-      self.main.writeSetting('AddrBookTxTbl', saveTableView(self.addrBookTxView))
+      TheSettings.set('AddrBookGeometry', self.saveGeometry().toHex())
+      TheSettings.set('AddrBookWltTbl', saveTableView(self.wltDispView))
+      TheSettings.set('AddrBookRxTbl', saveTableView(self.addrBookRxView))
+      TheSettings.set('AddrBookTxTbl', saveTableView(self.addrBookTxView))
 
    #############################################################################
    def closeEvent(self, event):

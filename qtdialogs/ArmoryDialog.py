@@ -16,6 +16,7 @@ from PySide2.QtCore import Signal, Qt
 from qtdialogs.qtdefines import AddToRunningDialogsList, GETFONT
 
 from armoryengine.ArmoryUtils import USE_TESTNET, USE_REGTEST
+from ui.QtExecuteSignal import TheSignalExecution
 
 ################################################################################
 class ArmoryDialog(QDialog):
@@ -29,8 +30,6 @@ class ArmoryDialog(QDialog):
 
       self.parent = parent
       self.main   = main
-      if self.main != None:
-         self.signalExecution = self.main.signalExecution
 
       #connect this dialog to the parent's close signal
       if self.parent is not None and hasattr(self.parent, 'closeSignal'):
@@ -58,7 +57,7 @@ class ArmoryDialog(QDialog):
       super(ArmoryDialog, self).reject()
 
    def executeMethod(self, _callable, *args):
-      self.signalExecution.executeMethod(_callable, *args)
+      TheSignalExecution.executeMethod(_callable, *args)
 
    def callLater(self, delay, _callable, *args):
-      self.signalExecution.callLater(delay, _callable, *args)
+      TheSignalExecution.callLater(delay, _callable, *args)

@@ -4,7 +4,7 @@
 # Distributed under the GNU Affero General Public License (AGPL v3)            #
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
-# Copyright (C) 2016-2022, goatpig                                             #
+# Copyright (C) 2016-2023, goatpig                                             #
 #  Distributed under the MIT license                                           #
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                      #
 #                                                                              #
@@ -18,18 +18,21 @@ from PySide2.QtWidgets import QRadioButton, QPushButton, QVBoxLayout, \
    QGraphicsScene, QGraphicsView, QCheckBox, QComboBox, QGraphicsPixmapItem, \
    QGraphicsLineItem, QGraphicsItem
 
+from armoryengine.ArmoryUtils import toUnicode, USE_TESTNET, USE_REGTEST
+from armoryengine.AddressUtils import binary_to_base58, encodePrivKeyBase58, \
+   hash160_to_addrStr
+from armorycolors import htmlColor
+
 from ui.WalletFrames import WalletBackupFrame
 from ui.QrCodeMatrix import CreateQRMatrix
 
 from qtdialogs.qtdefines import makeHorizFrame, QRichLabel, \
    makeVertFrame, QImageLabel, HLINE, GETFONT, STYLE_RAISED, tightSizeStr, \
-   setLayoutStretch
+   setLayoutStretch, STRETCH, createToolTipWidget
 from qtdialogs.ArmoryDialog import ArmoryDialog
-from qtdialogs.qtdialogs import STRETCH
-from qtdialogs.DlgUnlockWallet import DlgUnlockWallet
+from qtdialogs.DlgUnlockWallet import UnlockWalletHandler
+from qtdialogs.DlgRestore import OpenPaperBackupDialog
 
-from armoryengine.ArmoryUtils import toUnicode, USE_TESTNET, USE_REGTEST
-from armorycolors import htmlColor
 
 ################################################################################
 class DlgBackupCenter(ArmoryDialog):
@@ -97,7 +100,7 @@ class DlgSimpleBackup(ArmoryDialog):
             self.accept()
 
       def backupPaper():
-         OpenPaperBackupWindow('Single', self, self.main, self.wlt)
+         OpenPaperBackupDialog('Single', self, self.main, self.wlt)
          self.accept()
 
       def backupOther():
@@ -384,8 +387,6 @@ class GfxItemQRCode(QGraphicsItem):
 
 ################################################################################
 class DlgPrintBackup(ArmoryDialog):
-   backupSetupSignal = Signal()
-
    """
    Open up a "Make Paper Backup" dialog, so the user can print out a hard
    copy of whatever data they need to recover their wallet should they lose
@@ -414,11 +415,19 @@ class DlgPrintBackup(ArmoryDialog):
 
       self.backupData = None
       def resumeSetup(rootData):
-         self.backupData = rootData
-         self.backupSetupSignal.emit()
+         success = rootData.success
+         if not rootData.HasField("wallet") or \
+            not rootData.wallet.HasField("backup_string"):
+            success = False
 
-      self.backupSetupSignal.connect(self.setup)
-      rootData = self.wlt.createBackupString(resumeSetup)
+         self.backupData = None
+         if success:
+            self.backupData = rootData.wallet.backup_string
+         self.executeMethod(self.setup)
+
+      unlockHandler = UnlockWalletHandler(self.wlt.uniqueIDB58,
+         "Create Backup", self)
+      rootData = self.wlt.createBackupString(unlockHandler, resumeSetup)
 
    ###
    def setup(self):
@@ -434,7 +443,7 @@ class DlgPrintBackup(ArmoryDialog):
       # A self-evident check of whether we need to print the chaincode.
       # If we derive the chaincode from the private key, and it matches
       # what's already in the wallet, we obviously don't need to print it!
-      self.noNeedChaincode = (len(self.backupData.chainclear) == 0)
+      self.noNeedChaincode = (len(self.backupData.chain_clear) == 0)
 
       # Save off imported addresses in case they need to be printed, too
       for a160, addr in self.wlt.addrMap.items():
@@ -482,7 +491,7 @@ class DlgPrintBackup(ArmoryDialog):
       if(self.doPrintFrag):
          self.chkSecurePrint.setChecked(self.fragData['Secure'])
 
-      self.ttipSecurePrint = self.main.createToolTipWidget(self.tr(
+      self.ttipSecurePrint = createToolTipWidget(self.tr(
          u'SecurePrint\u200b\u2122 encrypts your backup with a code displayed on '
          'the screen, so that no other devices on your network see the sensitive '
          'data when you send it to the printer.  If you turn on '
@@ -495,7 +504,7 @@ class DlgPrintBackup(ArmoryDialog):
          u'encryption code on each printed backup page!  Your SecurePrint\u200b\u2122 code is </font> '
          '<font color="%s">%s</font>.  <font color="%s">Your backup will not work '
          'if this code is lost!</font>' % (htmlColor('TextWarn'), htmlColor('TextBlue'), \
-         self.backupData.sppass, htmlColor('TextWarn'))))
+         self.backupData.sp_pass, htmlColor('TextWarn'))))
 
       self.chkSecurePrint.clicked.connect(self.redrawBackup)
 
@@ -557,7 +566,6 @@ class DlgPrintBackup(ArmoryDialog):
       self.setWindowIcon(QIcon('./img/printer_icon.png'))
       self.setWindowTitle('Print Wallet Backup')
 
-
       # Apparently I can't programmatically scroll until after it's painted
       def scrollTop():
          vbar = self.view.verticalScrollBar()
@@ -592,9 +600,6 @@ class DlgPrintBackup(ArmoryDialog):
       self.showPageSelect(showPageCombo)
       self.view.update()
 
-
-
-
    def clickImportChk(self):
       if self.numImportPages > 1 and self.chkImportPrint.isChecked():
          ans = QMessageBox.warning(self, self.tr('Lots to Print!'), self.tr(
@@ -614,7 +619,6 @@ class DlgPrintBackup(ArmoryDialog):
       self.showPageSelect(showPageCombo)
       self.comboPageNum.setCurrentIndex(0)
       self.redrawBackup()
-
 
    def showPageSelect(self, doShow=True):
       MARGIN = self.scene.MARGIN_PIXELS
@@ -637,9 +641,6 @@ class DlgPrintBackup(ArmoryDialog):
       self.lblPageStr.setVisible(doShow)
       self.comboPageNum.setVisible(doShow)
       self.lblPageMaxStr.setVisible(doShow)
-
-
-
 
    def print_(self):
       LOGINFO('Printing!')
@@ -686,7 +687,6 @@ class DlgPrintBackup(ArmoryDialog):
             self.btnCancel.setText('Done')
          else:
             self.accept()
-
 
    def cleanup(self):
       self.backupData = None
@@ -913,11 +913,11 @@ class DlgPrintBackup(ArmoryDialog):
       else:
          # Single-sheet backup
          if doMask:
-            code12 = self.backupData.rootencr
-            code34 = self.backupData.chainencr
+            code12 = self.backupData.root_encr
+            code34 = self.backupData.chain_encr
          else:
-            code12 = self.backupData.rootclear
-            code34 = self.backupData.chainclear
+            code12 = self.backupData.root_clear
+            code34 = self.backupData.chain_clear
 
 
          Lines = []
@@ -1066,7 +1066,7 @@ class DlgFragBackup(ArmoryDialog):
       self.createFragDisplay()
       self.scrollArea.setWidgetResizable(True)
 
-      self.ttipSecurePrint = self.main.createToolTipWidget(self.tr(
+      self.ttipSecurePrint = createToolTipWidget(self.tr(
          u'SecurePrint\u200b\u2122 encrypts your backup with a code displayed on '
          'the screen, so that no other devices or processes has access to the '
          'unencrypted private keys (either network devices when printing, or '
@@ -1078,8 +1078,8 @@ class DlgFragBackup(ArmoryDialog):
          u'Your SecurePrint\u200b\u2122 code is </font> '
          '<font color="%s">%s</font><font color="%s">. '
          'All fragments for a given wallet use the '
-         'same code.</font>' % (htmlColor('TextWarn'), htmlColor('TextBlue'), self.backupData.sppass, \
-          htmlColor('TextWarn'))))
+         'same code.</font>' % (htmlColor('TextWarn'), htmlColor('TextBlue'), \
+         self.backupData.sp_pass, htmlColor('TextWarn'))))
       self.connect(self.chkSecurePrint, SIGNAL(CLICKED), self.clickChkSP)
       self.chkSecurePrint.setChecked(False)
       self.lblSecurePrint.setVisible(False)
@@ -1338,7 +1338,7 @@ class DlgFragBackup(ArmoryDialog):
             '<br><br>'
             'The above code <u><b>is</b></u> case-sensitive!' \
             % (htmlColor('TextWarn'), htmlColor('TextBlue'), \
-            self.backupData.sppass))
+            self.backupData.sp_pass))
 
       QMessageBox.information(self, self.tr('Success'), qmsg, QMessageBox.Ok)
 

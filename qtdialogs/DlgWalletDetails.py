@@ -15,8 +15,10 @@ from PySide2.QtWidgets import QFrame, QVBoxLayout, QGridLayout, QPushButton, \
    QTreeView, QLabel, QCheckBox, QLineEdit, QDialogButtonBox, QTextEdit
 
 from armoryengine.ArmoryUtils import getVersionString, coin2str, isASCII
+from armoryengine.AddressUtils import addrStr_to_hash160
 from armoryengine.BDM import TheBDM, BDM_UNINITIALIZED, BDM_OFFLINE, \
    BDM_SCANNING
+from armoryengine.Settings import TheSettings
 from armorycolors import htmlColor
 from ui.TreeViewGUI import AddressTreeModel
 
@@ -24,17 +26,19 @@ from qtdialogs.qtdefines import USERMODE, determineWalletType, \
    relaxedSizeNChar, relaxedSizeStr, QLabelButton, STYLE_SUNKEN, STYLE_NONE, \
    QRichLabel, makeHorizFrame, restoreTableView, WLTTYPES, \
    WLTFIELDS, tightSizeStr, saveTableView, tightSizeNChar, \
-   UnicodeErrorBox
+   UnicodeErrorBox, STRETCH, createToolTipWidget, MSGBOX
 
 from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
 
-from qtdialogs.qtdialogs import STRETCH, LoadingDisp
+from qtdialogs.qtdialogs import LoadingDisp
 from qtdialogs.DlgNewAddress import \
    DlgNewAddressDisp, ShowRecvCoinsWarningIfNecessary
 from qtdialogs.DlgKeypoolSettings import DlgKeypoolSettings
 from qtdialogs.DlgSendBitcoins import DlgSendBitcoins
 from qtdialogs.DlgBackupCenter import DlgBackupCenter
+from qtdialogs.DlgAddressInfo import DlgAddressInfo
+from qtdialogs.DlgRestore import OpenPaperBackupDialog
 
 
 ################################################################################
@@ -195,12 +199,12 @@ class DlgWalletDetails(ArmoryDialog):
       self.lblBTC2 = QRichLabel('', doWrap=False)
       self.lblBTC3 = QRichLabel('', doWrap=False)
 
-      ttipTot = self.main.createToolTipWidget(\
+      ttipTot = createToolTipWidget(\
             self.tr('Total funds if all current transactions are confirmed. '
             'Value appears gray when it is the same as your spendable funds.'))
-      ttipSpd = self.main.createToolTipWidget(\
+      ttipSpd = createToolTipWidget(\
             self.tr('Funds that can be spent <i>right now</i>'))
-      ttipUcn = self.main.createToolTipWidget(\
+      ttipUcn = createToolTipWidget(\
             self.tr('Funds that have less than 6 confirmations'))
 
       self.setSummaryBalances()
@@ -252,8 +256,8 @@ class DlgWalletDetails(ArmoryDialog):
 
       #self.doFilterAddr()
 
-      hexgeom = self.main.settings.get('WltPropGeometry')
-      tblgeom = self.main.settings.get('WltPropAddrCols')
+      hexgeom = TheSettings.get('WltPropGeometry')
+      tblgeom = TheSettings.get('WltPropAddrCols')
 
       if len(hexgeom) > 0:
          if type(hexgeom) == bytes:
@@ -290,10 +294,10 @@ class DlgWalletDetails(ArmoryDialog):
 
 
       wltType = determineWalletType(wlt, main)[0]
-      chkLoad = (self.main.getSettingOrSetDefault('Load_Count', 1) % 5 == 0)
+      chkLoad = (TheSettings.getSettingOrSetDefault('Load_Count', 1) % 5 == 0)
       chkType = not wltType in (WLTTYPES.Offline, WLTTYPES.WatchOnly)
       chkDNAA = not self.main.getWltSetting(wlt.uniqueIDB58, 'DNAA_RemindBackup')
-      chkDont = not self.main.getSettingOrSetDefault('DNAA_AllBackupWarn', False)
+      chkDont = not TheSettings.getSettingOrSetDefault('DNAA_AllBackupWarn', False)
       if chkLoad and chkType and chkDNAA and chkDont:
          self.callLater(1, remindBackup)
          lbtnBackups.setText(self.tr('<font color="%s"><b>Backup This Wallet</b></font>' % htmlColor('TextWarn')))
@@ -340,8 +344,8 @@ class DlgWalletDetails(ArmoryDialog):
    #############################################################################
    def saveGeometrySettings(self):
       geom = self.saveGeometry().data().hex()
-      self.main.writeSetting('WltPropGeometry', geom)
-      self.main.writeSetting('WltPropAddrCols', saveTableView(self.wltAddrView))
+      TheSettings.set('WltPropGeometry', geom)
+      TheSettings.set('WltPropAddrCols', saveTableView(self.wltAddrView))
 
    #############################################################################
    def closeEvent(self, event):
@@ -472,7 +476,7 @@ class DlgWalletDetails(ArmoryDialog):
          # but guarantees the file is updated, too
          newName = str(dlgLabels.edtName.text())[:32]
          newDescr = str(dlgLabels.edtDescr.toPlainText())[:256]
-         self.wlt.setWalletLabels(newName, newDescr)
+         self.wlt.setLabels(newName, newDescr)
 
          self.labelValues[WLTFIELDS.Name].setText(newName)
          self.labelValues[WLTFIELDS.Descr].setText(newDescr)
@@ -582,7 +586,7 @@ class DlgWalletDetails(ArmoryDialog):
            self.tr('This wallet does not contain any private keys.  Nothing to backup!'), QMessageBox.Ok)
          return
 
-      OpenPaperBackupWindow('Single', self, self.main, self.wlt)
+      OpenPaperBackupDialog('Single', self, self.main, self.wlt)
 
 
    def execRemoveDlg(self):
@@ -637,7 +641,7 @@ class DlgWalletDetails(ArmoryDialog):
 
 
    def execImportAddress(self):
-      if not self.main.getSettingOrSetDefault('DNAA_ImportWarning', False):
+      if not TheSettings.getSettingOrSetDefault('DNAA_ImportWarning', False):
          result = MsgBoxWithDNAA(self, self.main, MSGBOX.Warning, \
             self.tr('Imported Address Warning'), self.tr(
             'Armory supports importing of external private keys into your '
@@ -649,7 +653,7 @@ class DlgWalletDetails(ArmoryDialog):
             'Individual private keys, including imported ones, can be '
             'backed up using the "Export Key Lists" option in the wallet '
             'backup window.'), None)
-         self.main.writeSetting('DNAA_ImportWarning', result[1])
+         TheSettings.set('DNAA_ImportWarning', result[1])
 
       # Now we are past the [potential] warning box.  Actually open
       # the import dialog
@@ -682,12 +686,12 @@ class DlgWalletDetails(ArmoryDialog):
 
    #############################################################################
    def setWltDetailsFrame(self):
-      dispCrypto = self.wlt.useEncryption and (self.usermode == USERMODE.Advanced or \
-                                               self.usermode == USERMODE.Expert)
+      dispCrypto = self.wlt.useEncryption and \
+         self.usermode in [USERMODE.Advanced, USERMODE.Expert]
       self.wltID = self.wlt.uniqueIDB58
 
       if dispCrypto:
-         mem = self.wlt.kdf.getMemoryReqtBytes()
+         mem = self.wlt.getKdfMemoryReqtBytes()
          kdfmemstr = str(mem / 1024) + ' kB'
          if mem >= 1024 * 1024:
             kdfmemstr = str(mem / (1024 * 1024)) + ' MB'
@@ -695,29 +699,29 @@ class DlgWalletDetails(ArmoryDialog):
 
       tooltips = [[]] * 10
 
-      tooltips[WLTFIELDS.Name] = self.main.createToolTipWidget(self.tr(
+      tooltips[WLTFIELDS.Name] = createToolTipWidget(self.tr(
             'This is the name stored with the wallet file.  Click on the '
             '"Change Labels" button on the right side of this '
             'window to change this field'))
 
-      tooltips[WLTFIELDS.Descr] = self.main.createToolTipWidget(self.tr(
+      tooltips[WLTFIELDS.Descr] = createToolTipWidget(self.tr(
             'This is the description of the wallet stored in the wallet file. '
             'Press the "Change Labels" button on the right side of this '
             'window to change this field'))
 
-      tooltips[WLTFIELDS.WltID] = self.main.createToolTipWidget(self.tr(
+      tooltips[WLTFIELDS.WltID] = createToolTipWidget(self.tr(
             'This is a unique identifier for this wallet, based on the root key. '
             'No other wallet can have the same ID '
             'unless it is a copy of this one, regardless of whether '
             'the name and description match.'))
 
-      tooltips[WLTFIELDS.NumAddr] = self.main.createToolTipWidget(self.tr(
+      tooltips[WLTFIELDS.NumAddr] = createToolTipWidget(self.tr(
             'This is the number of addresses *used* by this wallet so far. '
             'If you recently restored this wallet and you do not see all the '
             'funds you were expecting, click on this field to increase it.'))
 
       if self.typestr == 'Offline':
-         tooltips[WLTFIELDS.Secure] = self.main.createToolTipWidget(self.tr(
+         tooltips[WLTFIELDS.Secure] = createToolTipWidget(self.tr(
             'Offline:  This is a "Watching-Only" wallet that you have identified '
             'belongs to you, but you cannot spend any of the wallet funds '
             'using this wallet.  This kind of wallet '
@@ -725,41 +729,41 @@ class DlgWalletDetails(ArmoryDialog):
             'incoming transactions, but the private keys needed '
             'to spend the money are stored on an offline computer.'))
       elif self.typestr == 'Watching-Only':
-         tooltips[WLTFIELDS.Secure] = self.main.createToolTipWidget(self.tr(
+         tooltips[WLTFIELDS.Secure] = createToolTipWidget(self.tr(
             'Watching-Only:  You can only watch addresses in this wallet '
             'but cannot spend any of the funds.'))
       elif self.typestr == 'No Encryption':
-         tooltips[WLTFIELDS.Secure] = self.main.createToolTipWidget(self.tr(
+         tooltips[WLTFIELDS.Secure] = createToolTipWidget(self.tr(
             'No Encryption: This wallet contains private keys, and does not require '
             'a passphrase to spend funds available to this wallet.  If someone '
             'else obtains a copy of this wallet, they can also spend your funds! '
             '(You can click the "Change Encryption" button on the right side of this '
             'window to enabled encryption)'))
       elif self.typestr == 'Encrypted (AES256)':
-         tooltips[WLTFIELDS.Secure] = self.main.createToolTipWidget(self.tr(
+         tooltips[WLTFIELDS.Secure] = createToolTipWidget(self.tr(
             'This wallet contains the private keys needed to spend this wallet\'s '
             'funds, but they are encrypted on your harddrive.  The wallet must be '
             '"unlocked" with the correct passphrase before you can spend any of the '
             'funds.  You can still generate new addresses and monitor incoming '
             'transactions, even with a locked wallet.'))
 
-      tooltips[WLTFIELDS.BelongsTo] = self.main.createToolTipWidget(self.tr(
+      tooltips[WLTFIELDS.BelongsTo] = createToolTipWidget(self.tr(
             'Declare who owns this wallet.  If you click on the field and select '
             '"This wallet is mine", it\'s balance will be included in your total '
             'Armory Balance in the main window'))
 
-      tooltips[WLTFIELDS.Time] = self.main.createToolTipWidget(self.tr(
+      tooltips[WLTFIELDS.Time] = createToolTipWidget(self.tr(
             'This is exactly how long it takes your computer to unlock your '
             'wallet after you have entered your passphrase.  If someone got '
             'ahold of your wallet, this is approximately how long it would take '
             'them to for each guess of your passphrase.'))
 
-      tooltips[WLTFIELDS.Mem] = self.main.createToolTipWidget(self.tr(
+      tooltips[WLTFIELDS.Mem] = createToolTipWidget(self.tr(
             'This is the amount of memory required to unlock your wallet. '
             'Memory values above 64 kB pretty much guarantee that GPU-acceleration '
             'will be useless for guessing your passphrase'))
 
-      tooltips[WLTFIELDS.Version] = self.main.createToolTipWidget(self.tr(
+      tooltips[WLTFIELDS.Version] = createToolTipWidget(self.tr(
             'Wallets created with different versions of Armory, may have '
             'different wallet versions.  Not all functionality may be '
             'available with all wallet versions.  Creating a new wallet will '
@@ -852,7 +856,7 @@ class DlgWalletDetails(ArmoryDialog):
       # Not sure why this has to be connected downhere... it didn't work above it
       if dispCrypto:
          self.labelValues[WLTFIELDS.Time].setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-         self.connect(self.labelValues[WLTFIELDS.Time], SIGNAL(CLICKED), self.testKdfTime)
+         self.labelValues[WLTFIELDS.Time].linkActivated.connect(self.testKdfTime)
 
       labelNames[WLTFIELDS.Descr].setAlignment(Qt.AlignLeft | Qt.AlignTop)
       self.labelValues[WLTFIELDS.Descr].setWordWrap(True)
@@ -985,7 +989,7 @@ class DlgWalletDetails(ArmoryDialog):
             layout.addWidget(lblDescr, 0, 0, 1, 2)
             layout.addWidget(self.chkIsMine, 1, 0)
 
-            ttip = self.main.createToolTipWidget(self.tr(
+            ttip = createToolTipWidget(self.tr(
                'You might choose this option if you keep a full '
                'wallet on a non-internet-connected computer, and use this '
                'watching-only wallet on this computer to generate addresses '

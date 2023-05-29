@@ -14,8 +14,8 @@ from PySide2.QtWidgets import QApplication, QDialogButtonBox, QGridLayout, \
 from PySide2.QtGui import QIcon
 from PySide2.QtCore import SIGNAL
 
-from armoryengine.ArmoryUtils import ADDRBYTE, LOGWARN, P2SHBYTE, \
-        addrStr_to_hash160, isASCII
+from armoryengine.ArmoryUtils import ADDRBYTE, LOGWARN, P2SHBYTE, isASCII
+from armoryengine.AddressUtils import addrStr_to_hash160
 from jasvet import ASv0, ASv1B64, ASv1CS, readSigBlock, verifySignature
 from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.DlgUnlockWallet import DlgUnlockWallet

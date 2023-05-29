@@ -10,13 +10,13 @@
 #                                                                            #
 ##############################################################################
 
-from PySide2.QtWidgets import QDialogButtonBox, QGridLayout, QLabel, QLineEdit, QPushButton
+from PySide2.QtWidgets import QDialogButtonBox, QGridLayout, QLabel, \
+   QLineEdit, QPushButton
 from PySide2.QtGui import QPixmap
 from PySide2.QtCore import Qt, SIGNAL
 
 from qtdialogs.ArmoryDialog import ArmoryDialog
-from qtdialogs.DlgSettings import MIN_PASSWD_WIDTH
-from qtdialogs.qtdefines import QRichLabel
+from qtdialogs.qtdefines import QRichLabel, MIN_PASSWD_WIDTH
 
 class DlgPasswd3(ArmoryDialog):
    def __init__(self, parent=None, main=None):

@@ -17,12 +17,13 @@ from PySide2.QtWidgets import QLabel, QGridLayout, QFrame, QTableView, \
    QVBoxLayout, QDialogButtonBox, QApplication
 
 from armoryengine.ArmoryUtils import enum, CPP_TXOUT_MULTISIG, \
-   CPP_TXOUT_P2SH, CPP_TXOUT_HAS_ADDRSTR, script_to_addrStr, \
-   addrStr_to_hash160, script_to_scrAddr, BIGENDIAN, binary_to_hex, \
+   CPP_TXOUT_P2SH, CPP_TXOUT_HAS_ADDRSTR, BIGENDIAN, binary_to_hex, \
    hex_to_binary, coin2str, coin2strNZS, LOGEXCEPT, LOGERROR, \
    CPP_TXIN_SCRIPT_NAMES, CPP_TXOUT_SCRIPT_NAMES, int_to_hex, \
-   script_to_scrAddr, scrAddr_to_addrStr, unixTimeToFormatStr, \
-   UINT32_MAX, hash256
+   unixTimeToFormatStr, UINT32_MAX, hash256
+from armoryengine.AddressUtils import addrStr_to_hash160, \
+   script_to_scrAddr, script_to_addrStr, scrAddr_to_addrStr, \
+   addrStr_to_scrAddr, script_to_scrAddr
 
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from armoryengine.Transaction import UnsignedTransaction, \
@@ -31,12 +32,13 @@ from armoryengine.Transaction import UnsignedTransaction, \
 from armoryengine.Block import PyBlockHeader
 from armoryengine.Script import convertScriptToOpStrings
 from armoryengine.CppBridge import TheBridge
+from armoryengine.Settings import TheSettings
 
 from armorymodels import TxInDispModel, TxOutDispModel, TXINCOLS, TXOUTCOLS
 from qtdialogs.qtdefines import STYLE_RAISED, USERMODE, \
    QRichLabel, relaxedSizeStr, GETFONT, tightSizeNChar, STYLE_SUNKEN, \
-   HORIZONTAL, makeHorizFrame, initialColResize, makeLayoutFrame
-from qtdialogs.qtdialogs import STRETCH
+   HORIZONTAL, makeHorizFrame, initialColResize, makeLayoutFrame, STRETCH, \
+   createToolTipWidget
 from qtdialogs.ArmoryDialog import ArmoryDialog
 
 ################################################################################
@@ -290,7 +292,7 @@ class DlgDispTxInfo(ArmoryDialog):
       if ledgerEntry:
          txAmt = ledgerEntry.value
 
-         if ledgerEntry.isSentToSelf:
+         if ledgerEntry.sent_to_self:
             txdir = self.tr('Sent-to-Self')
             svPairDisp = []
             if len(self.pytx.outputs)==1:
@@ -349,13 +351,13 @@ class DlgDispTxInfo(ArmoryDialog):
 
       # Show the transaction ID, with the user's preferred endianness
       # I hate BE, but block-explorer requires it so it's probably a better default
-      endianness = self.main.getSettingOrSetDefault('PrefEndian', BIGENDIAN)
+      endianness = TheSettings.getSettingOrSetDefault('PrefEndian', BIGENDIAN)
       estr = ''
       if self.mode in (USERMODE.Advanced, USERMODE.Expert):
          estr = ' (BE)' if endianness == BIGENDIAN else ' (LE)'
 
       lbls.append([])
-      lbls[-1].append(self.main.createToolTipWidget(self.tr('Unique identifier for this transaction')))
+      lbls[-1].append(createToolTipWidget(self.tr('Unique identifier for this transaction')))
       lbls[-1].append(QLabel(self.tr('Transaction ID' )+ estr + ':'))
 
 
@@ -385,12 +387,12 @@ class DlgDispTxInfo(ArmoryDialog):
       if self.mode in (USERMODE.Expert,):
          # Add protocol version and locktime to the display
          lbls.append([])
-         lbls[-1].append(self.main.createToolTipWidget(self.tr('Bitcoin Protocol Version Number')))
+         lbls[-1].append(createToolTipWidget(self.tr('Bitcoin Protocol Version Number')))
          lbls[-1].append(QLabel(self.tr('Tx Version:')))
          lbls[-1].append(QLabel(str(self.pytx.version)))
 
          lbls.append([])
-         lbls[-1].append(self.main.createToolTipWidget(
+         lbls[-1].append(createToolTipWidget(
             self.tr('The time at which this transaction becomes valid.')))
          lbls[-1].append(QLabel(self.tr('Lock-Time:')))
          if self.pytx.lockTime == 0:
@@ -403,7 +405,7 @@ class DlgDispTxInfo(ArmoryDialog):
 
 
       lbls.append([])
-      lbls[-1].append(self.main.createToolTipWidget(self.tr('Comment stored for this transaction in this wallet')))
+      lbls[-1].append(createToolTipWidget(self.tr('Comment stored for this transaction in this wallet')))
       lbls[-1].append(QLabel(self.tr('User Comment:')))
       try:
          txhash_bin = hex_to_binary(txHash, endOut=endianness)
@@ -427,10 +429,10 @@ class DlgDispTxInfo(ArmoryDialog):
       if not self.data[FIELDS.Time] == None:
          lbls.append([])
          if self.data[FIELDS.Blk] >= 2 ** 32 - 1:
-            lbls[-1].append(self.main.createToolTipWidget(
+            lbls[-1].append(createToolTipWidget(
                   self.tr('The time that you computer first saw this transaction')))
          else:
-            lbls[-1].append(self.main.createToolTipWidget(
+            lbls[-1].append(createToolTipWidget(
                   self.tr('All transactions are eventually included in a "block."  The '
                   'time shown here is the time that the block entered the "blockchain."')))
          lbls[-1].append(QLabel('Transaction Time:'))
@@ -440,7 +442,7 @@ class DlgDispTxInfo(ArmoryDialog):
          nConf = 0
          if self.data[FIELDS.Blk] >= 2 ** 32 - 1:
             lbls.append([])
-            lbls[-1].append(self.main.createToolTipWidget(
+            lbls[-1].append(createToolTipWidget(
                   self.tr('This transaction has not yet been included in a block. '
                   'It usually takes 5-20 minutes for a transaction to get '
                   'included in a block after the user hits the "Send" button.')))
@@ -451,7 +453,7 @@ class DlgDispTxInfo(ArmoryDialog):
             if not self.data[FIELDS.Idx] == None and self.mode == USERMODE.Expert:
                idxStr ='  (Tx #%d)' % self.data[FIELDS.Idx]
             lbls.append([])
-            lbls[-1].append(self.main.createToolTipWidget(
+            lbls[-1].append(createToolTipWidget(
                   self.tr('Every transaction is eventually included in a "block" which '
                   'is where the transaction is permanently recorded.  A new block '
                   'is produced approximately every 10 minutes.')))
@@ -460,7 +462,7 @@ class DlgDispTxInfo(ArmoryDialog):
             if TheBDM.getState() == BDM_BLOCKCHAIN_READY:
                nConf = TheBDM.getTopBlockHeight() - self.data[FIELDS.Blk] + 1
                lbls.append([])
-               lbls[-1].append(self.main.createToolTipWidget(
+               lbls[-1].append(createToolTipWidget(
                      self.tr('The number of blocks that have been produced since '
                      'this transaction entered the blockchain.  A transaction '
                      'with 6 or more confirmations is nearly impossible to reverse.')))
@@ -470,7 +472,7 @@ class DlgDispTxInfo(ArmoryDialog):
       isRBF = self.pytx.isRBF()
       if isRBF:
          lbls.append([])
-         lbls[-1].append(self.main.createToolTipWidget(
+         lbls[-1].append(createToolTipWidget(
                self.tr('This transaction can be replaced by another transaction that '
                'spends the same inputs if the replacement transaction has '
                'a higher fee.')))
@@ -481,7 +483,7 @@ class DlgDispTxInfo(ArmoryDialog):
       if svPairDisp == None and precomputeAmt == None:
          # Couldn't determine recip/change outputs
          lbls.append([])
-         lbls[-1].append(self.main.createToolTipWidget(
+         lbls[-1].append(createToolTipWidget(
                self.tr('Most transactions have at least a recipient output and a '
                'returned-change output.  You do not have enough information '
                'to determine which is which, and so this fields shows the sum '
@@ -490,13 +492,13 @@ class DlgDispTxInfo(ArmoryDialog):
          lbls[-1].append(QLabel(coin2str(txAmt, maxZeros=1).strip() + '  BTC'))
       else:
          lbls.append([])
-         lbls[-1].append(self.main.createToolTipWidget(
+         lbls[-1].append(createToolTipWidget(
                self.tr('Bitcoins were either sent or received, or sent-to-self')))
          lbls[-1].append(QLabel('Transaction Direction:'))
          lbls[-1].append(QRichLabel(txdir))
 
          lbls.append([])
-         lbls[-1].append(self.main.createToolTipWidget(
+         lbls[-1].append(createToolTipWidget(
                self.tr('The value shown here is the net effect on your '
                'wallet, including transaction fee.')))
          lbls[-1].append(QLabel('Transaction Amount:'))
@@ -511,7 +513,7 @@ class DlgDispTxInfo(ArmoryDialog):
          txsize = str(self.data[FIELDS.TxSize])
          txsize_str = self.tr("%s bytes" % txsize)
          lbls.append([])
-         lbls[-1].append(self.main.createToolTipWidget(
+         lbls[-1].append(createToolTipWidget(
             self.tr('Size of the transaction in bytes')))
          lbls[-1].append(QLabel(self.tr('Tx Size: ')))
          lbls[-1].append(QLabel(txsize_str))
@@ -519,7 +521,7 @@ class DlgDispTxInfo(ArmoryDialog):
       if not self.data[FIELDS.SumIn] == None:
          fee = self.data[FIELDS.SumIn] - self.data[FIELDS.SumOut]
          lbls.append([])
-         lbls[-1].append(self.main.createToolTipWidget(
+         lbls[-1].append(createToolTipWidget(
             self.tr('Transaction fees go to users supplying the Bitcoin network with '
             'computing power for processing transactions and maintaining security.')))
          lbls[-1].append(QLabel('Tx Fee Paid:'))
@@ -557,7 +559,7 @@ class DlgDispTxInfo(ArmoryDialog):
          for i, sv in enumerate(svPairDisp):
             rlbls.append([])
             if i == 0:
-               rlbls[-1].append(self.main.createToolTipWidget(
+               rlbls[-1].append(createToolTipWidget(
                   self.tr('All outputs of the transaction <b>excluding</b> change-'
                   'back-to-sender outputs.  If this list does not look '
                   'correct, it is possible that the change-output was '
@@ -699,10 +701,10 @@ class DlgDispTxInfo(ArmoryDialog):
          ttipText += (self.tr('Each input is like an X amount dollar bill.  Usually there are more inputs '
                       'than necessary for the transaction, and there will be an extra '
                       'output returning change to the sender'))
-      ttipInputs = self.main.createToolTipWidget(ttipText)
+      ttipInputs = createToolTipWidget(ttipText)
 
       lblOutputs = QLabel(self.tr('Transaction Outputs (Receiving addresses):'))
-      ttipOutputs = self.main.createToolTipWidget(
+      ttipOutputs = createToolTipWidget(
                   self.tr('Shows <b>all</b> outputs, including other recipients '
                   'of the same transaction, and change-back-to-sender outputs '
                   '(change outputs are displayed in light gray).'))
@@ -939,16 +941,16 @@ def extractTxInfo(pytx, rcvTime=None):
    sumTxOut = sum([t[1] for t in txOutToList])
 
    if TheBDM.getState() == BDM_BLOCKCHAIN_READY and hasTxHash:
-      txProto = TheBridge.getTxByHash(txHash)
-      if txProto.isValid:
+      txProto = TheBridge.service.getTxByHash(txHash)
+      if txProto is not None:
          hgt = txProto.height
          txWeight = pytx.getTxWeight()
          if hgt <= TheBDM.getTopBlockHeight():
             header = PyBlockHeader()
-            header.unserialize(TheBridge.getHeaderByHeight(hgt))
+            header.unserialize(TheBridge.service.getHeaderByHeight(hgt))
             txTime = unixTimeToFormatStr(header.timestamp)
             txBlk = hgt
-            txIdx = txProto.txIndex
+            txIdx = txProto.tx_index
             txSize = pytx.getSize()
          else:
             if rcvTime == None:
@@ -970,16 +972,16 @@ def extractTxInfo(pytx, rcvTime=None):
          txin = pytx.getTxIn(i)
          prevTxHash = txin.getOutPoint().txHash
          prevTxIndex = txin.getOutPoint().txOutIndex
-         prevTxRaw = TheBridge.getTxByHash(prevTxHash)
-         prevTx = PyTx().unserialize(prevTxRaw.raw)
-         if prevTx.isInitialized():
+         prevTxRaw = TheBridge.service.getTxByHash(prevTxHash)
+         if prevTxRaw != None:
+            prevTx = PyTx().unserialize(prevTxRaw.raw)
             prevTxOut = prevTx.getTxOut(prevTxIndex)
             txinFromList[-1].append(prevTxOut.getScrAddressStr())
             txinFromList[-1].append(prevTxOut.getValue())
             if prevTx.isInitialized():
                txinFromList[-1].append(prevTxRaw.height)
                txinFromList[-1].append(prevTxHash)
-               txinFromList[-1].append(prevTxRaw.txIndex)
+               txinFromList[-1].append(prevTxRaw.tx_index)
                txinFromList[-1].append(prevTxOut.getScript())
             else:
                LOGERROR('How did we get a bad parent pointer? (extractTxInfo)')

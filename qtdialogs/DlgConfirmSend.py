@@ -12,13 +12,13 @@
 
 from PySide2.QtCore import Qt
 from PySide2.QtGui import QPixmap, QFont
-from PySide2.QtWidgets import QLabel, QGridLayout, QSpacerItem, QPushButton, \
-   QDialogButtonBox, QFrame
+from PySide2.QtWidgets import QLabel, QGridLayout, QSpacerItem, \
+   QPushButton, QDialogButtonBox, QFrame
 
 from armoryengine.ArmoryUtils import CPP_TXOUT_HAS_ADDRSTR, \
-   CPP_TXOUT_P2WPKH, CPP_TXOUT_P2WSH, script_to_scrAddr, \
-   scrAddr_to_hash160, coin2strNZS, coin2str
+   CPP_TXOUT_P2WPKH, CPP_TXOUT_P2WSH, coin2strNZS, coin2str
 from armoryengine.Transaction import getTxOutScriptType
+from armoryengine.AddressUtils import script_to_scrAddr, scrAddr_to_hash160
 from armorycolors import htmlColor
 
 from qtdialogs.qtdefines import USERMODE, QRichLabel, \

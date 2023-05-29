@@ -20,7 +20,7 @@ from armoryengine.ArmoryUtils import isASCII
 
 from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.DlgPasswd3 import DlgPasswd3
-from qtdialogs.DlgSettings import MIN_PASSWD_WIDTH
+from qtdialogs.qtdefines import MIN_PASSWD_WIDTH
 
 ################################################################################
 class DlgChangePassphrase(ArmoryDialog):

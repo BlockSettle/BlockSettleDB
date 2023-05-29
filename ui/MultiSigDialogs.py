@@ -17,7 +17,19 @@ from PySide2.QtGui import QCursor, QDesktopServices, QIcon, QPixmap
 
 from armorycolors import htmlColor
 from qtdialogs.ArmoryDialog import ArmoryDialog
-from armoryengine.ArmoryUtils import BLOCKEXPLORE_NAME, BLOCKEXPLORE_URL_ADDR, BadAddressError, CPP_TXOUT_MULTISIG, CheckHash160, DATATYPE, DEFAULT_DATE_FORMAT, LB_MAXM, LB_MAXN, LOGDEBUG, LOGERROR, LOGEXCEPT, LOGINFO, NegativeValueError, RightNow, SignerException, TooMuchPrecisionError, USE_REGTEST, USE_TESTNET, addrStr_is_p2sh, addrStr_to_hash160, binScript_to_p2shAddrStr, binary_to_hex, checkAddrStrValid, coin2strNZS, getBlockID, hash160_to_addrStr, hash160_to_p2pkhash_script, hex_switchEndian, hex_to_binary, isLikelyDataType, pubkeylist_to_multisig_script, scrAddr_to_addrStr, script_to_addrStr, script_to_p2sh_script, script_to_scrAddr, str2coin, unixTimeToFormatStr
+from armoryengine.ArmoryUtils import BLOCKEXPLORE_NAME, \
+   BLOCKEXPLORE_URL_ADDR, CPP_TXOUT_MULTISIG, \
+   DATATYPE, DEFAULT_DATE_FORMAT, LB_MAXM, LB_MAXN, \
+   LOGDEBUG, LOGERROR, LOGEXCEPT, LOGINFO, NegativeValueError, \
+   RightNow, SignerException, TooMuchPrecisionError, USE_REGTEST, \
+   USE_TESTNET, binary_to_hex, checkAddrStrValid, coin2strNZS, \
+   getBlockID, hash160_to_p2pkhash_script, hex_switchEndian, \
+   hex_to_binary, pubkeylist_to_multisig_script, \
+   script_to_p2sh_script, str2coin, unixTimeToFormatStr
+from armoryengine.AddressUtils import scrAddr_to_addrStr, BadAddressError, \
+   CheckHash160, addrStr_is_p2sh, hash160_to_addrStr, script_to_addrStr, \
+   script_to_scrAddr, addrStr_to_hash160, binScript_to_p2shAddrStr, \
+   isLikelyDataType
 from armoryengine.BDM import BDM_BLOCKCHAIN_READY, TheBDM
 from armoryengine.CoinSelection import PySelectCoins, sumTxOutList
 from armoryengine.Transaction import BASE_SCRIPT, DecoratedTxOut, PyTx, TXIN_SIGSTAT, UnsignedTransaction, UnsignedTxInput, convertScriptToOpStrings, getTxOutScriptType
@@ -34,7 +46,7 @@ from qtdialogs.qtdefines import GETFONT, HLINE, HORIZONTAL, MSGBOX, NETWORKMODE,
 from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
 from ui.MultiSigModels import LOCKBOXCOLS, LockboxDisplayModel, LockboxDisplayProxy
 from ui.WalletFrames import SelectWalletFrame
-
+from ui.QtExecuteSignal import TheSignalExecution
 from armoryengine.MultiSigUtils import *
 
 #############################################################################
@@ -1165,7 +1177,7 @@ class DlgLockboxManager(ArmoryDialog):
          clipb = QApplication.clipboard()
          clipb.clear()
          clipb.setText(scrAddr_to_addrStr(lbox.getAddr()))
-         self.main.signalExecution.callLater(1, lambda: self.btnCopyClip.setText('Copy Address'))
+         TheSignalExecution.callLater(1, lambda: self.btnCopyClip.setText('Copy Address'))
 
       def funcReqPayment():
          lbox = self.getSelectedLockbox()
@@ -1479,7 +1491,7 @@ class DlgLockboxManager(ArmoryDialog):
             DlgQRCodeDisplay(self, self.main, p2shAddr, p2shAddr, createLockboxEntryStr(lboxId)).exec_()
             return
          elif action == actionReqPayment:
-            if not self.main.getSettingOrSetDefault('DNAA_P2SHCompatWarn', False):
+            if not TheSettings.getSettingOrSetDefault('DNAA_P2SHCompatWarn', False):
                oldStartChar = "'m' or 'n'" if USE_TESTNET or USE_REGTEST else "'1'"
                newStartChar = "'2'"        if USE_TESTNET or USE_REGTEST else "'3'"
                reply = MsgBoxWithDNAA(self, self.main, MSGBOX.Warning, self.tr('Compatibility Warning'),
@@ -1496,7 +1508,7 @@ class DlgLockboxManager(ArmoryDialog):
                   dnaaMsg=self.tr('Do not show this message again'))
                
                if reply[1]==True:
-                  self.main.writeSetting('DNAA_P2SHCompatWarn', True)
+                  TheSettings.set('DNAA_P2SHCompatWarn', True)
 
             DlgRequestPayment(self, self.main, p2shAddr).exec_()
             return
@@ -1840,9 +1852,9 @@ class DlgLockboxManager(ArmoryDialog):
 
     #############################################################################
    def saveGeometrySettings(self):
-      self.main.writeSetting('LockboxGeometry', self.saveGeometry().toHex())
-      self.main.writeSetting('LockboxAddrCols', saveTableView(self.lboxView))
-      self.main.writeSetting('LockboxLedgerCols', saveTableView(self.ledgerView))
+      TheSettings.set('LockboxGeometry', self.saveGeometry().toHex())
+      TheSettings.set('LockboxAddrCols', saveTableView(self.lboxView))
+      TheSettings.set('LockboxLedgerCols', saveTableView(self.ledgerView))
 
     #############################################################################
    def closeEvent(self, event):
@@ -2402,7 +2414,7 @@ class DlgExportAsciiBlock(ArmoryDialog):
       QDesktopServices.openUrl(finalUrl)
 
       
-      if not self.main.getSettingOrSetDefault('DNAA_MailtoWarn', False):
+      if not TheSettings.getSettingOrSetDefault('DNAA_MailtoWarn', False):
          reply = MsgBoxWithDNAA(self, self.main, MSGBOX.Warning, self.tr('Email Triggered'), self.tr(
             'Armory attempted to execute a "mailto:" link which should trigger '
             'your email application or web browser to open a compose-email window. '
@@ -2411,7 +2423,7 @@ class DlgExportAsciiBlock(ArmoryDialog):
             ), dnaaMsg=self.tr('Do not show this message again'), dnaaStartChk=True)
 
          if reply[1]:
-            self.main.writeSetting('DNAA_MailtoWarn', True)
+            TheSettings.set('DNAA_MailtoWarn', True)
 
       self.lblCopyMail.setText('<i>Email produced!</i>')
 

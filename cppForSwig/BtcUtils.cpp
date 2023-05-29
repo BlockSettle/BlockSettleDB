@@ -277,7 +277,7 @@ BinaryData BtcUtils::getScrAddrForAddrStr(const string& addrStr)
    {
       auto scrAddrPair = BtcUtils::segWitAddressToScrAddr(addrStr);
       if (scrAddrPair.second != 0)
-         throw runtime_error("[createRecipient] unsupported sw version");
+         throw runtime_error("[getScrAddrForAddrStr] unsupported sw version");
 
       switch (scrAddrPair.first.getSize())
       {

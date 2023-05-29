@@ -17,12 +17,12 @@ from PySide2.QtCore import Qt, QPoint
 from PySide2.QtWidgets import QPushButton, QVBoxLayout, QLabel, \
    QProgressBar, QGridLayout
 
-from qtdialogs.qtdialogs import STRETCH
+from qtdialogs.qtdefines import STRETCH
 from qtdialogs.ArmoryDialog import ArmoryDialog
 
 from armoryengine.ArmoryUtils import PyBackgroundThread
 from armoryengine.BDM import BDMPhase_Completed
-from ui.QtExecuteSignal import QtExecuteSignal
+from ui.QtExecuteSignal import TheSignalExecution
 
 ###############################################################################
 class DlgProgress(ArmoryDialog):
@@ -71,7 +71,7 @@ class DlgProgress(ArmoryDialog):
       self.btnStop = None
 
       if main is not None:
-         self.main.signalExecution.executeMethod([self.setup, [parent]])
+         TheSignalExecution.executeMethod(self.setup, [parent])
       else:
          return
 
@@ -89,7 +89,7 @@ class DlgProgress(ArmoryDialog):
       if HBar is not None: self.hbarProgress.setValue(HBar)
 
    def Kill(self):
-      self.main.signalExecution.executeMethod([self.Exit, []])
+      TheSignalExecution.executeMethod(self.Exit)
 
    def Exit(self):
       self.running = 0
@@ -106,8 +106,7 @@ class DlgProgress(ArmoryDialog):
       exec_thread = PyBackgroundThread(self.exec_async, *args, **kwargs)
       exec_thread.start()
 
-      self.main.signalExecution.executeMethod(
-         [super(ArmoryDialog, self).exec_, []])
+      TheSignalExecution.executeMethod(super(ArmoryDialog, self).exec_)
       exec_thread.join()
 
       if exec_thread.didThrowError():

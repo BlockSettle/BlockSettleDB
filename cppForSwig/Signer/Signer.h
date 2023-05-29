@@ -199,7 +199,7 @@ namespace Armory
          BinaryDataRef getOutputScript(void) const;
          BinaryDataRef getOutputHash(void) const;
          unsigned getOutputIndex(void) const;
-         BinaryData getSerializedInput(bool) const;
+         BinaryData getSerializedInput(bool, bool) const;
          BinaryData getEmptySerializedInput(void) const;
          BinaryDataRef getFinalizedWitnessData(void) const;
          BinaryData serializeAvailableWitnessData(void) const;

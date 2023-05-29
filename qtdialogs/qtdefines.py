@@ -14,6 +14,7 @@ from __future__ import (absolute_import, division,
 import os
 import struct
 from tempfile import mkstemp
+import urllib
 
 from PySide2.QtCore import Qt, QAbstractTableModel, QModelIndex, \
    QSortFilterProxyModel, QEvent, Signal, SIGNAL, QSize
@@ -22,9 +23,8 @@ from PySide2.QtGui import QFont, QIcon, QFontMetricsF, QPixmap, \
 from PySide2.QtWidgets import QWidget, QDialog, QFrame, QLabel, \
    QStyledItemDelegate, QTableView, QHBoxLayout, QLayoutItem, \
    QVBoxLayout, QCheckBox, QDialogButtonBox, QPushButton, \
-   QSpacerItem, QSizePolicy, QGridLayout, QApplication, QRadioButton
-
-import urllib
+   QSpacerItem, QSizePolicy, QGridLayout, QApplication, QRadioButton, \
+   QLineEdit
 
 from armoryengine.ArmoryUtils import enum, ARMORY_HOME_DIR, OS_MACOSX, \
    USE_TESTNET, USE_REGTEST, OS_WINDOWS, coin2str, int_to_hex, toBytes, \
@@ -56,9 +56,10 @@ VERTICAL = 'vertical'
 HORIZONTAL = 'horizontal'
 CHANGE_ADDR_DESCR_STRING = '[[ Change received ]]'
 
-# Keep track of dialogs and wizard that are executing
 STRETCH = 'Stretch'
+MIN_PASSWD_WIDTH = lambda obj: tightSizeStr(obj, '*' * 16)[0]
 
+# Keep track of dialogs and wizard that are executing
 runningDialogsList = []
 
 def AddToRunningDialogsList(func):
@@ -713,3 +714,156 @@ def createDirectorySelectButton(parent, targetWidget, title="Select Directory"):
    fn = lambda: selectDirectoryForQLineEdit(parent, targetWidget, title)
    parent.connect(btn, SIGNAL('clicked()'), fn)
    return btn
+
+#############################################################################
+class LetterButton(QPushButton):
+   def __init__(self, Low, Up, Row, Spec, edtTarget, parent):
+      super(LetterButton, self).__init__('')
+      self.lower = Low
+      self.upper = Up
+      self.defRow = Row
+      self.special = Spec
+      self.target = edtTarget
+      self.parent = parent
+
+      if self.special:
+         super(LetterButton, self).setFont(GETFONT('Var', 8))
+      else:
+         super(LetterButton, self).setFont(GETFONT('Fixed', 10))
+      if self.special == 'space':
+         self.setText(self.tr('SPACE'))
+         self.lower = ' '
+         self.upper = ' '
+         self.special = 5
+      elif self.special == 'shift':
+         self.setText(self.tr('SHIFT'))
+         self.special = 5
+         self.insertLetter = self.pressShift
+      elif self.special == 'delete':
+         self.setText(self.tr('DEL'))
+         self.special = 5
+         self.insertLetter = self.pressBackspace
+
+   def insertLetter(self):
+      currPwd = str(self.parent.edtPasswd.text())
+      insChar = self.upper if self.parent.btnShift.isChecked() else self.lower
+      if len(insChar) == 2 and insChar.startswith('#'):
+         insChar = insChar[1]
+
+      self.parent.edtPasswd.setText(currPwd + insChar)
+      self.parent.reshuffleKeys()
+
+   def pressShift(self):
+      self.parent.redrawKeys()
+
+   def pressBackspace(self):
+      currPwd = str(self.parent.edtPasswd.text())
+      if len(currPwd) > 0:
+         self.parent.edtPasswd.setText(currPwd[:-1])
+      self.parent.redrawKeys()
+
+#############################################################################
+def createToolTipWidget(tiptext, iconSz=2):
+   """
+   The <u></u> is to signal to Qt that it should be interpretted as HTML/Rich
+   text even if no HTML tags are used.  This appears to be necessary for Qt
+   to wrap the tooltip text
+   """
+   fgColor = htmlColor('ToolTipQ')
+   lbl = QLabel('<font size=%d color=%s>(?)</font>' % (iconSz, fgColor))
+   lbl.setMaximumWidth(int(relaxedSizeStr(lbl, '(?)')[0]))
+
+   def setAllText(wself, txt):
+      def pressEv(ev):
+         QWhatsThis.showText(ev.globalPos(), txt, self)
+      wself.mousePressEvent = pressEv
+      wself.setToolTip('<u></u>' + txt)
+
+   # Calling setText on this widget will update both the tooltip and QWT
+   from types import MethodType
+   lbl.setText = MethodType(setAllText, lbl)
+   lbl.setText(tiptext)
+   return lbl
+
+#############################################################################
+class AdvancedOptionsFrame(ArmoryFrame):
+   def __init__(self, parent, main, initLabel=''):
+      super(AdvancedOptionsFrame, self).__init__(parent, main)
+      lblComputeDescription = QRichLabel( \
+                  self.tr('Armory will test your system\'s speed to determine the most '
+                  'challenging encryption settings that can be applied '
+                  'in a given amount of time.  High settings make it much harder '
+                  'for someone to guess your passphrase.  This is used for all '
+                  'encrypted wallets, but the default parameters can be changed below.\n'))
+      lblComputeDescription.setWordWrap(True)
+      timeDescriptionTip = createToolTipWidget( \
+                  self.tr('This is the amount of time it will take for your computer '
+                  'to unlock your wallet after you enter your passphrase. '
+                  '(the actual time used will be less than the specified '
+                  'time, but more than one half of it).  '))
+      
+      # Set maximum compute time
+      self.editComputeTime = QLineEdit()
+      self.editComputeTime.setText('250 ms')
+      self.editComputeTime.setMaxLength(12)
+      lblComputeTime = QLabel(self.tr('Target compute &time (s, ms):'))
+      memDescriptionTip = createToolTipWidget( \
+                  self.tr('This is the <b>maximum</b> memory that will be '
+                  'used as part of the encryption process.  The actual value used '
+                  'may be lower, depending on your system\'s speed.  If a '
+                  'low value is chosen, Armory will compensate by chaining '
+                  'together more calculations to meet the target time.  High '
+                  'memory target will make GPU-acceleration useless for '
+                  'guessing your passphrase.'))
+      lblComputeTime.setBuddy(self.editComputeTime)
+
+      # Set maximum memory usage
+      self.editComputeMem = QLineEdit()
+      self.editComputeMem.setText('32.0 MB')
+      self.editComputeMem.setMaxLength(12)
+      lblComputeMem  = QLabel(self.tr('Max &memory usage (kB, MB):'))
+      lblComputeMem.setBuddy(self.editComputeMem)
+
+      self.editComputeTime.setMaximumWidth( tightSizeNChar(self, 20)[0] )
+      self.editComputeMem.setMaximumWidth( tightSizeNChar(self, 20)[0] )
+      
+      entryFrame = QFrame()
+      entryLayout = QGridLayout()
+      entryLayout.addWidget(timeDescriptionTip,        0, 0,  1, 1)
+      entryLayout.addWidget(lblComputeTime,      0, 1,  1, 1)
+      entryLayout.addWidget(self.editComputeTime, 0, 2,  1, 1)
+      entryLayout.addWidget(memDescriptionTip,         1, 0,  1, 1)
+      entryLayout.addWidget(lblComputeMem,       1, 1,  1, 1)
+      entryLayout.addWidget(self.editComputeMem,  1, 2,  1, 1)
+      entryFrame.setLayout(entryLayout)
+      layout = QVBoxLayout()
+      layout.addWidget(lblComputeDescription)
+      layout.addWidget(entryFrame)
+      layout.addStretch()
+      self.setLayout(layout)
+   
+   def getKdfSec(self):
+      # return -1 if the input is invalid
+      kdfSec = -1
+      try:
+         kdfT, kdfUnit = str(self.editComputeTime.text()).strip().split(' ')
+         if kdfUnit.lower() == 'ms':
+            kdfSec = float(kdfT) / 1000.
+         elif kdfUnit.lower() in ('s', 'sec', 'seconds'):
+            kdfSec = float(kdfT)
+      except:
+         pass
+      return kdfSec
+
+   def getKdfBytes(self):
+      # return -1 if the input is invalid
+      kdfBytes = -1
+      try:
+         kdfM, kdfUnit = str(self.editComputeMem.text()).split(' ')
+         if kdfUnit.lower() == 'mb':
+            kdfBytes = round(float(kdfM) * (1024.0 ** 2))
+         elif kdfUnit.lower() == 'kb':
+            kdfBytes = round(float(kdfM) * (1024.0))
+      except:
+         pass
+      return kdfBytes

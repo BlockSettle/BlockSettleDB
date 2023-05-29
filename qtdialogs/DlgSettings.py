@@ -22,35 +22,19 @@ from PySide2.QtWidgets import QPushButton, QRadioButton, QLineEdit, \
    QScrollArea, QFrame, QComboBox, QSlider
 
 from armoryengine.ArmoryUtils import BTC_HOME_DIR, DEFAULT_ADDR_TYPE, \
-   OS_MACOSX, OS_WINDOWS, ARMORY_DB_DIR, LANGUAGES, OS_VARIANT, \
+   OS_MACOSX, OS_WINDOWS, ARMORY_DB_DIR, OS_VARIANT, \
    unixTimeToFormatStr, coin2str, str2coin, MIN_FEE_BYTE, \
    MIN_TX_FEE, DEFAULT_FEE_TYPE, FORMAT_SYMBOLS, \
    DEFAULT_DATE_FORMAT, DEFAULT_CHANGE_TYPE, DEFAULT_RECEIVE_TYPE
-
+from armoryengine.Settings import LANGUAGES
 from armoryengine.CoinSelection import NBLOCKS_TO_CONFIRM
 
 from qtdialogs.qtdefines import USERMODE, GETFONT, \
    HLINE, tightSizeStr, tightSizeNChar, STYLE_RAISED, \
    QRichLabel, createDirectorySelectButton, makeHorizFrame, \
-   makeVertFrame
-
+   makeVertFrame, createToolTipWidget
 from qtdialogs.ArmoryDialog import ArmoryDialog
-
 from ui.AddressTypeSelectDialog import AddressLabelFrame
-
-MIN_PASSWD_WIDTH = lambda obj: tightSizeStr(obj, '*' * 16)[0]
-NO_CHANGE = 'NoChange'
-STRETCH = 'Stretch'
-BACKUP_TYPE_135A = '1.35a'
-BACKUP_TYPE_135C = '1.35c'
-BACKUP_TYPE_0_TEXT = 'Version 0  (from script, 9 lines)'
-BACKUP_TYPE_135a_TEXT = 'Version 1.35a (5 lines Unencrypted)'
-BACKUP_TYPE_135a_SP_TEXT = u'Version 1.35a (5 lines + SecurePrint\u200b\u2122)'
-BACKUP_TYPE_135c_TEXT = 'Version 1.35c (3 lines Unencrypted)'
-BACKUP_TYPE_135c_SP_TEXT = u'Version 1.35c (3 lines + SecurePrint\u200b\u2122)'
-MAX_QR_SIZE = 198
-MAX_SATOSHIS = 2100000000000000
-
 
 ###############################################################################
 class DlgSettings(ArmoryDialog):
@@ -59,7 +43,7 @@ class DlgSettings(ArmoryDialog):
 
       defaultWltID = self.main.walletIDList[0]
       self.wlt = self.main.walletMap[defaultWltID]
-      self.addrType = self.main.getSettingOrSetDefault('Default_ReceiveType', self.wlt.getDefaultAddressType())
+      self.addrType = TheSettings.getSettingOrSetDefault('Default_ReceiveType', self.wlt.getDefaultAddressType())
         #######################################################################
         # bitcoind-management settings
       self.chkManageSatoshi = QCheckBox(self.tr(
@@ -73,7 +57,7 @@ class DlgSettings(ArmoryDialog):
       self.connect(
               self.chkManageSatoshi, SIGNAL('clicked()'),
               self.clickChkManage)
-      self.startChk = self.main.getSettingOrSetDefault(
+      self.startChk = TheSettings.getSettingOrSetDefault(
               'ManageSatoshi', not OS_MACOSX)
       if self.startChk:
          self.chkManageSatoshi.setChecked(True)
@@ -172,7 +156,7 @@ class DlgSettings(ArmoryDialog):
 
       self.chkAskURIAtStartup = QCheckBox(self.tr(
          'Check whether Armory is the default handler at startup'))
-      askuriDNAA = self.main.getSettingOrSetDefault('DNAA_DefaultApp', False)
+      askuriDNAA = TheSettings.getSettingOrSetDefault('DNAA_DefaultApp', False)
       self.chkAskURIAtStartup.setChecked(not askuriDNAA)
 
       def clickRegURI():
@@ -197,12 +181,12 @@ class DlgSettings(ArmoryDialog):
          'minimize Armory instead of exiting the application.  You can always use '
          '<i>"File"</i> -> <i>"Quit Armory"</i> to actually close it.'))
 
-      moo = self.main.getSettingOrSetDefault('MinimizeOnOpen', False)
+      moo = TheSettings.getSettingOrSetDefault('MinimizeOnOpen', False)
       self.chkMinOnOpen = QCheckBox(self.tr('Minimize to system tray on open'))
       if moo:
          self.chkMinOnOpen.setChecked(True)
 
-      moc = self.main.getSettingOrSetDefault('MinimizeOrClose', 'DontKnow')
+      moc = TheSettings.getSettingOrSetDefault('MinimizeOrClose', 'DontKnow')
       self.chkMinOrClose = QCheckBox(self.tr('Minimize to system tray on close'))
 
       if moc == 'Minimize':
@@ -235,10 +219,10 @@ class DlgSettings(ArmoryDialog):
          self.chkDiscon.setEnabled(False)
          self.chkReconn.setEnabled(False)
       else:
-         notifyBtcIn = self.main.getSettingOrSetDefault('NotifyBtcIn', True)
-         notifyBtcOut = self.main.getSettingOrSetDefault('NotifyBtcOut', True)
-         notifyDiscon = self.main.getSettingOrSetDefault('NotifyDiscon', True)
-         notifyReconn = self.main.getSettingOrSetDefault('NotifyReconn', True)
+         notifyBtcIn = TheSettings.getSettingOrSetDefault('NotifyBtcIn', True)
+         notifyBtcOut = TheSettings.getSettingOrSetDefault('NotifyBtcOut', True)
+         notifyDiscon = TheSettings.getSettingOrSetDefault('NotifyDiscon', True)
+         notifyReconn = TheSettings.getSettingOrSetDefault('NotifyReconn', True)
          self.chkBtcIn.setChecked(notifyBtcIn)
          self.chkBtcOut.setChecked(notifyBtcOut)
          self.chkDiscon.setChecked(notifyDiscon)
@@ -270,7 +254,7 @@ class DlgSettings(ArmoryDialog):
 
       self.edtDateFormat = QLineEdit()
       self.edtDateFormat.setText(fmt)
-      self.ttipFormatDescr = self.main.createToolTipWidget(ttipStr)
+      self.ttipFormatDescr = createToolTipWidget(ttipStr)
 
       self.lblDateExample = QRichLabel('', doWrap=False)
       self.connect(self.edtDateFormat, SIGNAL('textEdited(QString)'), self.doExampleDate)
@@ -453,11 +437,11 @@ class DlgSettings(ArmoryDialog):
         ##########
         #fee
 
-      feeByte = self.main.getSettingOrSetDefault('Default_FeeByte', MIN_FEE_BYTE)
-      txFee = self.main.getSettingOrSetDefault('Default_Fee', MIN_TX_FEE)
-      adjustFee = self.main.getSettingOrSetDefault('AdjustFee', True)
-      feeOpt = self.main.getSettingOrSetDefault('FeeOption', DEFAULT_FEE_TYPE)
-      blocksToConfirm = self.main.getSettingOrSetDefault(\
+      feeByte = TheSettings.getSettingOrSetDefault('Default_FeeByte', MIN_FEE_BYTE)
+      txFee = TheSettings.getSettingOrSetDefault('Default_Fee', MIN_TX_FEE)
+      adjustFee = TheSettings.getSettingOrSetDefault('AdjustFee', True)
+      feeOpt = TheSettings.getSettingOrSetDefault('FeeOption', DEFAULT_FEE_TYPE)
+      blocksToConfirm = TheSettings.getSettingOrSetDefault(\
          "Default_FeeByte_BlocksToConfirm", NBLOCKS_TO_CONFIRM)
 
       def feeRadio(strArg):
@@ -505,23 +489,23 @@ class DlgSettings(ArmoryDialog):
       setLblSliderText()
       self.sliderAutoFee.valueChanged.connect(setLblSliderText)
 
-      toolTipAutoFee = self.main.createToolTipWidget(self.tr(
+      toolTipAutoFee = createToolTipWidget(self.tr(
       'Fetch fee/byte from local Bitcoin node. '
       'Defaults to manual fee/byte on failure.'))
 
       self.radioFeeByte = QRadioButton(self.tr("Manual fee/byte"))
       self.connect(self.radioFeeByte, SIGNAL('clicked()'), getCallbck('FeeByte'))
       self.leFeeByte = QLineEdit(str(feeByte))
-      toolTipFeeByte = self.main.createToolTipWidget(self.tr('Values in satoshis/byte'))
+      toolTipFeeByte = createToolTipWidget(self.tr('Values in satoshis/byte'))
 
       self.radioFlatFee = QRadioButton(self.tr("Flat fee"))
       self.connect(self.radioFlatFee, SIGNAL('clicked()'), getCallbck('FlatFee'))
       self.leFlatFee = QLineEdit(coin2str(txFee, maxZeros=0))
-      toolTipFlatFee = self.main.createToolTipWidget(self.tr('Values in BTC'))
+      toolTipFlatFee = createToolTipWidget(self.tr('Values in BTC'))
 
       self.checkAdjust = QCheckBox(self.tr("Auto-adjust fee/byte for better privacy"))
       self.checkAdjust.setChecked(adjustFee)
-      feeToolTip = self.main.createToolTipWidget(self.tr(
+      feeToolTip = createToolTipWidget(self.tr(
       'Auto-adjust fee may increase your total fee using the selected fee/byte rate '
       'as its basis in an attempt to align the amount of digits after the decimal '
       'point between your spend values and change value.'
@@ -562,7 +546,7 @@ class DlgSettings(ArmoryDialog):
       def setChangeType(changeType):
          self.changeType = changeType
 
-      self.changeType = self.main.getSettingOrSetDefault('Default_ChangeType', self.wlt.getDefaultAddressType())
+      self.changeType = TheSettings.getSettingOrSetDefault('Default_ChangeType', self.wlt.getDefaultAddressType())
       self.changeTypeFrame = AddressLabelFrame(self.main, setChangeType, self.wlt.getAddressTypes(), self.changeType)
 
       def changeRadio(strArg):
@@ -593,7 +577,7 @@ class DlgSettings(ArmoryDialog):
 
       self.radioAutoChange = QRadioButton(self.tr("Auto change"))
       self.connect(self.radioAutoChange, SIGNAL('clicked()'), changeCallbck('Auto'))
-      toolTipAutoChange = self.main.createToolTipWidget(self.tr(
+      toolTipAutoChange = createToolTipWidget(self.tr(
       "Change address type will match the address type of recipient "
       "addresses. <br>"
 
@@ -632,7 +616,7 @@ class DlgSettings(ArmoryDialog):
       def setAddrType(addrType):
          self.addrType = addrType
 
-      self.addrType = self.main.getSettingOrSetDefault('Default_ReceiveType', self.wlt.getDefaultAddressType())
+      self.addrType = TheSettings.getSettingOrSetDefault('Default_ReceiveType', self.wlt.getDefaultAddressType())
       self.addrTypeFrame = AddressLabelFrame(self.main, setAddrType, self.wlt.getAddressTypes(), self.addrType)
       self.addrTypeFrame.setType(self.addrType)
 
@@ -664,7 +648,7 @@ class DlgSettings(ArmoryDialog):
                return
             if os.path.isfile(pathExe):
                pathExe = os.path.dirname(pathExe)
-            self.main.writeSetting('SatoshiExe', pathExe)
+            TheSettings.set('SatoshiExe', pathExe)
          else:
             self.main.settings.delete('SatoshiExe')
 
@@ -679,7 +663,7 @@ class DlgSettings(ArmoryDialog):
                   'bitcoind.  If you leave this field blank, the following '
                   'path will be used: <br><br> %s' % BTC_HOME_DIR), QMessageBox.Ok)
             return
-         self.main.writeSetting('SatoshiDatadir', pathHome)
+         TheSettings.set('SatoshiDatadir', pathHome)
       else:
          self.main.settings.delete('SatoshiDatadir')
 
@@ -694,16 +678,16 @@ class DlgSettings(ArmoryDialog):
                   'If you leave this field blank, the following '
                   'path will be used: <br><br> %s' % ARMORY_DB_DIR), QMessageBox.Ok)
             return
-         self.main.writeSetting('ArmoryDbdir', pathDbdir)
+         TheSettings.set('ArmoryDbdir', pathDbdir)
       else:
          self.main.settings.delete('ArmoryDbdir')
 
 
-      self.main.writeSetting('ManageSatoshi', self.chkManageSatoshi.isChecked())
+      TheSettings.set('ManageSatoshi', self.chkManageSatoshi.isChecked())
 
         # Reset the DNAA flag as needed
       askuriDNAA = self.chkAskURIAtStartup.isChecked()
-      self.main.writeSetting('DNAA_DefaultApp', not askuriDNAA)
+      TheSettings.set('DNAA_DefaultApp', not askuriDNAA)
 
       if not self.main.setPreferredDateFormat(str(self.edtDateFormat.text())):
          return
@@ -715,32 +699,32 @@ class DlgSettings(ArmoryDialog):
          self.main.setLang(LANGUAGES[self.cmbLang.currentIndex()])
 
       if self.chkMinOrClose.isChecked():
-         self.main.writeSetting('MinimizeOrClose', 'Minimize')
+         TheSettings.set('MinimizeOrClose', 'Minimize')
       else:
-         self.main.writeSetting('MinimizeOrClose', 'Close')
+         TheSettings.set('MinimizeOrClose', 'Close')
 
-      self.main.writeSetting('MinimizeOnOpen', self.chkMinOnOpen.isChecked())
+      TheSettings.set('MinimizeOnOpen', self.chkMinOnOpen.isChecked())
 
-        # self.main.writeSetting('LedgDisplayFee', self.chkInclFee.isChecked())
-      self.main.writeSetting('NotifyBtcIn', self.chkBtcIn.isChecked())
-      self.main.writeSetting('NotifyBtcOut', self.chkBtcOut.isChecked())
-      self.main.writeSetting('NotifyDiscon', self.chkDiscon.isChecked())
-      self.main.writeSetting('NotifyReconn', self.chkReconn.isChecked())
+        # TheSettings.set('LedgDisplayFee', self.chkInclFee.isChecked())
+      TheSettings.set('NotifyBtcIn', self.chkBtcIn.isChecked())
+      TheSettings.set('NotifyBtcOut', self.chkBtcOut.isChecked())
+      TheSettings.set('NotifyDiscon', self.chkDiscon.isChecked())
+      TheSettings.set('NotifyReconn', self.chkReconn.isChecked())
 
 
         #fee
-      self.main.writeSetting('FeeOption', self.feeOpt)
-      self.main.writeSetting('Default_FeeByte', str(self.leFeeByte.text()))
-      self.main.writeSetting('Default_Fee', str2coin(str(self.leFlatFee.text())))
-      self.main.writeSetting('AdjustFee', self.checkAdjust.isChecked())
-      self.main.writeSetting('Default_FeeByte_BlocksToConfirm',
+      TheSettings.set('FeeOption', self.feeOpt)
+      TheSettings.set('Default_FeeByte', str(self.leFeeByte.text()))
+      TheSettings.set('Default_Fee', str2coin(str(self.leFlatFee.text())))
+      TheSettings.set('AdjustFee', self.checkAdjust.isChecked())
+      TheSettings.set('Default_FeeByte_BlocksToConfirm',
                                self.sliderAutoFee.value())
 
         #change
-      self.main.writeSetting('Default_ChangeType', self.changeType)
+      TheSettings.set('Default_ChangeType', self.changeType)
 
         #addr type
-      self.main.writeSetting('Default_ReceiveType', self.addrType)
+      TheSettings.set('Default_ReceiveType', self.addrType)
       DEFAULT_ADDR_TYPE = self.addrType
 
       try:

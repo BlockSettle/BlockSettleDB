@@ -18,7 +18,7 @@ from armoryengine.ArmoryUtils import str2coin, coin2str, unixTimeToFormatStr, \
         IGNOREZC, RightNow, hex_to_binary, hex_switchEndian, FORMAT_SYMBOLS, \
         DEFAULT_DATE_FORMAT
 from qtdialogs.qtdefines import QRichLabel, HLINE, STRETCH, WLTTYPES, \
-        makeHorizFrame, determineWalletType
+        makeHorizFrame, determineWalletType, createToolTipWidget
 from qtdialogs.ArmoryDialog import ArmoryDialog
 
 from armorymodels import LEDGERCOLS
@@ -71,7 +71,7 @@ class DlgExportTxHistory(ArmoryDialog):
 
       self.edtDateFormat = QLineEdit()
       self.edtDateFormat.setText(fmt)
-      self.ttipFormatDescr = self.main.createToolTipWidget(ttipStr)
+      self.ttipFormatDescr = createToolTipWidget(ttipStr)
 
       self.lblDateExample = QRichLabel('', doWrap=False)
       self.connect(self.edtDateFormat, SIGNAL('textEdited(QString)'), self.doExampleDate)

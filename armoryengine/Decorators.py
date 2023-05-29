@@ -15,8 +15,8 @@ from __future__ import (absolute_import, division,
 #
 ################################################################################
 
-from armoryengine.ArmoryUtils import send_email, LOGERROR, LOGRAWDATA,\
-   CLI_OPTIONS
+from armoryengine.ArmoryUtils import send_email, LOGERROR, CLI_OPTIONS
+from armoryengine.AddressUtils import LOGRAWDATA
 import functools
 import sys
 from threading import Lock

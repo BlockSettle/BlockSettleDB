@@ -31,7 +31,7 @@ class PRNG_Fortuna;
 
 namespace Armory
 {
-   namespace Assets
+   namespace Seeds
    {
       class EncryptedSeed;
    };
@@ -160,7 +160,7 @@ namespace Armory
 
             std::unique_ptr<Encryption::DecryptedDataContainer> decryptedData_;
             std::unique_ptr<ReentrantLock> controlLock_;
-            std::unique_ptr<Armory::Assets::EncryptedSeed> controlSeed_;
+            std::unique_ptr<Armory::Seeds::EncryptedSeed> controlSeed_;
 
             unsigned encryptionVersion_ = UINT32_MAX;
             std::unique_ptr<PRNG_Fortuna> fortuna_;

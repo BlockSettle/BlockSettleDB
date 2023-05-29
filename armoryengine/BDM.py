@@ -15,23 +15,9 @@ import traceback
 from armoryengine.ArmoryUtils import *
 from armoryengine.Timer import TimeThisFunction
 from armoryengine.BinaryPacker import UINT64
-from armoryengine import ClientProto_pb2
-from armoryengine.ClientProto_pb2 import \
-   OpaquePayloadType, UnlockPromptCallback
+from armoryengine.CppBridge import ServerPush, TheBridge
 
-BDMAction_Ready         = 1
-BDMAction_NewBlock      = 2
-BDMAction_ZC            = 3
-BDMAction_InvalidatedZC = 4
-BDMAction_Refresh       = 5
-BDMAction_Exited        = 6
-BDMAction_ErrorMsg      = 7
-BDMAction_NodeStatus    = 8
-BDMAction_BDV_Error     = 9
 DISCONNECTED_CALLBACK_ID = 0xff543ad8
-
-CppBridge_Ready         = 20
-CppBridge_Registered    = 21
 
 BDMPhase_DBHeaders = 1
 BDMPhase_OrganizingChain = 2
@@ -49,7 +35,7 @@ BDM_UNINITIALIZED = 'Uninitialized'
 BDM_BLOCKCHAIN_READY = 'BlockChainReady'
 BDM_SCANNING = 'Scanning'
 
-FINISH_LOAD_BLOCKCHAIN_ACTION = 'FinishLoadBlockchain'   
+FINISH_LOAD_BLOCKCHAIN_ACTION = 'FinishLoadBlockchain'
 NEW_ZC_ACTION = 'newZC'
 NEW_BLOCK_ACTION = 'newBlock'
 REFRESH_ACTION = 'refresh'
@@ -60,6 +46,9 @@ NODESTATUS_UPDATE = 'NodeStatusUpdate'
 BDM_SCAN_PROGRESS = 'BDM_Progress'
 BDV_ERROR = 'BDV_Error'
 BDV_DISCONNECTED = 'BDV_Disconnected'
+
+CPP_BDM_NOTIF_ID      = "bdm_callback"
+CPP_PROGRESS_NOTIF_ID = "progress"
 
 SETUP_STEP2 = 'setup_step1_done'
 SETUP_STEP3 = 'setup_step2_done'
@@ -85,7 +74,14 @@ def ActLikeASingletonBDM(func):
          return func(*args, **kwargs)
    return inner
 
+################################################################################
+class BDMCallbackWrapper(ServerPush):
+   def __init__(self, callbackId, callbackFunc):
+      super().__init__(callbackId)
+      self.callbackFunc = callbackFunc
 
+   def parseProtoPacket(self, protoPacket):
+      self.callbackFunc(protoPacket)
 
 ################################################################################
 class BlockDataManager(object):
@@ -190,7 +186,7 @@ class BlockDataManager(object):
          return
 
       self.btcdir = newBtcDir
-         
+
    #############################################################################
    @ActLikeASingletonBDM
    def predictLoadTime(self):
@@ -240,80 +236,58 @@ class BlockDataManager(object):
 
    #############################################################################
    def pushNotification(self, notifProto):
-      try:
-         act = ''
-         arglist = []
+      act = ''
+      arglist = []
 
-         # AOTODO replace with constants
-         action = notifProto.type
-         block = notifProto.height
+      # AOTODO replace with constants
+      if notifProto.HasField("ready"):
+         print('BDM is ready!')
+         act = FINISH_LOAD_BLOCKCHAIN_ACTION
+         TheBDM.topBlockHeight = notifProto.ready.height
+         TheBDM.setState(BDM_BLOCKCHAIN_READY)
 
-         if action == BDMAction_Ready:
-            print('BDM is ready!')
-            act = FINISH_LOAD_BLOCKCHAIN_ACTION
-            TheBDM.topBlockHeight = block
-            TheBDM.setState(BDM_BLOCKCHAIN_READY)
+      elif notifProto.HasField("zero_conf"):
+         act = NEW_ZC_ACTION
+         arglist = notifProto.zero_conf.ledger
 
-         elif action == BDMAction_ZC:
-            act = NEW_ZC_ACTION
-            argLedgers = ClientProto_pb2.BridgeLedgers()
-            argLedgers.ParseFromString(notifProto.opaque[0])
-            arglist = argLedgers.le
+      elif notifProto.HasField("new_block"):
+         act = NEW_BLOCK_ACTION
+         arglist.append(notifProto.new_block.height)
+         TheBDM.topBlockHeight = notifProto.new_block.height
 
-         elif action == BDMAction_NewBlock:
-            act = NEW_BLOCK_ACTION
-            arglist.append(block)
-            TheBDM.topBlockHeight = block
+      elif notifProto.HasField("refresh"):
+         act = REFRESH_ACTION
+         arglist = notifProto.refresh.id
 
-         elif action == BDMAction_Refresh:
-            act = REFRESH_ACTION
-            arglist = notifProto.ids
-            
-         elif action == BDMAction_Exited:
-            act = STOPPED_ACTION
+      elif notifProto.HasField("error"):
+         act = WARNING_ACTION
+         arglist.append(notifProto.error)
 
-         elif action == BDMAction_ErrorMsg:
-            act = WARNING_ACTION
-            argstr = Cpp.BtcUtils_cast_to_string(arg)
-            arglist.append(argstr)
+      elif notifProto.HasField("node_status"):
+         act = NODESTATUS_UPDATE
+         arglist.append(notifProto.node_status)
 
-         elif action == BDMAction_BDV_Error:
-            act = BDV_ERROR
-            argBdvError = Cpp.BDV_Error_Struct_cast_to_BDVErrorStruct(arg)
-            arglist.append(argBdvError)
+      elif notifProto.HasField("disconnected"):
+         TheBDM.setState(BDM_OFFLINE)
+         act = BDV_DISCONNECTED
 
-         elif action == BDMAction_NodeStatus:
-            act = NODESTATUS_UPDATE
-            argNodeStatus = ClientProto_pb2.BridgeNodeStatus()
-            argNodeStatus.ParseFromString(notifProto.opaque[0])
-            arglist.append(argNodeStatus)
+      #setup notifs
+      elif notifProto.HasField("setup_done"):
+         act = SETUP_STEP2
+      elif notifProto.HasField("registered"):
+         act = SETUP_STEP3
 
-         elif action == DISCONNECTED_CALLBACK_ID:
-            TheBDM.setState(BDM_OFFLINE)
-            act = BDV_DISCONNECTED
-
-
-         #setup notifs
-         elif action == CppBridge_Ready:
-            act = SETUP_STEP2
-         elif action == CppBridge_Registered:
-            act = SETUP_STEP3
-
-         listenerList = self.getListenerList()
-         for cppNotificationListener in listenerList:
-            cppNotificationListener(act, arglist)
-      except:
-         LOGEXCEPT('Error in running callback')
-         print(sys.exc_info())
-         raise
+      listenerList = self.getListenerList()
+      for cppNotificationListener in listenerList:
+         cppNotificationListener(act, *arglist)
 
    #############################################################################
    def reportProgress(self, notifProto):
-      phase = notifProto.phase
-      prog = notifProto.progress
-      seconds = notifProto.etaSec
-      progressNumeric = notifProto.progressNumeric
-      walletVec = notifProto.ids
+      phase = notifProto.progress.phase
+      prog = notifProto.progress.progress
+      seconds = notifProto.progress.eta_sec
+      progressNumeric = notifProto.progress.progress_numeric
+      walletVec = notifProto.progress.id
 
       try:
          if len(walletVec) == 0:
@@ -357,6 +331,15 @@ class BlockDataManager(object):
                promptProto.verbose, promptProto.walletID, promptProto.state)
       else:
          LOGWARN("Unknown prompt data type")
+
+   #############################################################################
+   def startBridge(self, stringArgs, notifyReadyLbd):
+      pushNotifCallback = BDMCallbackWrapper(
+         CPP_BDM_NOTIF_ID, self.pushNotification)
+      reportProgressCallback = BDMCallbackWrapper(
+         CPP_PROGRESS_NOTIF_ID, self.reportProgress)
+
+      TheBridge.start(stringArgs, notifyReadyLbd)
 
 ################################################################################
 # Make TheBDM reference the asyncrhonous BlockDataManager wrapper if we are 

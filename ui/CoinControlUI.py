@@ -8,8 +8,9 @@ from __future__ import (absolute_import, division,
 #                                                                            #
 ##############################################################################
 
+from armoryengine.Settings import TheSettings
 from qtdialogs.qtdefines import QRichLabel, makeHorizFrame, \
-   saveTableView, restoreTableView
+   saveTableView, restoreTableView, createToolTipWidget
 from qtdialogs.ArmoryDialog import ArmoryDialog
 
 from ui.TreeViewGUI import CoinControlTreeModel, RBFTreeModel
@@ -34,7 +35,7 @@ class CoinControlDlg(ArmoryDialog):
          'all other addresses.'))
 
       self.useAllCheckBox = QCheckBox(self.tr("Use all selected UTXOs"))
-      useAllToolTip = self.main.createToolTipWidget(self.tr(
+      useAllToolTip = createToolTipWidget(self.tr(
       'By default, Armory will pick a subset of the UTXOs you chose '
       'explicitly through the coin control feature to best suit the '
       'total spend value of the transaction you are constructing. '
@@ -60,8 +61,8 @@ class CoinControlDlg(ArmoryDialog):
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
 
-      hexgeom  = self.main.settings.get('ccDlgGeometry')
-      tblgeom  = self.main.settings.get('ccDlgAddrCols')
+      hexgeom  = TheSettings.get('ccDlgGeometry')
+      tblgeom  = TheSettings.get('ccDlgAddrCols')
 
       if len(hexgeom) > 0:
          if type(hexgeom) == str:
@@ -132,8 +133,8 @@ class CoinControlDlg(ArmoryDialog):
    #############################################################################
    def saveGeometrySettings(self):
       if self.isVisible() == True:
-         self.main.writeSetting('ccDlgGeometry', self.saveGeometry().toHex())
-         self.main.writeSetting('ccDlgAddrCols', saveTableView(self.ccView))
+         TheSettings.set('ccDlgGeometry', self.saveGeometry().toHex())
+         TheSettings.set('ccDlgAddrCols', saveTableView(self.ccView))
 
    #############################################################################
    def exec_(self):
@@ -159,8 +160,8 @@ class RBFDlg(ArmoryDialog):
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
 
-      hexgeom  = self.main.settings.get('rbfDlgGeometry')
-      tblgeom  = self.main.settings.get('rbfDlgAddrCols')
+      hexgeom  = TheSettings.get('rbfDlgGeometry')
+      tblgeom  = TheSettings.get('rbfDlgAddrCols')
 
       if len(hexgeom) > 0:
          if type(hexgeom) == str:
@@ -186,8 +187,8 @@ class RBFDlg(ArmoryDialog):
 
    #############################################################################
    def saveGeometrySettings(self):
-      self.main.writeSetting('rbfDlgGeometry', self.saveGeometry().toHex())
-      self.main.writeSetting('rbfDlgAddrCols', saveTableView(self.rbfView))
+      TheSettings.set('rbfDlgGeometry', self.saveGeometry().toHex())
+      TheSettings.set('rbfDlgAddrCols', saveTableView(self.rbfView))
 
    #############################################################################
    def exec_(self):

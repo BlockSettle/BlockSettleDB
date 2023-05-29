@@ -91,6 +91,7 @@ _CppBlockUtils.*
 /cppForSwig/gtest/*.lmdb*
 /cppForSwig/gtest/DB1kIterTest
 /cppForSwig/gtest/SignerTests
+/cppForSwig/gtest/fakehomedir/*
 
 /cppForSwig/libbtc/bitcoin-spv
 
@@ -176,7 +177,7 @@ test-driver
 /cppForSwig/protobuf/*.pb.*
 /cppForSwig/x64/*.*
 CppBridge
-armoryengine/ClientProto_pb2.py
+armoryengine/BridgeProto_pb2.py
 cppForSwig/gtest/UtilsTests
 cppForSwig/gtest/ZeroConfTests
 c20p1305_cffi/c20p1305.c

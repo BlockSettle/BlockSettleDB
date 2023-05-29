@@ -7,11 +7,11 @@ from __future__ import (absolute_import, division,
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
 #                                                                            #
 ##############################################################################
-
+import binascii
 from PySide2.QtCore import Qt, QAbstractItemModel, QModelIndex, QObject
 
-from armoryengine.ArmoryUtils import coin2str, hash160_to_addrStr, \
-   addrStr_to_hash160, getNameForAddrType
+from armoryengine.ArmoryUtils import coin2str, getNameForAddrType
+from armoryengine.AddressUtils import addrStr_to_hash160
 from armoryengine.BDM import TheBDM
 from armoryengine.Transaction import PyTx, getFeeForTx
 from armoryengine.CppBridge import TheBridge
@@ -130,7 +130,7 @@ class RBFutxoItem():
             (str(utxo.getTxIndex()), \
             str(utxo.getTxOutIndex())))
       else:
-         self.name = QObject().tr("Block: #%s | Tx: #s2 | TxOut: #%s" % \
+         self.name = QObject().tr("Block: #%s | Tx: #%s | TxOut: #%s" % \
             (str(utxo.getTxHeight()), \
             str(utxo.getTxIndex()), \
             str(utxo.getTxOutIndex())))
@@ -138,12 +138,10 @@ class RBFutxoItem():
       self.state = Qt.Checked
       if utxo.isChecked() == False:
          self.state = Qt.Unchecked
-         
-      h160 = utxo.getRecipientHash160()
-      binAddr = utxo.getRecipientScrAddr()
-      self.scrAddr = hash160_to_addrStr(h160, binAddr[0])   
 
-      self.value = coin2str(utxo.getValue(), maxZeros=2)      
+      self.addrStr = TheBridge.scriptUtils.getAddrStrForScrAddr(
+         utxo.getRecipientScrAddr())
+      self.value = coin2str(utxo.getValue(), maxZeros=2)
 
    def rowCount(self):
       return 0
@@ -158,7 +156,7 @@ class RBFutxoItem():
       return self.value
 
    def getAddress(self):
-      return self.scrAddr
+      return self.addrStr
 
    def checked(self):
       return self.state
@@ -631,11 +629,11 @@ class TreeStructure_CoinControl():
       addrDict = self.treeData['CPFP']
       for cpfp in cpfpList:
          binAddr = cpfp.getRecipientScrAddr()
-         addrStr = TheBridge.getAddrStrForScrAddr(binAddr)
+         addrStr = TheBridge.scriptUtils.getAddrStrForScrAddr(binAddr)
 
-         if not scrAddr in addrDict:
-            addrDict[scrAddr] = []
-         addrDict[scrAddr].append(cpfp)
+         if not addrStr in addrDict:
+            addrDict[addrStr] = []
+         addrDict[addrStr].append(cpfp)
 
       #create root node
       self.root = CoinControlTreeNode(self, "root", True, None)
@@ -706,24 +704,25 @@ class TreeStructure_RBF():
          utxoList = self.rbfDict[parentHash]
          utxoList.append(utxo)
 
-      for txhash in self.rbfDict:
+      for txHashStr in self.rbfDict:
          #get outpoints for spender tx
-         entryList = self.rbfDict[txhash]
-         cppTx = TheBDM.bdv().getTxByHash(txhash)
+         entryList = self.rbfDict[txHashStr]
+         txHash = binascii.unhexlify(txHashStr)
+         cppTx = TheBridge.service.getTxByHash(txHash)
 
-         if cppTx.isInitialized():
-            pytx = PyTx().unserialize(cppTx.serialize())
+         if cppTx is not None:
+            pytx = PyTx().unserialize(cppTx.raw)
          else:
             continue
 
          for _input in pytx.inputs:
-            spentHash = _input.outpoint.txHash
+            spentHash = _input.outpoint.getTxHashStr()
 
             #if this tx redeems an output in our list of RBF tx,
-            #link it to the spendee 
+            #link it to the spendee
             if spentHash in self.rbfDict:
                spendeeList = self.rbfDict[spentHash]
-               spendeeList.append([txhash, entryList])
+               spendeeList.append([txHashStr, entryList])
 
       def getRBFDict():
          return self.rbfDict
