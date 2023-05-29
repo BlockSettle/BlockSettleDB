@@ -12,6 +12,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "TestUtils.h"
+#include "../Wallets/Seeds/Seeds.h"
 using namespace std;
 using namespace Armory::Signer;
 using namespace Armory::Config;
@@ -2364,15 +2365,15 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt = AssetWallet_Single::createFromSeed(
+      move(seed),
+      SecureBinaryData(),
+      SecureBinaryData(),
       homedir_,
-      move(wltRoot), //root as a r value
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
       10); //set lookup computation to 5 entries
-      
+
    //register with db
    vector<BinaryData> addrVec;
 
@@ -2877,13 +2878,13 @@ TEST_F(ZeroConfTests_FullNode, RegisterAddress_AfterZC)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt = AssetWallet_Single::createFromSeed(
+      move(seed),
+      SecureBinaryData(),
+      SecureBinaryData(),
       homedir_,
-      move(wltRoot), //root as a r value
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
    //register with db
@@ -3095,14 +3096,14 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a r value
-      {},
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt = AssetWallet_Single::createFromSeed(
+      move(seed),
       SecureBinaryData(),
-      SecureBinaryData(),      
-      10); //set lookup computation to 10 entries
+      SecureBinaryData(),
+      homedir_,
+      10); //set lookup computation to 3 entries
 
            //register with db
    vector<BinaryData> addrVec;
@@ -3576,14 +3577,14 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot),
-      {},
-      SecureBinaryData(), //empty passphrase
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt = AssetWallet_Single::createFromSeed(
+      move(seed),
       SecureBinaryData(),
-      5);
+      SecureBinaryData(),
+      homedir_,
+      5); //set lookup computation to 3 entries
 
    //register with db
    vector<BinaryData> addrVec;
@@ -4375,13 +4376,13 @@ TEST_F(ZeroConfTests_Supernode, ZC_Reorg)
    theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt = AssetWallet_Single::createFromSeed(
+      move(seed),
+      SecureBinaryData(),
+      SecureBinaryData(),
       homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
       3); //set lookup computation to 3 entries
    auto addr1_ptr = assetWlt->getNewAddress();
    auto addr2_ptr = assetWlt->getNewAddress();
@@ -4546,14 +4547,14 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a r value
-      {},
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt = AssetWallet_Single::createFromSeed(
+      move(seed),
       SecureBinaryData(),
-      SecureBinaryData(), 
-      10); //set lookup computation to 5 entries
+      SecureBinaryData(),
+      homedir_,
+      10); //set lookup computation to 3 entries
 
    //register with db
    vector<BinaryData> addrVec;

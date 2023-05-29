@@ -151,7 +151,7 @@ BinaryData Armory::Signer::ResolverFeed_AssetWalletSingle::getByVal(const Binary
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& Armory::Signer::ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(
+const SecureBinaryData& ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(
    const BinaryData& pubkey)
 {
    //check cache first
@@ -176,7 +176,7 @@ const SecureBinaryData& Armory::Signer::ResolverFeed_AssetWalletSingle::getPrivK
                wltPtr_->derivePrivKeyFromPath(pathIter->second.first);
          }
 
-         return wltPtr_->getDecrypedPrivateKeyForId(pathIter->second.second);
+         return wltPtr_->getDecryptedPrivateKeyForId(pathIter->second.second);
       }
    }
 

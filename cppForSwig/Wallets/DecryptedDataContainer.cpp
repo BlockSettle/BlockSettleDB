@@ -63,11 +63,14 @@ void DecryptedDataContainer::lockOther(
    shared_ptr<DecryptedDataContainer> other)
 {
    if (!ownsLock())
-      throw DecryptedDataContainerException("unlocked/does not own lock");
+   {
+      throw DecryptedDataContainerException(
+         "[DecryptedDataContainer::lockOther] unlocked/does not own lock");
+   }
 
    if (lockedDecryptedData_ == nullptr)
       throw DecryptedDataContainerException(
-      "nullptr lock! how did we get this far?");
+         "nullptr lock! how did we get this far?");
 
    otherLocks_.push_back(OtherLockedContainer(other));
 }
@@ -103,11 +106,17 @@ unique_ptr<ClearTextEncryptionKey> DecryptedDataContainer::deriveEncryptionKey(
 {
    //sanity check
    if (!ownsLock())
-      throw DecryptedDataContainerException("unlocked/does not own lock");
+   {
+      throw DecryptedDataContainerException(
+         "[DecryptedDataContainer::deriveEncryptionKey]"
+         " unlocked/does not own lock");
+   }
 
    if (lockedDecryptedData_ == nullptr)
+   {
       throw DecryptedDataContainerException(
-      "nullptr lock! how did we get this far?");
+         "nullptr lock! how did we get this far?");
+   }
 
    //does the decryption key have this derivation?
    auto derivationIter = decrKey->derivedKeys_.find(kdfid);
@@ -146,7 +155,11 @@ const SecureBinaryData& DecryptedDataContainer::getClearTextAssetData(
 
    //sanity check
    if (!ownsLock())
-      throw DecryptedDataContainerException("unlocked/does not own lock");
+   {
+      throw DecryptedDataContainerException(
+         "[DecryptedDataContainer::getClearTextAssetData]"
+         " unlocked/does not own lock");
+   }
 
    if (lockedDecryptedData_ == nullptr)
       throw DecryptedDataContainerException(
@@ -289,7 +302,11 @@ EncryptionKeyId DecryptedDataContainer::populateEncryptionKey(
 
    //sanity check
    if (!ownsLock())
-      throw DecryptedDataContainerException("unlocked/does not own lock");
+   {
+      throw DecryptedDataContainerException(
+         "[DecryptedDataContainer::populateEncryptionKey]"
+         " unlocked/does not own lock");
+   }
 
    if (lockedDecryptedData_ == nullptr)
       throw DecryptedDataContainerException(
@@ -437,7 +454,11 @@ SecureBinaryData DecryptedDataContainer::encryptData(
       throw DecryptedDataContainerException("null cipher");
 
    if (!ownsLock())
-      throw DecryptedDataContainerException("unlocked/does not own lock");
+   {
+      throw DecryptedDataContainerException(
+         "[DecryptedDataContainer::encryptData]"
+         " unlocked/does not own lock");
+   }
 
    if (lockedDecryptedData_ == nullptr)
       throw DecryptedDataContainerException(
@@ -573,7 +594,11 @@ void DecryptedDataContainer::deleteFromDisk(
 {
    //sanity checks
    if (!ownsLock())
-      throw DecryptedDataContainerException("unlocked/does not own lock");
+   {
+      throw DecryptedDataContainerException(
+         "[DecryptedDataContainer::deleteFromDisk]"
+         " unlocked/does not own lock");
+   }
 
    //erase key, db interface will wipe it from file
    tx->erase(key);
@@ -656,7 +681,11 @@ void DecryptedDataContainer::encryptEncryptionKey(
 
    //we have to own the lock on this container before proceeding
    if (!ownsLock())
-      throw DecryptedDataContainerException("unlocked/does not own lock");
+   {
+      throw DecryptedDataContainerException(
+         "[DecryptedDataContainer::encryptEncryptionKey]"
+         " unlocked/does not own lock");
+   }
 
    if (lockedDecryptedData_ == nullptr)
    {
@@ -790,7 +819,11 @@ void DecryptedDataContainer::eraseEncryptionKey(
 
 //we have to own the lock on this container before proceeding
    if (!ownsLock())
-      throw DecryptedDataContainerException("unlocked/does not own lock");
+   {
+      throw DecryptedDataContainerException(
+         "[DecryptedDataContainer::eraseEncryptionKey]"
+         " unlocked/does not own lock");
+   }
 
    if (lockedDecryptedData_ == nullptr)
    {

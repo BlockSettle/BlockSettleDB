@@ -10,7 +10,7 @@
 #include "BridgeSocket.h"
 #include "TerminalPassphrasePrompt.h"
 #include "PassphrasePrompt.h"
-#include "../ArmoryBackups.h"
+#include "../Wallets/Seeds/Backups.h"
 #include "ProtobufConversions.h"
 #include "ProtobufCommandParser.h"
 #include "../Signer/ResolverFeed_Wallets.h"
@@ -271,7 +271,7 @@ void CppBridge::createBackupStringForWallet(const string& waaId,
          });
       auto lbd = passPromptObj->getLambda();
 
-      Armory::Backups::WalletBackup backupData;
+      unique_ptr<Armory::Seeds::WalletBackup> backupData = nullptr;
       try
       {
          //grab wallet
@@ -290,7 +290,7 @@ void CppBridge::createBackupStringForWallet(const string& waaId,
       auto reply = payload->mutable_reply();
       reply->set_reference_id(msgId);
 
-      if (backupData.rootClear_.empty())
+      if (backupData == nullptr)
       {
          //return on error
          reply->set_success(false);
@@ -298,25 +298,58 @@ void CppBridge::createBackupStringForWallet(const string& waaId,
          return;
       }
 
-      auto backupStringProto = reply->mutable_wallet()->mutable_backup_string();
-      for (auto& line : backupData.rootClear_)
-         backupStringProto->add_root_clear(line);
-
-      for (auto& line : backupData.rootEncr_)
-         backupStringProto->add_root_encr(line);
-
-      if (!backupData.chaincodeClear_.empty())
+      auto backupE16 = dynamic_cast<Armory::Seeds::Backup_Easy16*>(
+         backupData.get());
+      if (backupE16 == nullptr)
       {
-         for (auto& line : backupData.chaincodeClear_)
-            backupStringProto->add_chain_clear(line);
+         throw runtime_error("[createBackupStringForWallet]"
+            " invalid backup type");
+      }
 
-         for (auto& line : backupData.chaincodeEncr_)
-            backupStringProto->add_chain_encr(line);
+      auto backupStringProto = reply->mutable_wallet()->mutable_backup_string();
+
+      //cleartext root
+      {
+         auto line1 = backupE16->getRoot(
+            Armory::Seeds::Backup_Easy16::LineIndex::One, false);
+         backupStringProto->add_root_clear(line1.data(), line1.size());
+         auto line2 = backupE16->getRoot(
+            Armory::Seeds::Backup_Easy16::LineIndex::Two, false);
+         backupStringProto->add_root_clear(line2.data(), line2.size());
+
+         //encrypted root
+         auto line3 = backupE16->getRoot(
+            Armory::Seeds::Backup_Easy16::LineIndex::One, true);
+         backupStringProto->add_root_encr(line3.data(), line3.size());
+         auto line4 = backupE16->getRoot(
+            Armory::Seeds::Backup_Easy16::LineIndex::Two, true);
+         backupStringProto->add_root_encr(line3.data(), line3.size());
+      }
+
+      if (backupE16->hasChaincode())
+      {
+         //cleartext chaincode
+         auto line1 = backupE16->getChaincode(
+            Armory::Seeds::Backup_Easy16::LineIndex::One, false);
+         backupStringProto->add_chain_clear(line1.data(), line1.size());
+
+         auto line2 = backupE16->getChaincode(
+            Armory::Seeds::Backup_Easy16::LineIndex::Two, false);
+         backupStringProto->add_chain_clear(line2.data(), line2.size());
+
+         //encrypted chaincode
+         auto line3 = backupE16->getChaincode(
+            Armory::Seeds::Backup_Easy16::LineIndex::One, true);
+         backupStringProto->add_chain_encr(line3.data(), line3.size());
+
+         auto line4 = backupE16->getChaincode(
+            Armory::Seeds::Backup_Easy16::LineIndex::Two, true);
+         backupStringProto->add_chain_encr(line4.data(), line4.size());
       }
 
       //secure print passphrase
-      backupStringProto->set_sp_pass(
-         backupData.spPass_.toCharPtr(), backupData.spPass_.getSize());
+      auto spPass = backupE16->getSpPass();
+      backupStringProto->set_sp_pass(spPass.data(), spPass.size());
 
       reply->set_success(true);
       writeToClient(move(payload));

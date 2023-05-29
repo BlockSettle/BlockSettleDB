@@ -20,7 +20,6 @@
 
 #define PRIVKEY_BYTE             0x82
 #define ENCRYPTIONKEY_BYTE       0x83
-#define WALLET_SEED_BYTE         0x84
 
 #define CIPHER_DATA_VERSION      0x00000001
 #define ENCRYPTION_KEY_VERSION   0x00000001

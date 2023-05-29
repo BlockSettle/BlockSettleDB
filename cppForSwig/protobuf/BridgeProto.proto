@@ -11,32 +11,47 @@ message RestoreWalletPayload
     optional string spPass = 3;
 }
 
-enum RestorePromptType
-{
-    FormatError = 1;
-    Failure = 2;
-    ChecksumError = 3;
-    DecryptError = 4;
-    Passphrase = 5;
-    Control = 6;
-    Id = 7;
-    TypeError = 8;
-    Success = 9;
-    UnknownError = 10;
-}
-
 message RestorePrompt
 {
+    message TypeError
+    {
+        required string error = 1;
+    }
 
-    required RestorePromptType promptType = 1;
-    repeated int32 checksums = 2;
-    optional string extra = 3;
+    message ChecksumIndexes
+    {
+        repeated int32  index = 1;
+    }
+
+    message CheckWalletId
+    {
+        required string wallet_id   = 1;
+        required int32  backup_type = 2;
+    }
+
+    oneof prompt {
+        CheckWalletId   check_wallet_id     = 10;
+        bool            get_passphrases     = 11;
+        bool            decrypt_error       = 12;
+
+        TypeError       type_error          = 20;
+        ChecksumIndexes checksum_error      = 21;
+        ChecksumIndexes checksum_mismatch   = 22;
+    }
 }
 
 message RestoreReply
 {
-    required bool result = 1;
-    optional bytes extra = 2;
+    message Passphrases
+    {
+        required string control = 1;
+        required string privkey = 2;
+    }
+
+    required bool success = 1;
+    oneof reply {
+        Passphrases passphrases = 11;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

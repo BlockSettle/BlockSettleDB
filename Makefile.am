@@ -16,7 +16,7 @@ copy-script:
 	cp cppForSwig/BIP150KeyManager ./BIP150KeyManager
 	cp cppForSwig/CppBridge ./CppBridge
 
-# SWIG code and requirements.
+# protobuf formas for python
 if BUILD_CLIENT
 	protoc --python_out=$(srcdir)/armoryengine --proto_path=$(srcdir)/cppForSwig/protobuf $(srcdir)/cppForSwig/protobuf/BridgeProto.proto
 #TODO: build c20p1305 CFFI python lib

@@ -42,7 +42,9 @@ uint32_t BIP32_PublicDerivedRoot::getThisFingerprint() const
    if (thisFingerprint_ == UINT32_MAX)
    {
       BIP32_Node node;
-      node.initFromBase58(SecureBinaryData::fromString(xpub_));
+      BinaryDataRef xpubRef;
+      xpubRef.setRef(xpub_);
+      node.initFromBase58(xpubRef);
       thisFingerprint_ = node.getThisFingerprint();
    }
 

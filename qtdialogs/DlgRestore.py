@@ -160,7 +160,7 @@ class DlgRestoreSingle(ArmoryDialog):
          self.setWindowTitle(self.tr('Test Single-Sheet Backup'))
       else:
          self.setWindowTitle(self.tr('Restore Single-Sheet Backup'))
-         self.connect(self.chkEncrypt, SIGNAL("clicked()"), self.onEncryptCheckboxChange)
+         self.chkEncrypt.clicked.connect(self.onEncryptCheckboxChange)
 
       self.setMinimumWidth(500)
       self.layout().setSizeConstraint(QLayout.SetFixedSize)
@@ -469,8 +469,8 @@ class DlgRestoreFragged(ArmoryDialog):
       self.btnAddFrag = QPushButton(self.tr('+Frag'))
       self.btnRmFrag = QPushButton(self.tr('-Frag'))
       self.btnRmFrag.setVisible(False)
-      self.connect(self.btnAddFrag, SIGNAL(CLICKED), self.addFragment)
-      self.connect(self.btnRmFrag, SIGNAL(CLICKED), self.removeFragment)
+      self.btnAddFrag.clicked.connect(self.addFragment)
+      self.btnRmFrag.clicked.connect(self.removeFragment)
       self.chkEncrypt = QCheckBox(self.tr('Encrypt Restored Wallet'))
       self.chkEncrypt.setChecked(True)
       frmAddRm = makeHorizFrame([self.chkEncrypt, STRETCH, self.btnRmFrag, self.btnAddFrag])
@@ -484,8 +484,8 @@ class DlgRestoreFragged(ArmoryDialog):
 
       btnExit = QPushButton(self.tr('Cancel'))
       self.btnRestore = QPushButton(doItText)
-      self.connect(btnExit, SIGNAL(CLICKED), self.reject)
-      self.connect(self.btnRestore, SIGNAL(CLICKED), self.processFrags)
+      btnExit.clicked.connect(self.reject)
+      self.btnRestore.clicked.connect(self.processFrags)
       frmBtns = makeHorizFrame([btnExit, STRETCH, self.btnRestore])
 
       self.lblRightFrm = QRichLabel('', hAlign=Qt.AlignHCenter)
@@ -538,7 +538,7 @@ class DlgRestoreFragged(ArmoryDialog):
       self.chkEncrypt.setVisible(not thisIsATest)
       self.advancedOptionsTab.setEnabled(not thisIsATest)
       if not thisIsATest:
-         self.connect(self.chkEncrypt, SIGNAL(CLICKED), self.onEncryptCheckboxChange)
+         self.chkEncrypt.clicked.connect(self.onEncryptCheckboxChange)
 
       layout = QVBoxLayout()
       layout.addWidget(walletRestoreTabs)
@@ -578,12 +578,9 @@ class DlgRestoreFragged(ArmoryDialog):
                lblFragID.setText('<b>' + fid + '</b>', color='TextWarn')
 
 
-         self.connect(btnEnter, SIGNAL(CLICKED), \
-                      functools.partial(self.dataEnter, fnum=i))
-         self.connect(btnLoad, SIGNAL(CLICKED), \
-                      functools.partial(self.dataLoad, fnum=i))
-         self.connect(btnClear, SIGNAL(CLICKED), \
-                      functools.partial(self.dataClear, fnum=i))
+         btnEnter.clicked.connect(functools.partial(self.dataEnter, fnum=i))
+         btnLoad.clicked.connect(functools.partial(self.dataLoad, fnum=i))
+         btnClear.clicked.connect(functools.partial(self.dataClear, fnum=i))
 
 
          newLayout.addWidget(btnEnter, 2 * i + 1, 0)
@@ -1025,7 +1022,7 @@ class DlgEnterOneFrag(ArmoryDialog):
       self.backupTypeButtonGroup.addButton(self.version135cButton)
       self.backupTypeButtonGroup.addButton(self.version135cSPButton)
       self.version135cButton.setChecked(True)
-      self.connect(self.backupTypeButtonGroup, SIGNAL('buttonClicked(int)'), self.changeType)
+      self.backupTypeButtonGroup.buttonClicked.connect(self.changeType)
 
       # This value will be locked after the first fragment is entered.
       if wltType == UNKNOWN:
@@ -1104,8 +1101,8 @@ class DlgEnterOneFrag(ArmoryDialog):
 
       self.btnAccept = QPushButton(self.tr("Done"))
       self.btnCancel = QPushButton(self.tr("Cancel"))
-      self.connect(self.btnAccept, SIGNAL(CLICKED), self.verifyUserInput)
-      self.connect(self.btnCancel, SIGNAL(CLICKED), self.reject)
+      self.btnAccept.clicked.connect(self.verifyUserInput)
+      self.btnCancel.clicked.connect(self.reject)
       buttonBox = QDialogButtonBox()
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
@@ -1291,9 +1288,9 @@ class DlgRestoreWOData(ArmoryDialog):
       self.btnLoad   = QPushButton(self.tr("Load From Text File"))
       self.btnAccept = QPushButton(doItText)
       self.btnCancel = QPushButton(self.tr("Cancel"))
-      self.connect(self.btnLoad, SIGNAL("clicked()"), self.loadWODataFile)
-      self.connect(self.btnAccept, SIGNAL("clicked()"), self.verifyUserInput)
-      self.connect(self.btnCancel, SIGNAL("clicked()"), self.reject)
+      self.btnLoad.clicked.connect(self.loadWODataFile)
+      self.btnAccept.clicked.connect(self.verifyUserInput)
+      self.btnCancel.clicked.connect(self.reject)
       buttonBox = QDialogButtonBox()
       buttonBox.addButton(self.btnLoad, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
@@ -1490,8 +1487,8 @@ class DlgEnterSecurePrintCode(ArmoryDialog):
 
       self.btnAccept = QPushButton(self.tr("Done"))
       self.btnCancel = QPushButton(self.tr("Cancel"))
-      self.connect(self.btnAccept, SIGNAL(CLICKED), self.verifySecurePrintCode)
-      self.connect(self.btnCancel, SIGNAL(CLICKED), self.reject)
+      self.btnAccept.clicked.connect(self.verifySecurePrintCode)
+      self.btnCancel.clicked.connect(self.reject)
       buttonBox = QDialogButtonBox()
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)

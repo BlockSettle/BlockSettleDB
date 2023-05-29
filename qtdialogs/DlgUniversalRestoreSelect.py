@@ -21,7 +21,7 @@ from qtdialogs.DlgRestore import DlgRestoreSingle, DlgRestoreFragged, \
 ################################################################################
 class DlgUniversalRestoreSelect(ArmoryDialog):
 
-    #############################################################################
+   #############################################################################
    def __init__(self, parent, main):
       super(DlgUniversalRestoreSelect, self).__init__(parent, main)
 
