@@ -151,7 +151,7 @@ BinaryData Armory::Signer::ResolverFeed_AssetWalletSingle::getByVal(const Binary
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(
+const SecureBinaryData& Armory::Signer::ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(
    const BinaryData& pubkey)
 {
    //check cache first
