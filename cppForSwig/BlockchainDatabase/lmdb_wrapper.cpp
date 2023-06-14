@@ -39,17 +39,17 @@ using namespace Armory::Config;
 
 const set<DB_SELECT> LMDBBlockDatabase::supernodeDBs_({});
 const map<string, size_t> LMDBBlockDatabase::mapSizes_ = {
-   {"headers", 4 * 1024 * 1024 * 1024ULL},
-   {"blkdata", 1024 * 1024ULL},
-   {"history", 1024 * 1024ULL},
-   {"txhints", 20 * 1024 * 1024 * 1024ULL},
-   {"ssh",   500 * 1024 * 1024 * 1024ULL},
+   {"headers", 50 * 1024 * 1024 * 1024ULL},
+   {"blkdata", 50 * 1024 * 1024ULL},
+   {"history", 50 * 1024 * 1024ULL},
+   {"txhints", 50 * 1024 * 1024 * 1024ULL},
+   {"ssh",   2000 * 1024 * 1024 * 1024ULL},
    {"subssh", 2000 * 1024 * 1024 * 1024ULL},
-   {"subssh_meta", 100 * 1024 * 1024ULL},
+   {"subssh_meta", 1024 * 1024 * 1024ULL},
    {"stxo", 2000 * 1024 * 1024 * 1024ULL},
    {"zeroconf", 10 * 1024 * 1024 * 1024ULL},
-   {"txfilters", 10 * 1024 * 1024 * 1024ULL},
-   {"spentness", 500 * 1024 * 1024 * 1024ULL},
+   {"txfilters", 100 * 1024 * 1024 * 1024ULL},
+   {"spentness", 2000 * 1024 * 1024 * 1024ULL},
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -678,7 +678,7 @@ BinaryData LMDBBlockDatabase::getDBKeyForHash(const BinaryData& txhash,
       return BinaryData();
    }
 
-   BinaryData hash4(txhash.getSliceRef(0, 4));
+   auto hash4 = txhash.getSliceRef(0, 4);
 
    auto&& txHints = beginTransaction(TXHINTS, LMDB::ReadOnly);
    BinaryRefReader brrHints = getValueRef(TXHINTS, DB_PREFIX_TXHINTS, hash4);
@@ -1740,8 +1740,10 @@ Tx LMDBBlockDatabase::getFullTxCopy(
    auto getID = [bhPtr]
       (const BinaryData&)->uint32_t {return bhPtr->getThisID(); };
 
-   auto block = BlockData::deserialize(dataPtr + bhPtr->getOffset(),
-      bhPtr->getBlockSize(), bhPtr, getID, false, false);
+   auto block = BlockData::deserialize(
+      dataPtr + bhPtr->getOffset(),
+      bhPtr->getBlockSize(), bhPtr, getID,
+      BlockData::CheckHashes::NoChecks);
 
    const auto& bctx = block->getTxns()[txIndex];
    BinaryRefReader brr(bctx->data_, bctx->size_);

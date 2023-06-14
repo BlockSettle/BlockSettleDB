@@ -11,10 +11,10 @@
 #include "DBUtils.h"
 #include "WalletHeader.h"
 #include "DecryptedDataContainer.h"
-#include "Assets.h"
+#include "Seeds/Seeds.h"
 
 using namespace std;
-using namespace Armory::Assets;
+using namespace Armory::Seeds;
 using namespace Armory::Wallets::IO;
 using namespace Armory::Wallets::Encryption;
 
@@ -486,7 +486,8 @@ shared_ptr<WalletHeader_Control> WalletDBInterface::setupControlDB(
       auto cipherCopy = keyStruct.cipher_->getCopy();
       auto cipherText = decryptedData->encryptData(cipherCopy.get(), seed);
       auto cipherData = make_unique<CipherData>(cipherText, move(cipherCopy));
-      auto encrSeed = make_shared<EncryptedSeed>(move(cipherData));
+      auto encrSeed = make_shared<EncryptedSeed>(
+         move(cipherData), SeedType::Raw);
 
       //write seed to disk
       auto&& tx = beginWriteTransaction(CONTROL_DB_NAME);

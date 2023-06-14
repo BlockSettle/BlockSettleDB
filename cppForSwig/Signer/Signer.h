@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016-2021, goatpig                                          //
+//  Copyright (C) 2016-2022, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -74,6 +74,14 @@ namespace Armory
 
          //Resolved & signed. This is a valid state
          Signed
+      };
+
+      enum class SignerStringFormat
+      {
+         Unknown = 0,
+         TxSigCollect_Modern,
+         TxSigCollect_Legacy,
+         PSBT
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -191,7 +199,7 @@ namespace Armory
          BinaryDataRef getOutputScript(void) const;
          BinaryDataRef getOutputHash(void) const;
          unsigned getOutputIndex(void) const;
-         BinaryData getSerializedInput(bool) const;
+         BinaryData getSerializedInput(bool, bool) const;
          BinaryData getEmptySerializedInput(void) const;
          BinaryDataRef getFinalizedWitnessData(void) const;
          BinaryData serializeAvailableWitnessData(void) const;
@@ -288,6 +296,7 @@ namespace Armory
       protected:
          unsigned version_ = 1;
          unsigned lockTime_ = 0;
+         SignerStringFormat fromType_ = SignerStringFormat::Unknown;
 
          mutable BinaryData serializedSignedTx_;
          mutable BinaryData serializedUnsignedTx_;
@@ -371,7 +380,6 @@ namespace Armory
             BinaryDataRef&, std::shared_ptr<ResolverFeed>);
 
          /*spender data getters*/
-
          std::shared_ptr<ScriptSpender> getSpender(unsigned) const;
          uint64_t getOutpointValue(unsigned) const override;
          unsigned getTxInSequence(unsigned) const override;
@@ -389,9 +397,17 @@ namespace Armory
          BinaryData getTxId_const(void) const;
 
          //state import/export
-         Codec_SignerState::SignerState serializeState(void) const;
          void deserializeState(const Codec_SignerState::SignerState&);
+         void deserializeState_Legacy(const BinaryDataRef&);
          void merge(const Signer& rhs);
+
+         Codec_SignerState::SignerState serializeState(void) const;
+         BinaryData serializeState_Legacy(void) const;
+         std::string getSigCollectID(void) const;
+
+         std::string toString(SignerStringFormat) const;
+         static Signer fromString(const std::string&);
+         std::string toTxSigCollect(bool) const;
 
          //PSBT
          BinaryData toPSBT(void) const;
@@ -412,6 +428,10 @@ namespace Armory
          bool isInputSW(unsigned inputId) const;
          bool isSegWit(void) const;
          bool hasLegacyInputs (void) const;
+
+         //string state
+         SignerStringFormat deserializedFromType(void) const;
+         bool canLegacySerialize(void) const;
 
          /*signer setup*/
 

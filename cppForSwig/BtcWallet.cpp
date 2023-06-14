@@ -11,8 +11,8 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 #include "BtcWallet.h"
-#include "BlockUtils.h"
-#include "txio.h"
+#include "BlockchainDatabase/BlockUtils.h"
+#include "BlockchainDatabase/txio.h"
 #include "BlockDataViewer.h"
 #include "TxOutScrRef.h"
 

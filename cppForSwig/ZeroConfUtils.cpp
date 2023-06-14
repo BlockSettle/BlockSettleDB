@@ -8,8 +8,8 @@
 
 #include "ZeroConfUtils.h"
 #include "ZeroConfNotifications.h"
-#include "ScrAddrFilter.h"
-#include "lmdb_wrapper.h"
+#include "BlockchainDatabase/ScrAddrFilter.h"
+#include "BlockchainDatabase/lmdb_wrapper.h"
 
 using namespace std;
 using namespace Armory::Config;

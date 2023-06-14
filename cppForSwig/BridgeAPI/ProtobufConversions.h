@@ -11,12 +11,12 @@
 
 #include <memory>
 
-#include "../protobuf/ClientProto.pb.h"
+#include "../protobuf/BridgeProto.pb.h"
 
 #define PROTO_ASSETID_PREFIX 0xAFu
 
 //forward declarations
-class UTXO;
+struct UTXO;
 class AddressEntry;
 class BinaryData;
 
@@ -37,6 +37,7 @@ namespace Armory
    {
       class AddressAccountId;
       class AssetWallet;
+      class EncryptionKeyId;
    };
 
    namespace Signer
@@ -50,30 +51,31 @@ namespace Armory
       struct CppToProto
       {
          static void ledger(
-            Codec_ClientProto::BridgeLedger*,
+            BridgeProto::Ledger*,
             const DBClientClasses::LedgerEntry&);
 
-         static void addr(
-            Codec_ClientProto::WalletAsset*,
+         static bool addr(
+            BridgeProto::WalletReply::AddressData*,
             std::shared_ptr<AddressEntry>,
-            std::shared_ptr<Accounts::AddressAccount>);
+            std::shared_ptr<Accounts::AddressAccount>,
+            const Wallets::EncryptionKeyId&);
 
          static void wallet(
-            Codec_ClientProto::WalletData*,
+            BridgeProto::WalletReply::WalletData*,
             std::shared_ptr<Wallets::AssetWallet>,
             const Wallets::AddressAccountId&,
             const std::map<BinaryData, std::string>&);
 
          static void utxo(
-            Codec_ClientProto::BridgeUtxo*,
+            BridgeProto::Utxo*,
             const UTXO& utxo);
 
          static void nodeStatus(
-            Codec_ClientProto::BridgeNodeStatus*,
+            BridgeProto::NodeStatus*,
             const DBClientClasses::NodeStatus&);
 
          static void signatureState(
-            Codec_ClientProto::BridgeInputSignedState*,
+            BridgeProto::SignerReply::InputSignedState*,
             const Signer::TxInEvalState&);
       };
    }; //namespace Bridge

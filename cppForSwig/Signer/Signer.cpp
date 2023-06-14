@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016-2021, goatpig                                          //
+//  Copyright (C) 2016-2022, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -8,19 +8,29 @@
 
 #include "Signer.h"
 #include "Script.h"
+#include "LegacySigner.h"
 #include "Transactions.h"
-#include "make_unique.h"
 
 #include "BIP32_Node.h"
 #include "Assets.h"
 
 #include "Addresses.h"
 #include "../TxOutScrRef.h"
+#include "../BitcoinSettings.h"
 
 using namespace std;
 using namespace Armory::Signer;
 using namespace Armory::Assets;
 using namespace Armory::Wallets;
+
+#define TXSIGCOLLECT_VER_LEGACY  1
+#define USTXI_VER_LEGACY         1
+#define USTXO_VER_LEGACY         1
+#define TXSIGCOLLECT_VER_MODERN  2
+#define TXSIGCOLLECT_WIDTH       64
+#define TXSIGCOLLECT_HEADER      "=====TXSIGCOLLECT-"
+
+#define TXIN_EXT_P2SHSCRIPT      0x10
 
 StackItem::~StackItem()
 {}
@@ -437,9 +447,9 @@ BinaryData ScriptSpender::getAvailableInputScript() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData ScriptSpender::getSerializedInput(bool withSig) const
+BinaryData ScriptSpender::getSerializedInput(bool withSig, bool loose) const
 {
-   if (legacyStatus_ == SpenderStatus::Unknown)
+   if (legacyStatus_ == SpenderStatus::Unknown && !loose)
    {
       throw SpenderException("unresolved spender");
    }
@@ -744,7 +754,7 @@ void ScriptSpender::serializeStateUtxo(
    else
    {
       auto outpoint = protoMsg.mutable_outpoint();
-      
+
       auto outputHashRef = getOutputHash();
       outpoint->set_txhash(outputHashRef.getPtr(), outputHashRef.getSize());
       outpoint->set_txoutindex(getOutputIndex());
@@ -1514,11 +1524,11 @@ void ScriptSpender::sign(shared_ptr<SignerProxy> proxy)
    {
       signStack(legacyStack_, false);
       signStack(witnessStack_, true);
-
-      processStacks();
    }
    catch (const exception&)
    {}
+
+   processStacks();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1554,7 +1564,7 @@ void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
       throw runtime_error("spender is already signed!");
 
    map<unsigned, shared_ptr<StackItem>>* stackPtr = nullptr;
-   
+
    //grab the stack carrying the sig(s)
    if (isSegWit())
       stackPtr = &witnessStack_;
@@ -1614,11 +1624,11 @@ void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
 BinaryDataRef ScriptSpender::getRedeemScriptFromStack(
    const map<unsigned, shared_ptr<StackItem>>* stackPtr) const
 {
-   if (stackPtr == nullptr)   
+   if (stackPtr == nullptr)
       return BinaryDataRef();
 
    shared_ptr<StackItem> firstPushData;
-   
+
    //look for redeem script from sig stack items
    for (auto stackPair : *stackPtr)
    {
@@ -1801,7 +1811,7 @@ void ScriptSpender::toPSBT(BinaryWriter& bw) const
    //partial sigs
    {
       /*
-      This section only applies to MS or exotic scripts that can be 
+      This section only applies to MS or exotic scripts that can be
       partially signed. Single sig scripts go to the finalized
       section right away.
       */
@@ -2111,7 +2121,7 @@ shared_ptr<ScriptSpender> ScriptSpender::fromPSBT(
       try
       {
          StackResolver resolver(spender->getOutputScript(), feed);
-         resolver.setFlags(         
+         resolver.setFlags(
             SCRIPT_VERIFY_P2SH | 
             SCRIPT_VERIFY_SEGWIT | 
             SCRIPT_VERIFY_P2SH_SHA256);
@@ -2721,7 +2731,7 @@ BinaryDataRef Signer::serializeSignedTx(void) const
 
    //txins
    for (auto& spender : spenders_)
-      bw.put_BinaryData(spender->getSerializedInput(true));
+      bw.put_BinaryData(spender->getSerializedInput(true, false));
 
    //txout count
    auto recVector = getRecipientVector();
@@ -2788,7 +2798,7 @@ BinaryDataRef Signer::serializeUnsignedTx(bool loose)
 
    //txins
    for (auto& spender : spenders_)
-      bw.put_BinaryData(spender->getSerializedInput(false));
+      bw.put_BinaryData(spender->getSerializedInput(false, loose));
 
    //txout count
    auto recVector = getRecipientVector();
@@ -2805,8 +2815,11 @@ BinaryDataRef Signer::serializeUnsignedTx(bool loose)
       bw.put_BinaryData(recipient->getSerializedScript());
 
    //no witness data for unsigned transactions
-   for (unsigned i=0; i < spenders_.size(); i++)
-      bw.put_uint8_t(0);
+   if (isSW)
+   {
+      for (unsigned i=0; i < spenders_.size(); i++)
+         bw.put_uint8_t(0);
+   }
 
    //lock time
    bw.put_uint32_t(lockTime_);
@@ -2848,7 +2861,7 @@ BinaryData Signer::serializeAvailableResolvedData(void) const
    {
       try
       {
-         bw.put_BinaryData(spender->getSerializedInput(false));
+         bw.put_BinaryData(spender->getSerializedInput(false, false));
       }
       catch (const exception&)
       {
@@ -3217,6 +3230,735 @@ void Signer::merge(const Signer& rhs)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+BinaryData Signer::serializeState_Legacy() const
+{
+   if (isSegWit())
+      throw runtime_error("SW txs cannot be serialized to legacy format");
+
+   BinaryWriter bw;
+   auto magicBytes = Armory::Config::BitcoinSettings::getMagicBytes();
+   bw.put_BinaryData(magicBytes);
+   bw.put_uint32_t(0); //4 empty bytes
+
+   //inputs
+   bw.put_var_int(spenders_.size());
+   for (const auto& spender : spenders_)
+   {
+      BinaryWriter bwTxIn;
+      bwTxIn.put_uint32_t(USTXI_VER_LEGACY);
+      bwTxIn.put_BinaryData(magicBytes);
+      bwTxIn.put_BinaryData(spender->getOutpoint());
+
+      //supporting tx
+      try
+      {
+         const auto& tx = spender->getSupportingTx();
+         bwTxIn.put_var_int(tx.getSize());
+         bwTxIn.put_BinaryData(tx.serialize());
+      }
+      catch (const runtime_error&)
+      {
+         bwTxIn.put_var_int(0);
+      }
+
+      //p2sh map BASE_SCRIPT
+      if (!spender->isP2SH())
+      {
+         bwTxIn.put_var_int(0);
+      }
+      else
+      {
+         //we assume the spender is resolved since it's flagged as p2sh
+         if (spender->isSigned())
+         {
+            //if the spender is signed then the stack is empty, we'll have
+            //to retrieve the base script from the finalized stack. Let's
+            //keep it simple for now and look at it later.
+            throw runtime_error(
+               "Legacy signing across multiple wallets not supported yet");
+         }
+
+         auto script = spender->getRedeemScriptFromStack(
+            &spender->legacyStack_);
+         bwTxIn.put_var_int(script.getSize());
+         bwTxIn.put_BinaryData(script);
+      }
+
+      //contribID & label (lockbox fields, leaving them empty)
+      bwTxIn.put_var_int(0);
+      bwTxIn.put_var_int(0);
+
+      //sequence
+      bwTxIn.put_uint32_t(spender->getSequence());
+
+      //key & sig list
+      auto pubkeys = spender->getRelevantPubkeys();
+      bwTxIn.put_var_int(pubkeys.size());
+
+      for (const auto& pubkeyIt : pubkeys)
+      {
+         //pubkey
+         bwTxIn.put_var_int(pubkeyIt.second.getSize());
+         bwTxIn.put_BinaryData(pubkeyIt.second);
+
+         //sig, skipping for now
+         bwTxIn.put_var_int(0);
+
+         //wallet locator, skipping for now
+         bwTxIn.put_var_int(0);
+      }
+
+
+      //rest of p2sh map, for nested SW
+      //we'll ignore this as we dont allow legacy ser for SW txs
+
+      //finalize
+      bw.put_var_int(bwTxIn.getSize());
+      bw.put_BinaryData(bwTxIn.getData());
+   }
+
+   //outputs
+   list<BinaryWriter> serializedRecipients;
+   for (const auto& recipientList : recipients_)
+   {
+      BinaryWriter bwTxOut;
+      for (const auto& recipient : recipientList.second)
+      {
+         bwTxOut.put_uint32_t(USTXO_VER_LEGACY);
+         bwTxOut.put_BinaryData(magicBytes);
+
+         auto output = recipient->getSerializedScript();
+         auto script = output.getSliceRef(8, output.getSize()-8);
+
+         bwTxOut.put_BinaryData(script);
+         bwTxOut.put_uint64_t(recipient->getValue());
+
+         //p2sh script (ignore for now)
+         bwTxOut.put_var_int(0);
+
+         //wltLocator
+         bwTxOut.put_var_int(0);
+
+         //auth method & data, ignore
+         bwTxOut.put_var_int(0);
+         bwTxOut.put_var_int(0);
+
+         //contrib id & label (lockbox stuff, ignore)
+         bwTxOut.put_var_int(0);
+         bwTxOut.put_var_int(0);
+      
+         //add to list
+         serializedRecipients.emplace_back(move(bwTxOut));
+      }
+   }
+
+   //finalize outputs
+   bw.put_var_int(serializedRecipients.size());
+   for (const auto& rec : serializedRecipients)
+   {
+      bw.put_var_int(rec.getSize());
+      bw.put_BinaryData(rec.getData());
+   }
+
+   //locktime
+   bw.put_uint32_t(lockTime_);
+
+   //done
+   return bw.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::deserializeState_Legacy(const BinaryDataRef& ref)
+{
+   BinaryRefReader brr(ref);
+
+   auto magicBytes = Armory::Config::BitcoinSettings::getMagicBytes();
+   auto magicBytesRef = brr.get_BinaryDataRef(4);
+   if (magicBytes != magicBytesRef)
+      throw SignerDeserializationError("legacy deser: magic bytes mismatch!");
+
+   auto emptyBytes = brr.get_uint32_t();
+   if (emptyBytes != 0)
+      throw SignerDeserializationError("legacy deser: missing empty bytes");
+
+   auto spenderCount = brr.get_var_int();
+   for (unsigned i=0; i<spenderCount; i++)
+   {
+      auto spenderDataSize = brr.get_var_int();
+      auto spenderData = brr.get_BinaryDataRef(spenderDataSize);
+      BinaryRefReader brrSpender(spenderData);
+
+      //version
+      auto version = brrSpender.get_uint32_t();
+      if (version != USTXI_VER_LEGACY)
+      {
+         throw SignerDeserializationError(
+            "legacy deser: ustxi version mismatch");
+      }
+
+      //magic bytes
+      auto ustxi_magic = brrSpender.get_BinaryDataRef(4);
+      if (ustxi_magic != magicBytes)
+      {
+         throw SignerDeserializationError(
+            "legacy deser: ustxi magic bytes mismatch!");
+      }
+
+      //outpoint
+      auto outpointRef = brrSpender.get_BinaryDataRef(36);
+
+      //supporting tx
+      auto txSize = brrSpender.get_var_int();
+      auto supportingTxRaw = brrSpender.get_BinaryDataRef(txSize);
+
+      //p2sh preimage
+      auto preimageSize = brrSpender.get_var_int();
+      auto p2shPreimage = brrSpender.get_BinaryDataRef(preimageSize);
+
+      //contribID & label
+      auto contribIdSz = brrSpender.get_var_int();
+      if (contribIdSz != 0)
+         brrSpender.advance(contribIdSz);
+
+      auto labelIdSz = brrSpender.get_var_int();
+      if (labelIdSz != 0)
+         brrSpender.advance(labelIdSz);
+
+      //sequence
+      auto sequence = brrSpender.get_uint32_t();
+
+      //pubkey & sig list
+      struct KeysAndSigs
+      {
+         BinaryDataRef key;
+         BinaryDataRef sig;
+         BinaryDataRef wltLocator;
+      };
+      vector<KeysAndSigs> keysAndSigs;
+      auto keyCount = brrSpender.get_var_int();
+      keysAndSigs.resize(keyCount);
+
+      for (unsigned y=0; y<keyCount; y++)
+      {
+         auto& kas = keysAndSigs[y];
+
+         auto pubkeySize = brrSpender.get_var_int();
+         kas.key = brrSpender.get_BinaryDataRef(pubkeySize);
+
+         auto sigSize = brrSpender.get_var_int();
+         kas.sig = brrSpender.get_BinaryDataRef(sigSize);
+
+         auto wltLocatorSize = brrSpender.get_var_int();
+         kas.wltLocator = brrSpender.get_BinaryDataRef(wltLocatorSize);
+      }
+
+      //p2sh extended map
+      map<BinaryData, BinaryData> p2shExtMap;
+      while (brrSpender.getSizeRemaining() != 0)
+      {
+         auto extFlag = brrSpender.get_uint8_t();
+         auto extSize = brrSpender.get_var_int();
+         auto extRef = brrSpender.get_BinaryDataRef(extSize);
+
+         switch (extFlag)
+         {
+         case TXIN_EXT_P2SHSCRIPT:
+         {
+            BinaryRefReader brrExt(extRef);
+            auto keyCount = brrExt.get_var_int();
+
+            for (unsigned y=0; y<keyCount; y++)
+            {
+               auto keySize = brrExt.get_var_int();
+               auto key = brrExt.get_BinaryData(keySize);
+
+               auto valSize = brrExt.get_var_int();
+               auto val = brrExt.get_BinaryData(valSize);
+
+               p2shExtMap.emplace(key, val);
+            }
+            break;
+         }
+
+         default:
+            continue;
+         }
+      }
+
+      if (!p2shExtMap.empty())
+         LOGINFO << "spender " << i << "has extended p2sh data";
+
+      //setup spender
+      BinaryRefReader brrOutpoint(outpointRef);
+      auto hashRef = brrOutpoint.get_BinaryDataRef(32);
+      auto outpointIndex = brrOutpoint.get_uint32_t();
+      auto spender = make_shared<ScriptSpender>(hashRef, outpointIndex);
+      addSpender(spender);
+
+      spender->setSupportingTx(supportingTxRaw);
+      auto supportingTx = spender->getSupportingTx();
+      auto output = supportingTx.getTxOutCopy(outpointIndex);
+
+      /***
+      Resolve the spender state the legacy way:
+
+      We assume the eligible output types are known. We expect the supporting
+      tx is present and grab the redeemScript from the relevant output. The
+      redeemScript is either a base script or a nested script. We expect the
+      following data is provided in the USTXI depending on the redeemScript:
+
+         base script types:
+            - P2PKH: input should carry the public key
+            - P2PK: input should carry pubkey
+            - Multisig: input should carry the many pubkeys
+
+         nested scripts:
+            - P2SH: input should carry script preimage. We have to parse the
+              p2sh preimage as the redeemScript to progress.
+
+      The resolver will be fed the relevant <hash, preimage> entries at which
+      point it should have the correct state to setup the spender.
+      ***/
+
+      auto feed = make_shared<ResolverFeed_SpenderResolutionChecks>();
+
+      //grab base script
+      BinaryDataRef baseScript = output.getScriptRef();
+      if (!p2shPreimage.empty())
+      {
+         /*
+         Output script is p2sh, it embeds a hash and we have the preimage
+         for it. Grab the hash from the script and add the <hash, preimage>
+         pair to the feed
+         */
+
+         //grab hash from nested script
+         auto scriptHash = BtcUtils::getTxOutRecipientAddr(baseScript);
+         if (scriptHash == BtcUtils::BadAddress())
+            throw SignerDeserializationError("invalid nested script");
+
+         //populate feed
+         feed->hashMap.emplace(scriptHash, p2shPreimage);
+
+         //set the preimage as the base script
+         baseScript = p2shPreimage;
+      }
+
+      //get base script type
+      auto scriptType = BtcUtils::getTxOutScriptType(baseScript);
+      auto scriptHash = BtcUtils::getTxOutRecipientAddr(baseScript, scriptType);
+      switch (scriptType)
+      {
+      case TXOUT_SCRIPT_STDHASH160:
+      {
+         //p2pkh, we should have a pubkey
+         if (keysAndSigs.size() == 1)
+            feed->hashMap.emplace(scriptHash, keysAndSigs.begin()->key);
+         break;
+      }
+
+      case TXOUT_SCRIPT_STDPUBKEY33:
+      case TXOUT_SCRIPT_MULTISIG:
+      {
+         //these script types carry the pubkey directly
+         break;
+      }
+
+      default:
+         throw SignerDeserializationError(
+            "unsupported redeem script for legacy utsxi");
+      }
+
+      //resolve the spender
+      try
+      {
+         StackResolver resolver(spender->getOutputScript(), feed);
+         resolver.setFlags(
+            SCRIPT_VERIFY_P2SH |
+            SCRIPT_VERIFY_SEGWIT |
+            SCRIPT_VERIFY_P2SH_SHA256);
+
+         spender->parseScripts(resolver);
+      }
+      catch (const exception&)
+      {}
+
+      //inject sigs, will throw on failure
+      for (const auto& kas : keysAndSigs)
+      {
+         SecureBinaryData sig(kas.sig);
+         spender->injectSignature(sig, 0);
+      }
+
+      //TODO: sighash type
+
+      //sequence
+      spender->setSequence(sequence);
+   }
+
+   auto recipientCount = brr.get_var_int();
+   for (unsigned i=0; i<recipientCount; i++)
+   {
+      auto recipientDataSize = brr.get_var_int();
+      auto recipientData = brr.get_BinaryDataRef(recipientDataSize);
+      BinaryRefReader brrRecipient(recipientData);
+
+      //version
+      auto version = brrRecipient.get_uint32_t();
+      if (version != USTXO_VER_LEGACY)
+      {
+         throw SignerDeserializationError(
+            "legacy deser: ustxo version mismatch");
+      }
+
+      //magic bytes
+      auto ustxo_magic = brrRecipient.get_BinaryDataRef(4);
+      if (ustxo_magic != magicBytes)
+      {
+         throw SignerDeserializationError(
+            "legacy deser: ustxo magic bytes mismatch!");
+      }
+
+      //script
+      auto scriptLen = brrRecipient.get_var_int();
+      auto script = brrRecipient.get_BinaryDataRef(scriptLen);
+
+      //value
+      auto amount = brrRecipient.get_uint64_t();
+
+      //recreate output
+      BinaryWriter outputData;
+      outputData.put_uint64_t(amount);
+      outputData.put_var_int(scriptLen);
+      outputData.put_BinaryDataRef(script);
+
+      addRecipient(ScriptRecipient::fromScript(outputData.getDataRef()));
+   }
+
+   //lock time
+   if (brr.getSizeRemaining() > 4)
+      lockTime_ = brr.get_uint32_t();
+
+   //look for legacy signer state in extended data
+   auto legacySigner = LegacySigner::Signer::deserExtState(
+      brr.get_BinaryDataRef(brr.getSizeRemaining()));
+
+   //get the sigs if any
+   auto sigsFromLegacySigner = legacySigner.getSigs();
+
+   //inject them
+   for (auto& sigPair : sigsFromLegacySigner)
+   {
+      if (sigPair.first >= spenders_.size())
+         throw SignerDeserializationError("legacy deser: invalid spender id");
+
+      auto& spender = spenders_[sigPair.first];
+      spender->injectSignature(sigPair.second, 0);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+string Signer::getSigCollectID() const
+{
+   //legacy unsigned serialization with hardcoded version
+   BinaryWriter bw;
+   bw.put_uint32_t(1); //version
+
+   //inputs
+   bw.put_var_int(spenders_.size());
+   for (const auto& spender : spenders_)
+   {
+      //outpoint
+      bw.put_BinaryData(spender->getOutpoint());
+
+      //empty scriptsig
+      bw.put_uint8_t(0);
+
+      //sequence
+      bw.put_uint32_t(spender->getSequence());
+   }
+
+   //outputs
+   list<BinaryWriter> serializedRecipients;
+   for (const auto& recipientList : recipients_)
+   {
+      BinaryWriter bwTxOut;
+      for (const auto& recipient : recipientList.second)
+      {
+         auto output = recipient->getSerializedScript();
+         auto script = output.getSliceRef(8, output.getSize()-8);
+
+         //value
+         bwTxOut.put_uint64_t(recipient->getValue());
+
+         //script
+         bwTxOut.put_BinaryData(script);
+
+         //add to list
+         serializedRecipients.emplace_back(move(bwTxOut));
+      }
+   }
+
+   //finalize outputs
+   bw.put_var_int(serializedRecipients.size());
+   for (const auto& rec : serializedRecipients)
+      bw.put_BinaryData(rec.getData());
+
+   //locktime
+   bw.put_uint32_t(0);
+
+   auto serializedTx = bw.getData();
+   if (serializedTx.getSize() < 4)
+      throw runtime_error("invalid serialized tx");
+
+   auto hashedTxPrefix = BtcUtils::getHash256(serializedTx);
+   return BtcUtils::base58_encode(hashedTxPrefix).substr(0, 8);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+string Signer::toString(SignerStringFormat ustxFormat) const
+{
+   string serializedSigner;
+   switch (ustxFormat)
+   {
+   case SignerStringFormat::TxSigCollect_Modern:
+   {
+      serializedSigner = toTxSigCollect(false);
+      break;
+   }
+
+   case SignerStringFormat::TxSigCollect_Legacy:
+   {
+      serializedSigner = toTxSigCollect(true);
+      break;
+   }
+
+   case SignerStringFormat::PSBT:
+   {
+      auto psbtBin = toPSBT();
+      string psbtStr(psbtBin.toCharPtr(), psbtBin.getSize());
+      serializedSigner = BtcUtils::base64_encode(psbtStr);
+      break;
+   }
+
+   default:
+      throw runtime_error("unsupported serialization format");
+   }
+
+   return serializedSigner;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+string Signer::toTxSigCollect(bool isLegacy) const
+{
+   BinaryWriter signerState;
+   if (isLegacy)
+   {
+      auto legacyState = serializeState_Legacy();
+
+      //txsig collect version, hardcoded to 1 for legacy
+      signerState.put_uint32_t(TXSIGCOLLECT_VER_LEGACY);
+      signerState.put_BinaryData(legacyState);
+   }
+   else
+   {
+      auto protoState = serializeState();
+
+      BinaryData stateBD(protoState.ByteSizeLong());
+      if (!protoState.SerializeToArray(stateBD.getPtr(), stateBD.getSize()))
+         throw runtime_error("failed to serialize signer proto");
+
+      //txsig collect version, hardcoded to 2 for regular signers
+      signerState.put_uint32_t(TXSIGCOLLECT_VER_MODERN);
+      signerState.put_BinaryData(stateBD);
+   }
+
+   //get sigcollect b58id
+   auto legacyB58ID = getSigCollectID();
+
+   string lsStr(signerState.getDataRef().toCharPtr(), signerState.getSize());
+   auto stateB64 = BtcUtils::base64_encode(lsStr);
+
+   stringstream txcollect;
+   txcollect << "=====TXSIGCOLLECT-";
+   txcollect << setw(46) << setfill('=') << std::left;
+   txcollect << legacyB58ID << endl;
+
+   size_t offset = 0;
+   size_t width = 64;
+   while (offset < stateB64.size())
+   {
+      size_t charCount = std::min(stateB64.size() - offset, width);
+      auto substr = stateB64.substr(offset, charCount);
+      txcollect << substr << endl;
+      offset += charCount;
+   }
+   txcollect << setw(64) << setfill('=') << std::left << "=" << endl;
+
+   return txcollect.str();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+Signer Signer::fromString(const string& signerState)
+{
+   //try a base 64 deser
+   try
+   {
+      auto binState = BtcUtils::base64_decode(signerState);
+      auto signer = Signer::fromPSBT(binState);
+      signer.fromType_ = SignerStringFormat::PSBT;
+      return signer;
+   }
+   catch (const runtime_error&)
+   {
+      //not a PSBT, try TxSigCollect instead
+   }
+
+   auto validateHeader = [](const BinaryDataRef& header)->string
+   {
+      string headerStr(header.toCharPtr(), strlen(TXSIGCOLLECT_HEADER));
+      if (headerStr != TXSIGCOLLECT_HEADER)
+         return {};
+
+      unsigned pos=headerStr.size();
+      while (header.toCharPtr()[pos] != '=' && pos < header.getSize())
+         ++pos;
+
+      if (pos < headerStr.size())
+         return {};
+
+      return string(
+         header.toCharPtr() + headerStr.size(),
+         header.toCharPtr() + pos);
+   };
+
+   auto validateFooter = [](const BinaryDataRef& footer)->bool
+   {
+      if (footer.empty())
+         return false;
+
+      //skip line break if present
+      auto footerLen = footer.getSize();
+      if (footer.getPtr()[footerLen - 1] == '\n')
+         --footerLen;
+
+      //check size
+      if (footerLen != TXSIGCOLLECT_WIDTH)
+         return false;
+
+      //footer should be all '='
+      for (unsigned i = 0; i<footerLen; i++)
+      {
+         if (footer.toCharPtr()[i] != '=')
+            return false;
+      }
+
+      return true;
+   };
+
+   //check size for header and footer: 64x2 + 1 for the first line break
+   if (signerState.size() < TXSIGCOLLECT_WIDTH * 2 + 1)
+      throw SignerDeserializationError("too short to be a TxSigCollect");
+
+   auto header = signerState.substr(0, TXSIGCOLLECT_WIDTH + 1);
+
+   auto sigCollectRef = BinaryDataRef::fromString(signerState);
+   BinaryRefReader brr(sigCollectRef);
+
+   //header: 64 characters + 1 for the line break
+   auto headerRef = brr.get_BinaryDataRef(TXSIGCOLLECT_WIDTH + 1);
+   auto sigCollectId = validateHeader(headerRef);
+   if (sigCollectId.empty())
+      throw SignerDeserializationError("invalid TxSigCollect header");
+
+   //body: rest of the data - last 64 characters (and possibly a line break)
+   auto sigCollectSize = sigCollectRef.getSize();
+   unsigned footerLength = TXSIGCOLLECT_WIDTH;
+   if (sigCollectRef.getPtr()[sigCollectSize - 1] == '\n')
+   {
+      //last character is a line break, account for it
+      ++footerLength;
+   }
+   if (footerLength > sigCollectSize)
+      throw SignerDeserializationError("invalid TxSigCollect length");
+
+   //get body and footer ref
+   auto bodyRef = brr.get_BinaryDataRef(
+      brr.getSizeRemaining() - footerLength);
+   auto footerRef = brr.get_BinaryDataRef(footerLength);
+
+   //validate footer
+   if (!validateFooter(footerRef))
+      throw SignerDeserializationError("invalid TxSigCollect footer");
+
+   //reconstruct base64 string from lines, evict line breaks
+   string bodyStr;
+   unsigned pos = 0;
+   while (pos < bodyRef.getSize())
+   {
+      //grab the line break as well
+      auto len = std::min((size_t)TXSIGCOLLECT_WIDTH + 1, bodyRef.getSize() - pos);
+
+      //do not copy the line break
+      bodyStr += string(bodyRef.toCharPtr() + pos, len - 1);
+
+      //assume there's a line break after each 64 characters
+      pos += len;
+   }
+
+   //convert to binary
+   auto bodyBin = BtcUtils::base64_decode(bodyStr);
+   auto bodyBinRef = BinaryDataRef::fromString(bodyBin);
+   BinaryRefReader bodyRR(bodyBinRef);
+
+   //version
+   auto version = bodyRR.get_uint32_t();
+   auto signerStateRef = bodyRR.get_BinaryDataRef(bodyRR.getSizeRemaining());
+   Signer theSigner;
+   switch (version)
+   {
+   case TXSIGCOLLECT_VER_LEGACY:
+   {
+      //legacy txsig collect
+      theSigner.deserializeState_Legacy(signerStateRef);
+      theSigner.fromType_ = SignerStringFormat::TxSigCollect_Legacy;
+      break;
+   }
+
+   case TXSIGCOLLECT_VER_MODERN:
+   {
+      //regular protobuf packet
+      Codec_SignerState::SignerState signerProto;
+      if (!signerProto.ParseFromArray(
+         signerStateRef.toCharPtr(), signerStateRef.getSize()))
+      {
+         //could not deser signer proto
+         throw SignerDeserializationError(
+            "[fromTxSigCollect] invalid signer proto");
+      }
+
+      theSigner.deserializeState(signerProto);
+      theSigner.fromType_ = SignerStringFormat::TxSigCollect_Modern;
+      break;
+   }
+
+   default:
+      throw SignerDeserializationError("unsupported TxSigCollect version");
+   }
+
+   //check vs signer id
+   auto signerId = theSigner.getSigCollectID();
+   if (signerId != sigCollectId)
+   {
+      string errStr("tx sig collect id mismatch, ");
+      errStr = errStr + "expected: " + sigCollectId + ", got: " + signerId;
+      throw SignerDeserializationError(errStr);
+   }
+
+   return theSigner;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 bool Signer::isResolved() const
 {
    /*
@@ -3313,7 +4055,7 @@ BinaryData Signer::getTxId_const() const
       if (!spender->isSegWit() && !spender->isSigned())
          throw runtime_error("cannot get hash for unsigned legacy input");
 
-      bw.put_BinaryData(spender->getSerializedInput(false));
+      bw.put_BinaryData(spender->getSerializedInput(false, false));
    }
 
    //outputs
@@ -3957,6 +4699,18 @@ void Signer::prettyPrint() const
    }
 
    cout << ss.str();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+SignerStringFormat Signer::deserializedFromType() const
+{
+   return fromType_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool Signer::canLegacySerialize() const
+{
+   return !isSegWit();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

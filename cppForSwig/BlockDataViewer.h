@@ -17,8 +17,8 @@
 #include <stdint.h>
 #include <string>
 
-#include "BlockUtils.h"
-#include "txio.h"
+#include "BlockchainDatabase/BlockUtils.h"
+#include "BlockchainDatabase/txio.h"
 #include "BDV_Notification.h"
 #include "ZeroConf.h"
 #include "util.h"

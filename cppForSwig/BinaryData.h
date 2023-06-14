@@ -108,7 +108,7 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    BinaryData(void) : data_(0)                 {                         }
    explicit BinaryData(size_t sz)              { alloc(sz);              }
-   BinaryData(uint8_t const * inData, size_t sz)      
+   BinaryData(uint8_t const * inData, size_t sz)
                                                { copyFrom(inData, sz);   }
    BinaryData(char const * inData, size_t sz)  { copyFrom(inData, sz);   }
    BinaryData(uint8_t const * dstart, uint8_t const * dend )
@@ -561,16 +561,14 @@ protected:
    std::vector<uint8_t> data_;
 
 private:
-   void alloc(size_t sz) 
+   void alloc(size_t sz)
    { 
       if(sz != getSize())
       {
          data_.clear();
          data_.resize(sz);
       }
-
    }
-
 };
 
 
@@ -1460,13 +1458,13 @@ public:
    void put_BitPacker(BitPacker<T> & bp) { put_BinaryData(bp.getBinaryData()); }
 
    /////////////////////////////////////////////////////////////////////////////
-   BinaryData const & getData(void)
+   BinaryData const & getData(void) const
    {
       return theString_;
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   size_t getSize(void)
+   size_t getSize(void) const
    {
       return theString_.getSize();
    }
@@ -1478,13 +1476,13 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   std::string toString(void)
+   std::string toString(void) const
    {
       return theString_.toBinStr();
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   std::string toHex(void)
+   std::string toHex(void) const
    {
       return theString_.toHexStr();
    }

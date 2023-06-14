@@ -15,9 +15,9 @@
 
 #include "BinaryData.h"
 #include "BtcUtils.h"
-#include "BlockObj.h"
-#include "Blockchain.h"
-#include "StoredBlockObj.h"
+#include "BlockchainDatabase/BlockObj.h"
+#include "BlockchainDatabase/Blockchain.h"
+#include "BlockchainDatabase/StoredBlockObj.h"
 #include "BDVCodec.h"
 #include "ZeroConf.h"
 
