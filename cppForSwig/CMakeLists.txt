@@ -1,4 +1,4 @@
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -233,29 +233,35 @@ set(LIBARMORYCLI_SOURCES
     BIP150_151.cpp
     BIP15x_Handshake.cpp
     BitcoinP2P.cpp
-    Blockchain.cpp
-    BlockchainScanner.cpp
-    BlockchainScanner_Super.cpp
-    BlockDataMap.cpp
+    BlockchainDatabase/Blockchain.cpp
+    BlockchainDatabase/BlockchainScanner.cpp
+    BlockchainDatabase/BlockchainScanner_Super.cpp
+    BlockchainDatabase/BlockDataMap.cpp
     BlockDataViewer.cpp
-    BlockObj.cpp
-    BlockUtils.cpp
+    BlockchainDatabase/BlockObj.cpp
+    BlockchainDatabase/BlockUtils.cpp
     BtcWallet.cpp
-    DatabaseBuilder.cpp
+    BlockchainDatabase/DatabaseBuilder.cpp
     HistoryPager.cpp
     HttpMessage.cpp
     JSON_codec.cpp
     LedgerEntry.cpp
-    lmdb_wrapper.cpp
+    BlockchainDatabase/lmdb_wrapper.cpp
     nodeRPC.cpp
     Progress.cpp
-    ScrAddrFilter.cpp
+    BlockchainDatabase/ScrAddrFilter.cpp
     ScrAddrObj.cpp
     Server.cpp
-    SshParser.cpp
+    BlockchainDatabase/SshParser.cpp
     StringSockets.cpp
-    txio.cpp
+    BlockchainDatabase/txio.cpp
     ZeroConf.cpp
+    Wallets/Seeds/Backups.cpp
+    Wallets/Seeds/Seeds.cpp
+    Wallets/Accounts/AccountTypes.cpp
+    Wallets/Accounts/AddressAccounts.cpp
+    Wallets/Accounts/AssetAccounts.cpp
+    Wallets/Accounts/MetaAccounts.cpp
 )
 
 if(MSVC)
@@ -273,7 +279,7 @@ add_library(ArmoryCLI
     ${LIBARMORYCLI_SOURCES}
 )
 
-set_target_properties(ArmoryCLI PROPERTIES CXX_STANDARD 14)
+set_target_properties(ArmoryCLI PROPERTIES CXX_STANDARD 17)
 target_compile_features(ArmoryCLI PUBLIC cxx_std_11)
 
 target_include_directories(ArmoryCLI

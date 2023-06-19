@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.5) # ubuntu 16 version
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 option(ENABLE_TESTS "enable building of tests" OFF)
-set(WITH_LIBBTC "../libbtc" CACHE STRING "path to libbtc built sources")
+set(WITH_LIBBTC "/app/libbtc" CACHE STRING "path to libbtc built sources")
 
 if(WIN32)
     set(VCPKG_DEPS protobuf libwebsockets lmdb mpir)
