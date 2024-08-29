@@ -7,7 +7,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "BtcUtils.h"
-#include "EncryptionUtils.h"
 #include "ArmoryConfig.h"
 #include "btc/segwit_addr.h"
 #include "TxOutScrRef.h"
