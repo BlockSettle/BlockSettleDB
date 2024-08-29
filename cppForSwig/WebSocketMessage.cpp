@@ -9,11 +9,15 @@
 #include "BtcUtils.h"
 #include "WebSocketMessage.h"
 #include "libwebsockets.h"
+#ifdef BUILD_PROTOBUF
 #include <google/protobuf/io/zero_copy_stream_impl.h>
+#endif
 #include "BIP15x_Handshake.h"
 
 using namespace std;
+#ifdef BUILD_PROTOBUF
 using namespace ::google::protobuf::io;
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -249,6 +253,7 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 bool WebSocketMessageCodec::reconstructFragmentedMessage(
    const map<uint16_t, BinaryDataRef>& payloadMap, 
    ::google::protobuf::Message* msg)
@@ -293,6 +298,7 @@ bool WebSocketMessageCodec::reconstructFragmentedMessage(
 
    return result;
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 uint32_t WebSocketMessageCodec::getMessageId(const BinaryDataRef& packet)
@@ -509,6 +515,7 @@ bool WebSocketMessagePartial::parseMessageWithoutId(const BinaryDataRef& bdr)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 bool WebSocketMessagePartial::getMessage(
   ::google::protobuf::Message* msgPtr) const
 {
@@ -525,6 +532,7 @@ bool WebSocketMessagePartial::getMessage(
       return WebSocketMessageCodec::reconstructFragmentedMessage(packets_, msgPtr);
    }
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 bool WebSocketMessagePartial::isReady() const

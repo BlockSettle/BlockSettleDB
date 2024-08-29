@@ -72,9 +72,11 @@ public:
    // blockchain in RAM, each scan will take 30-120 seconds.  Registering makes 
    // sure that the intial blockchain scan picks up wallet-relevant stuff as 
    // it goes, and does a full [re-]scan of the blockchain only if necessary.
+#ifdef BUILD_PROTOBUF
    void registerWallet(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
    void registerLockbox(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
    void registerAddresses(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
+#endif
    void       unregisterWallet(const std::string& ID);
    void       unregisterLockbox(const std::string& ID);
 
@@ -265,7 +267,9 @@ public:
    ~WalletGroup();
 
    std::shared_ptr<BtcWallet> getOrSetWallet(const std::string&);
+#ifdef BUILD_PROTOBUF
    void registerAddresses(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
+#endif
    void unregisterWallet(const std::string& IDstr);
 
    bool hasID(const std::string &ID) const;

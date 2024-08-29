@@ -516,7 +516,11 @@ void WebSocketServer::write(const uint64_t& id, const uint32_t& msgid,
    if (message == nullptr)
       return;
 
+#ifdef BUILD_PROTOBUF
    auto msg = make_unique<PendingMessage>(id, msgid, message);
+#else
+   auto msg = make_unique<PendingMessage>(PendingMessage{ id, msgid });
+#endif
    auto instance = getInstance();
    instance->msgQueue_.push_back(move(msg));
 }
@@ -563,7 +567,7 @@ void WebSocketServer::prepareWriteThread()
       {
          bool needs_rekey = false;
          auto rightnow = chrono::system_clock::now();
-
+#ifdef BUILD_PROTOBUF
          if (statePtr->bip151Connection_->rekeyNeeded(msg->message_->ByteSizeLong()))
          {
             needs_rekey = true;
@@ -575,7 +579,7 @@ void WebSocketServer::prepareWriteThread()
             if (time_sec.count() >= AEAD_REKEY_INVERVAL_SECONDS)
                needs_rekey = true;
          }
-         
+#endif         
          if (needs_rekey)
          {
             //create rekey packet
@@ -601,6 +605,7 @@ void WebSocketServer::prepareWriteThread()
 
       //serialize arg
       vector<uint8_t> serializedData;
+#ifdef BUILD_PROTOBUF
       if (msg->message_->ByteSizeLong() > 0)
       {
          serializedData.resize(msg->message_->ByteSizeLong());
@@ -612,7 +617,7 @@ void WebSocketServer::prepareWriteThread()
             return;
          }
       }
-
+#endif
       SerializedMessage ws_msg;
       ws_msg.construct(
          serializedData, statePtr->bip151Connection_.get(),
@@ -896,7 +901,7 @@ void ClientConnection::processReadQueue(shared_ptr<Clients> clients)
             //invalid msg, kill connection
             continue;
          }
-
+#ifdef BUILD_PROTOBUF
          //process command 
          auto message = make_shared<::Codec_BDVCommand::StaticCommand>();
          if (!message->ParseFromArray(messageRef.getPtr(), (int)messageRef.getSize()))
@@ -910,6 +915,7 @@ void ClientConnection::processReadQueue(shared_ptr<Clients> clients)
 
          //reply
          WebSocketServer::write(id_, msgObj.getId(), reply);
+#endif
       }
    }
 }

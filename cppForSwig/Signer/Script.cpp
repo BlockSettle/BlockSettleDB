@@ -105,6 +105,7 @@ void StackItem_MultiSig::merge(const StackItem* obj)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void StackItem_PushData::serialize(
    Codec_SignerState::StackEntryState& protoMsg) const
 {
@@ -255,6 +256,7 @@ shared_ptr<StackItem> StackItem::deserialize(
 
    return itemPtr;
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 StackItem_MultiSig::StackItem_MultiSig(unsigned id, BinaryData& script) :

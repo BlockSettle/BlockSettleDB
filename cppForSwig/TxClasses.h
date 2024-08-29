@@ -17,7 +17,9 @@
 #include "BtcUtils.h"
 #include "DBUtils.h"
 
+#ifdef BUILD_PROTOBUF
 #include "protobuf/Utxo.pb.h"
+#endif
 
 //PayStruct flags
 #define USE_FULL_CUSTOM_LIST  1
@@ -473,9 +475,10 @@ struct UTXO
    }
 
    bool isInitialized(void) const { return !script_.empty(); }
-
+#ifdef BUILD_PROTOBUF
    void toProtobuf(Codec_Utxo::Utxo&) const;
    static UTXO fromProtobuf(const Codec_Utxo::Utxo&);
+#endif
 };
 
 namespace AsyncClient

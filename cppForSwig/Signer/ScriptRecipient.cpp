@@ -170,6 +170,7 @@ void ScriptRecipient::toPSBT(BinaryWriter& bw) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void ScriptRecipient::toProtobuf(
    Codec_SignerState::RecipientState& protoMsg, unsigned group) const
 {
@@ -200,6 +201,7 @@ shared_ptr<ScriptRecipient> ScriptRecipient::fromProtobuf(
 
    return recipient;
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 void ScriptRecipient::addBip32Path(const BIP32_AssetPath& bip32Path)

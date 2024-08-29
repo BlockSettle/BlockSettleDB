@@ -12,7 +12,9 @@
 #include "../Wallets/Seeds/Backups.h"
 #include "../Wallets/Seeds/Seeds.h"
 #include "../Wallets/WalletFileInterface.h"
+#ifdef BUILD_PROTOBUF
 #include "protobuf/BridgeProto.pb.h"
+#endif
 
 using namespace std;
 using namespace Armory::Signer;

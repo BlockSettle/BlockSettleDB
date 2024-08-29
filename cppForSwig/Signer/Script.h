@@ -30,9 +30,9 @@
 #include "SigHashEnum.h"
 #include "TxEvalState.h"
 #include "ResolverFeed.h"
-
+#ifdef BUILD_PROTOBUF
 #include "protobuf/Signer.pb.h"
-
+#endif
 
 namespace Armory
 {
@@ -965,10 +965,12 @@ namespace Armory
          unsigned getId(void) const { return id_; }
 
          virtual bool isValid(void) const { return true; }
+#ifdef BUILD_PROTOBUF
          virtual void serialize(Codec_SignerState::StackEntryState&) const = 0;
 
          static std::shared_ptr<StackItem> deserialize(
             const Codec_SignerState::StackEntryState&);
+#endif
       };
 
       ////
@@ -981,7 +983,9 @@ namespace Armory
          {}
 
          bool isSame(const StackItem* obj) const override;
+#ifdef BUILD_PROTOBUF
          void serialize(Codec_SignerState::StackEntryState&) const override;
+#endif
          bool isValid(void) const override { return !data_.empty(); }
       };
 
@@ -1000,7 +1004,9 @@ namespace Armory
 
          bool isSame(const StackItem* obj) const override; 
          void merge(const StackItem* obj);
+#ifdef BUILD_PROTOBUF
          void serialize(Codec_SignerState::StackEntryState&) const override;
+#endif
          void injectSig(SecureBinaryData& sig)
          {
             sig_ = std::move(sig);
@@ -1032,7 +1038,9 @@ namespace Armory
          void merge(const StackItem* obj);
 
          bool isValid(void) const override { return sigs_.size() == m_; }
+#ifdef BUILD_PROTOBUF
          void serialize(Codec_SignerState::StackEntryState&) const override;
+#endif
       };
 
       ////
@@ -1046,7 +1054,9 @@ namespace Armory
          {}
 
          bool isSame(const StackItem* obj) const override;
+#ifdef BUILD_PROTOBUF
          void serialize(Codec_SignerState::StackEntryState&) const override;
+#endif
       };
 
       ////
@@ -1060,7 +1070,9 @@ namespace Armory
          {}
 
          bool isSame(const StackItem* obj) const;
+#ifdef BUILD_PROTOBUF
          void serialize(Codec_SignerState::StackEntryState&) const;
+#endif
       };
 
       //////////////////////////////////////////////////////////////////////////

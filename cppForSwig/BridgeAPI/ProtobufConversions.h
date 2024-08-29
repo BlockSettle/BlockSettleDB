@@ -10,8 +10,9 @@
 #define _BRIDGE_PROTOBUF_CONVERSION_H
 
 #include <memory>
-
+#ifdef BUILD_PROTOBUF
 #include "../protobuf/BridgeProto.pb.h"
+#endif
 
 #define PROTO_ASSETID_PREFIX 0xAFu
 

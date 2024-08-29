@@ -17,8 +17,9 @@
 #include "Transactions.h"
 #include "ScriptRecipient.h"
 #include "ResolverFeed.h"
-
+#ifdef BUILD_PROTOBUF
 #include "protobuf/Signer.pb.h"
+#endif
 
 #define SCRIPT_SPENDER_VERSION_MAX 1
 #define SCRIPT_SPENDER_VERSION_MIN 0
@@ -140,7 +141,7 @@ namespace Armory
          BinaryDataRef getRedeemScriptFromStack(
             const std::map<unsigned, std::shared_ptr<StackItem>>*) const;
          std::map<BinaryData, BinaryData> getPartialSigs(void) const;
-
+#ifdef BUILD_PROTOBUF
       protected:
          virtual void serializeStateHeader(
             Codec_SignerState::ScriptSpenderState&) const;
@@ -153,7 +154,7 @@ namespace Armory
 
          void serializePathData(
             Codec_SignerState::ScriptSpenderState&) const;
-
+#endif
       private:
          ScriptSpender(void)
          {}
@@ -242,11 +243,11 @@ namespace Armory
          bool isResolved(void) const;
          bool isSigned(void) const;
          bool isInitialized(void) const;
-
+#ifdef BUILD_PROTOBUF
          void serializeState(Codec_SignerState::ScriptSpenderState&) const;
          static std::shared_ptr<ScriptSpender> deserializeState(
             const Codec_SignerState::ScriptSpenderState&);
-
+#endif
          bool canBeResolved(void) const;
 
          bool operator==(const ScriptSpender& rhs)
@@ -326,9 +327,10 @@ namespace Armory
          BinaryData serializeAvailableResolvedData(void) const;
 
          static Signer createFromState(const std::string&);
+#ifdef BUILD_PROTOBUF
          static Signer createFromState(const Codec_SignerState::SignerState&);
          void deserializeSupportingTxMap(const Codec_SignerState::SignerState&);
-
+#endif
          void parseScripts(bool);
          void addBip32Root(std::shared_ptr<BIP32_PublicDerivedRoot>);
          void matchAssetPathsWithRoots(void);
@@ -342,9 +344,9 @@ namespace Armory
          {
             supportingTxMap_ = std::make_shared<std::map<BinaryData, Tx>>();
          }
-
+#ifdef BUILD_PROTOBUF
          Signer(const Codec_SignerState::SignerState&);
-
+#endif
          /*sigs*/
 
          //create sigs
@@ -397,11 +399,14 @@ namespace Armory
          BinaryData getTxId_const(void) const;
 
          //state import/export
+#ifdef BUILD_PROTOBUF
          void deserializeState(const Codec_SignerState::SignerState&);
+#endif
          void deserializeState_Legacy(const BinaryDataRef&);
          void merge(const Signer& rhs);
-
+#ifdef BUILD_PROTOBUF
          Codec_SignerState::SignerState serializeState(void) const;
+#endif
          BinaryData serializeState_Legacy(void) const;
          std::string getSigCollectID(void) const;
 

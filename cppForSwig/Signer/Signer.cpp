@@ -725,6 +725,7 @@ void ScriptSpender::processStacks()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void ScriptSpender::serializeStateHeader(
    Codec_SignerState::ScriptSpenderState& protoMsg) const
 {
@@ -903,6 +904,7 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
 
    return resultPtr;
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 void ScriptSpender::merge(const ScriptSpender& obj)
@@ -2397,12 +2399,14 @@ void ScriptSpender::prettyPrint(ostream& os) const
 //// Signer
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 Signer::Signer(const Codec_SignerState::SignerState& protoMsg) :
    TransactionStub()
 {
    supportingTxMap_ = std::make_shared<std::map<BinaryData, Tx>>();
    deserializeState(protoMsg);
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryDataRef Signer::getSerializedOutputScripts(void) const
@@ -3015,6 +3019,7 @@ bool Signer::verifyRawTx(const BinaryData& rawTx,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 Codec_SignerState::SignerState Signer::serializeState() const
 {
    Codec_SignerState::SignerState protoMsg;
@@ -3140,6 +3145,7 @@ void Signer::deserializeState(
 
    merge(new_signer);
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 void Signer::merge(const Signer& rhs)
@@ -3760,6 +3766,7 @@ string Signer::toTxSigCollect(bool isLegacy) const
       signerState.put_uint32_t(TXSIGCOLLECT_VER_LEGACY);
       signerState.put_BinaryData(legacyState);
    }
+#ifdef BUILD_PROTOBUF
    else
    {
       auto protoState = serializeState();
@@ -3772,6 +3779,7 @@ string Signer::toTxSigCollect(bool isLegacy) const
       signerState.put_uint32_t(TXSIGCOLLECT_VER_MODERN);
       signerState.put_BinaryData(stateBD);
    }
+#endif
 
    //get sigcollect b58id
    auto legacyB58ID = getSigCollectID();
@@ -3927,6 +3935,7 @@ Signer Signer::fromString(const string& signerState)
 
    case TXSIGCOLLECT_VER_MODERN:
    {
+#ifdef BUILD_PROTOBUF
       //regular protobuf packet
       Codec_SignerState::SignerState signerProto;
       if (!signerProto.ParseFromArray(
@@ -3939,6 +3948,7 @@ Signer Signer::fromString(const string& signerState)
 
       theSigner.deserializeState(signerProto);
       theSigner.fromType_ = SignerStringFormat::TxSigCollect_Modern;
+#endif
       break;
    }
 

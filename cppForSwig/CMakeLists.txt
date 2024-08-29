@@ -197,6 +197,7 @@ endif()
 
 file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/protobuf)
 
+IF (BUILD_PROTOBUF)
 foreach(proto ${PROTOBUF_FILES})
     string(REGEX REPLACE "\\.proto$" ".pb.cc" proto_cc ${proto})
 
@@ -208,6 +209,7 @@ foreach(proto ${PROTOBUF_FILES})
 
     list(APPEND LIBARMORYCOMMON_SOURCES ${PROJECT_BINARY_DIR}/protobuf/${proto_cc})
 endforeach()
+ENDIF (BUILD_PROTOBUF)
 
 add_library(ArmoryCommon
     STATIC

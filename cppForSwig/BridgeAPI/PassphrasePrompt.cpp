@@ -7,7 +7,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "log.h"
+#ifdef BUILD_PROTOBUF
 #include "../protobuf/BridgeProto.pb.h"
+#endif
 #include "PassphrasePrompt.h"
 
 using namespace Armory::Bridge;

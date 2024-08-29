@@ -348,6 +348,7 @@ map<BinaryData, LedgerEntry> LedgerEntry::computeLedgerMap(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void LedgerEntry::fillMessage(::Codec_LedgerEntry::LedgerEntry* msg) const
 {
    if (msg == nullptr)
@@ -376,3 +377,4 @@ void LedgerEntry::fillMessage(::Codec_LedgerEntry::LedgerEntry* msg) const
    for (auto& scrAddr : scrAddrSet_)
       msg->add_scraddr(scrAddr.getPtr(), scrAddr.getSize());
 }
+#endif

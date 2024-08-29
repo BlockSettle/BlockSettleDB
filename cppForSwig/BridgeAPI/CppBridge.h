@@ -12,7 +12,9 @@
 #include "../ArmoryConfig.h"
 #include "WalletManager.h"
 #include "btc/ecc.h"
+#ifdef BUILD_PROTOBUF
 #include "../protobuf/BridgeProto.pb.h"
+#endif
 #include "../AsyncClient.h"
 
 namespace BridgeProto

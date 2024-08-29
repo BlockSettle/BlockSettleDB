@@ -144,8 +144,9 @@ public:
    
    const std::set<BinaryData>& getScrAddrList(void) const
    { return scrAddrSet_; }
-
+#ifdef BUILD_PROTOBUF
    void fillMessage(::Codec_LedgerEntry::LedgerEntry* msg) const;
+#endif
    
 public:
 

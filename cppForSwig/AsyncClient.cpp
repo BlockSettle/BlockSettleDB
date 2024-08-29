@@ -10,13 +10,17 @@
 #include "AsyncClient.h"
 #include "EncryptionUtils.h"
 #include "BDVCodec.h"
+#ifdef BUILD_PROTOBUF
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "google/protobuf/text_format.h"
+#endif
 #include "ArmoryErrors.h"
 
 using namespace std;
 using namespace AsyncClient;
+#ifdef BUILD_PROTOBUF
 using namespace Codec_BDVCommand;
+#endif
 using namespace DBClientClasses;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -24,6 +28,7 @@ using namespace DBClientClasses;
 // BlockDataViewer
 //
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 unique_ptr<WritePayload_Protobuf> BlockDataViewer::make_payload(Methods method)
 {
    auto payload = make_unique<WritePayload_Protobuf>();
@@ -45,6 +50,7 @@ unique_ptr<WritePayload_Protobuf> BlockDataViewer::make_payload(
    payload->message_ = move(message);
    return payload;
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 bool BlockDataViewer::hasRemoteDB(void)
@@ -100,10 +106,11 @@ void BlockDataViewer::registerWithDB(BinaryData magic_word)
    //get bdvID
    try
    {
+#ifdef BUILD_PROTOBUF
       auto payload = make_payload(StaticMethods::registerBDV);
       auto command = dynamic_cast<StaticCommand*>(payload->message_.get());
       command->set_magicword(magic_word.getPtr(), magic_word.getSize());
-      
+#endif      
       //registration is always blocking as it needs to guarantee the bdvID
 
       auto promPtr = make_shared<promise<string>>();
@@ -124,8 +131,9 @@ void BlockDataViewer::registerWithDB(BinaryData magic_word)
       auto read_payload = make_shared<Socket_ReadPayload>();
       read_payload->callbackReturn_ =
          make_unique<CallbackReturn_String>(getResult);
+#ifdef BUILD_PROTOBUF
       sock_->pushPayload(move(payload), read_payload);
- 
+#endif 
       bdvID_ = move(fut.get());
    }
    catch (runtime_error &e)
@@ -150,16 +158,19 @@ void BlockDataViewer::unregisterFromDB()
       sockws->shutdown();
       return;
    }
-
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(StaticMethods::unregisterBDV);
    sock_->pushPayload(move(payload), nullptr);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::goOnline()
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::goOnline);
    sock_->pushPayload(move(payload), nullptr);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -182,6 +193,7 @@ BlockDataViewer::~BlockDataViewer()
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::shutdown(const string& cookie)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(StaticMethods::shutdown);
    auto command = dynamic_cast<StaticCommand*>(payload->message_.get());
 
@@ -189,11 +201,13 @@ void BlockDataViewer::shutdown(const string& cookie)
       command->set_cookie(cookie);
 
    sock_->pushPayload(move(payload), nullptr);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::shutdownNode(const string& cookie)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(StaticMethods::shutdownNode);
    auto command = dynamic_cast<StaticCommand*>(payload->message_.get());
 
@@ -201,6 +215,7 @@ void BlockDataViewer::shutdownNode(const string& cookie)
       command->set_cookie(cookie);
 
    sock_->pushPayload(move(payload), nullptr);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -219,22 +234,26 @@ Lockbox BlockDataViewer::instantiateLockbox(const string& id)
 void BlockDataViewer::getLedgerDelegateForWallets(
    function<void(ReturnMessage<LedgerDelegate>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::getLedgerDelegateForWallets);
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_LedgerDelegate>(sock_, bdvID_, callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getLedgerDelegateForLockboxes(
    function<void(ReturnMessage<LedgerDelegate>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::getLedgerDelegateForLockboxes);
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_LedgerDelegate>(sock_, bdvID_, callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -248,7 +267,7 @@ string BlockDataViewer::broadcastZC(const BinaryData& rawTx)
 {
    auto tx = make_shared<Tx>(rawTx);
    cache_->insertTx(tx);
-
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::broadcastZC);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->add_bindata(rawTx.getPtr(), rawTx.getSize());
@@ -259,11 +278,15 @@ string BlockDataViewer::broadcastZC(const BinaryData& rawTx)
 
    sock_->pushPayload(move(payload), nullptr);
    return broadcastId;
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 string BlockDataViewer::broadcastZC(const vector<BinaryData>& rawTxVec)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::broadcastZC);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
@@ -281,6 +304,9 @@ string BlockDataViewer::broadcastZC(const vector<BinaryData>& rawTxVec)
 
    sock_->pushPayload(move(payload), nullptr);
    return broadcastId;
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -288,7 +314,7 @@ string BlockDataViewer::broadcastThroughRPC(const BinaryData& rawTx)
 {
    auto tx = make_shared<Tx>(rawTx);
    cache_->insertTx(tx);
-
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::broadcastThroughRPC);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->add_bindata(rawTx.getPtr(), rawTx.getSize());
@@ -299,6 +325,9 @@ string BlockDataViewer::broadcastThroughRPC(const BinaryData& rawTx)
 
    sock_->pushPayload(move(payload), nullptr);
    return broadcastId;
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -353,7 +382,7 @@ void BlockDataViewer::getTxByHash(
    }
    catch(NoMatch&)
    {}
-
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::getTxByHash);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_hash(bdRef.getPtr(), bdRef.getSize());
@@ -363,6 +392,7 @@ void BlockDataViewer::getTxByHash(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_Tx>(cache_, txHash, callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -370,9 +400,10 @@ void BlockDataViewer::getTxBatchByHash(
    const set<BinaryData>& hashes, const TxBatchCallback& callback)
 {
    //only accepts hashes in binary format
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::getTxBatchByHash);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
-
+#endif
    map<BinaryData, bool> hashesToFetch;
    TxBatchResult cachedTxs;
    for (auto& hash : hashes)
@@ -407,6 +438,7 @@ void BlockDataViewer::getTxBatchByHash(
       return;
    }
    
+#ifdef BUILD_PROTOBUF
    for (auto& hash : hashesToFetch)
    {
       if (!hash.second)
@@ -427,6 +459,7 @@ void BlockDataViewer::getTxBatchByHash(
       make_unique<CallbackReturn_TxBatch>(
          cache_, cachedTxs, hashesToFetch, callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -456,6 +489,7 @@ void BlockDataViewer::getRawHeaderForTxHash(const BinaryData& txHash,
    catch(NoMatch&)
    { }
 
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::getHeaderByHash);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->add_bindata(txHash.getPtr(), txHash.getSize());
@@ -465,6 +499,7 @@ void BlockDataViewer::getRawHeaderForTxHash(const BinaryData& txHash,
       make_unique<CallbackReturn_RawHeader>(
          cache_, UINT32_MAX, txHash, callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -480,6 +515,7 @@ void BlockDataViewer::getHeaderByHeight(unsigned height,
    catch(NoMatch&)
    { }
 
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::getHeaderByHeight);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_height(height);
@@ -490,6 +526,7 @@ void BlockDataViewer::getHeaderByHeight(unsigned height,
       make_unique<CallbackReturn_RawHeader>(
          cache_, height, txhash, callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -497,6 +534,7 @@ void BlockDataViewer::getLedgerDelegateForScrAddr(
    const string& walletID, BinaryDataRef scrAddr,
    function<void(ReturnMessage<LedgerDelegate>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::getLedgerDelegateForScrAddr);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID);
@@ -506,29 +544,34 @@ void BlockDataViewer::getLedgerDelegateForScrAddr(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_LedgerDelegate>(sock_, bdvID_, callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::updateWalletsLedgerFilter(
    const vector<BinaryData>& wltIdVec)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::updateWalletsLedgerFilter);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    for (auto bd : wltIdVec)
       command->add_bindata(bd.getPtr(), bd.getSize());
 
    sock_->pushPayload(move(payload), nullptr);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getNodeStatus(function<
    void(ReturnMessage<shared_ptr<DBClientClasses::NodeStatus>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::getNodeStatus);
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_NodeStatus>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -536,6 +579,7 @@ void BlockDataViewer::estimateFee(unsigned blocksToConfirm,
    const string& strategy, 
    function<void(ReturnMessage<FeeEstimateStruct>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::estimateFee);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_value(blocksToConfirm);
@@ -545,12 +589,14 @@ void BlockDataViewer::estimateFee(unsigned blocksToConfirm,
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_FeeEstimateStruct>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getFeeSchedule(const string& strategy, function<void(
    ReturnMessage<map<unsigned, FeeEstimateStruct>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::getFeeSchedule);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->add_bindata(strategy);
@@ -559,6 +605,7 @@ void BlockDataViewer::getFeeSchedule(const string& strategy, function<void(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_FeeSchedule>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 
@@ -567,6 +614,7 @@ void BlockDataViewer::getHistoryForWalletSelection(
    const vector<string>& wldIDs, const string& orderingStr,
    function<void(ReturnMessage<vector<LedgerEntry>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::getHistoryForWalletSelection);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    if (orderingStr == "ascending")
@@ -583,6 +631,7 @@ void BlockDataViewer::getHistoryForWalletSelection(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorLedgerEntry>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -591,6 +640,7 @@ void BlockDataViewer::getSpentnessForOutputs(
    function<void(ReturnMessage<map<BinaryData, map<
       unsigned, SpentnessResult>>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::getSpentnessForOutputs);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
@@ -610,6 +660,7 @@ void BlockDataViewer::getSpentnessForOutputs(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_SpentnessData>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -618,6 +669,7 @@ void BlockDataViewer::getSpentnessForZcOutputs(
    function<void(ReturnMessage<map<BinaryData, map<
       unsigned, SpentnessResult>>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::getSpentnessForZcOutputs);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
@@ -637,6 +689,7 @@ void BlockDataViewer::getSpentnessForZcOutputs(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_SpentnessData>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -655,6 +708,7 @@ void BlockDataViewer::getOutputsForOutpoints(
    const map<BinaryData, set<unsigned>>& outpoints, bool withZc,
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = make_payload(Methods::getOutputsForOutpoints);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
@@ -676,6 +730,7 @@ void BlockDataViewer::getOutputsForOutpoints(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorUTXO>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -692,6 +747,7 @@ LedgerDelegate::LedgerDelegate(shared_ptr<SocketPrototype> sock,
 void LedgerDelegate::getHistoryPage(uint32_t id, 
    function<void(ReturnMessage<vector<LedgerEntry>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::getHistoryPage);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_delegateid(delegateID_);
@@ -701,12 +757,14 @@ void LedgerDelegate::getHistoryPage(uint32_t id,
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorLedgerEntry>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void LedgerDelegate::getPageCount(
    function<void(ReturnMessage<uint64_t>)> callback) const
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(
       Methods::getPageCountForLedgerDelegate);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -716,6 +774,7 @@ void LedgerDelegate::getPageCount(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_UINT64>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -731,6 +790,7 @@ AsyncClient::BtcWallet::BtcWallet(const BlockDataViewer& bdv, const string& id) 
 string AsyncClient::BtcWallet::registerAddresses(
    const vector<BinaryData>& addrVec, bool isNew)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::registerWallet);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_flag(isNew);
@@ -745,11 +805,15 @@ string AsyncClient::BtcWallet::registerAddresses(
    sock_->pushPayload(move(payload), nullptr);
 
    return registrationId;
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 string AsyncClient::BtcWallet::setUnconfirmedTarget(unsigned confTarget)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::setWalletConfTarget);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
@@ -761,12 +825,16 @@ string AsyncClient::BtcWallet::setUnconfirmedTarget(unsigned confTarget)
 
    sock_->pushPayload(move(payload), nullptr);
    return registrationId;
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 string AsyncClient::BtcWallet::unregisterAddresses(
    const set<BinaryData>& addrSet)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::unregisterAddresses);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
@@ -780,6 +848,9 @@ string AsyncClient::BtcWallet::unregisterAddresses(
 
    sock_->pushPayload(move(payload), nullptr);
    return registrationId;
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -792,6 +863,7 @@ string AsyncClient::BtcWallet::unregister()
 void AsyncClient::BtcWallet::getBalancesAndCount(uint32_t blockheight, 
    function<void(ReturnMessage<vector<uint64_t>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::getBalancesAndCount);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
@@ -801,12 +873,14 @@ void AsyncClient::BtcWallet::getBalancesAndCount(uint32_t blockheight,
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorUINT64>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getSpendableTxOutListForValue(uint64_t val,
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(
       Methods::getSpendableTxOutListForValue);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -817,12 +891,14 @@ void AsyncClient::BtcWallet::getSpendableTxOutListForValue(uint64_t val,
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorUTXO>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getSpendableZCList(
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::getSpendableZCList);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
@@ -831,12 +907,14 @@ void AsyncClient::BtcWallet::getSpendableZCList(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorUTXO>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getRBFTxOutList(
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::getRBFTxOutList);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
@@ -845,12 +923,14 @@ void AsyncClient::BtcWallet::getRBFTxOutList(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorUTXO>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getAddrTxnCountsFromDB(
    function<void(ReturnMessage<map<BinaryData, uint32_t>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::getAddrTxnCounts);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
@@ -859,12 +939,14 @@ void AsyncClient::BtcWallet::getAddrTxnCountsFromDB(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_Map_BD_U32>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getAddrBalancesFromDB(
    function<void(ReturnMessage<map<BinaryData, vector<uint64_t>>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::getAddrBalances);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
@@ -873,12 +955,14 @@ void AsyncClient::BtcWallet::getAddrBalancesFromDB(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_Map_BD_VecU64>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getHistoryPage(uint32_t id,
    function<void(ReturnMessage<vector<LedgerEntry>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::getHistoryPage);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
@@ -888,6 +972,7 @@ void AsyncClient::BtcWallet::getHistoryPage(uint32_t id,
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorLedgerEntry>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -897,7 +982,7 @@ void AsyncClient::BtcWallet::getLedgerEntryForTxHash(
 {  
    //get history page with a hash as argument instead of an int will return 
    //the ledger entry for the tx instead of a page
-
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::getHistoryPage);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
@@ -907,6 +992,7 @@ void AsyncClient::BtcWallet::getLedgerEntryForTxHash(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_LedgerEntry>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -921,6 +1007,7 @@ ScrAddrObj AsyncClient::BtcWallet::getScrAddrObjByKey(const BinaryData& scrAddr,
 void AsyncClient::BtcWallet::createAddressBook(
    function<void(ReturnMessage<vector<AddressBookEntry>>)> callback) const
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::createAddressBook);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
@@ -929,6 +1016,7 @@ void AsyncClient::BtcWallet::createAddressBook(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorAddressBookEntry>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -958,6 +1046,7 @@ void Lockbox::getBalancesAndCountFromDB(uint32_t topBlockHeight)
 string AsyncClient::Lockbox::registerAddresses(
    const vector<BinaryData>& addrVec, bool isNew)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::registerLockbox);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_flag(isNew);
@@ -972,6 +1061,9 @@ string AsyncClient::Lockbox::registerAddresses(
    sock_->pushPayload(move(payload), nullptr);
 
    return registrationId;
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1001,6 +1093,7 @@ ScrAddrObj::ScrAddrObj(AsyncClient::BtcWallet* wlt, const BinaryData& scrAddr,
 void ScrAddrObj::getSpendableTxOutList(
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(
       Methods::getSpendableTxOutListForAddr);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -1011,6 +1104,7 @@ void ScrAddrObj::getSpendableTxOutList(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorUTXO>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1026,6 +1120,7 @@ AsyncClient::Blockchain::Blockchain(const BlockDataViewer& bdv) :
 void AsyncClient::Blockchain::getHeaderByHash(const BinaryData& hash,
    function<void(ReturnMessage<DBClientClasses::BlockHeader>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::getHeaderByHash);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_hash(hash.getPtr(), hash.getSize());
@@ -1034,12 +1129,14 @@ void AsyncClient::Blockchain::getHeaderByHash(const BinaryData& hash,
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_BlockHeader>(UINT32_MAX, callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::Blockchain::getHeaderByHeight(unsigned height,
    function<void(ReturnMessage<DBClientClasses::BlockHeader>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::getHeaderByHeight);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_height(height);
@@ -1048,6 +1145,7 @@ void AsyncClient::Blockchain::getHeaderByHeight(unsigned height,
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_BlockHeader>(height, callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1065,6 +1163,7 @@ void AsyncClient::BlockDataViewer::getCombinedBalances(
    const vector<string>& wltIDs,
    function<void(ReturnMessage<map<string, CombinedBalances>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(Methods::getCombinedBalances);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
@@ -1075,6 +1174,7 @@ void AsyncClient::BlockDataViewer::getCombinedBalances(
    read_payload->callbackReturn_ = 
       make_unique<CallbackReturn_CombinedBalances>(callback);   
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1082,6 +1182,7 @@ void AsyncClient::BlockDataViewer::getCombinedAddrTxnCounts(
    const vector<string>& wltIDs,
    function<void(ReturnMessage<map<string, CombinedCounts>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(
       Methods::getCombinedAddrTxnCounts);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -1093,6 +1194,7 @@ void AsyncClient::BlockDataViewer::getCombinedAddrTxnCounts(
    read_payload->callbackReturn_ = 
       make_unique<CallbackReturn_CombinedCounts>(callback);   
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1100,6 +1202,7 @@ void AsyncClient::BlockDataViewer::getCombinedSpendableTxOutListForValue(
    const vector<string>& wltIDs, uint64_t value,
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(
       Methods::getCombinedSpendableTxOutListForValue);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -1113,6 +1216,7 @@ void AsyncClient::BlockDataViewer::getCombinedSpendableTxOutListForValue(
    read_payload->callbackReturn_ = 
       make_unique<CallbackReturn_VectorUTXO>(callback);   
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1120,6 +1224,7 @@ void AsyncClient::BlockDataViewer::getCombinedSpendableZcOutputs(
    const vector<string>& wltIDs, 
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(
       Methods::getCombinedSpendableZcOutputs);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -1131,6 +1236,7 @@ void AsyncClient::BlockDataViewer::getCombinedSpendableZcOutputs(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorUTXO>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1138,6 +1244,7 @@ void AsyncClient::BlockDataViewer::getCombinedRBFTxOuts(
    const vector<string>& wltIDs,
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(
       Methods::getCombinedRBFTxOuts);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -1149,6 +1256,7 @@ void AsyncClient::BlockDataViewer::getCombinedRBFTxOuts(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorUTXO>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1157,6 +1265,7 @@ void AsyncClient::BlockDataViewer::getOutpointsForAddresses(
    unsigned startHeight, unsigned zcIndexCutoff, 
    std::function<void(ReturnMessage<OutpointBatch>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(
       Methods::getOutpointsForAddresses);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -1171,6 +1280,7 @@ void AsyncClient::BlockDataViewer::getOutpointsForAddresses(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_AddrOutpoints>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1178,6 +1288,7 @@ void AsyncClient::BlockDataViewer::getUTXOsForAddress(
    const BinaryData& scrAddr, bool withZc,
    std::function<void(ReturnMessage<std::vector<UTXO>>)> callback)
 {
+#ifdef BUILD_PROTOBUF
    auto payload = BlockDataViewer::make_payload(
       Methods::getUTXOsForAddress);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -1189,6 +1300,7 @@ void AsyncClient::BlockDataViewer::getUTXOsForAddress(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorUTXO>(callback);
    sock_->pushPayload(move(payload), read_payload);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1196,6 +1308,7 @@ void AsyncClient::BlockDataViewer::getUTXOsForAddress(
 // CallbackReturn children
 //
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void AsyncClient::deserialize(
    google::protobuf::Message* ptr, const WebSocketMessagePartial& partialMsg)
 {
@@ -1208,11 +1321,13 @@ void AsyncClient::deserialize(
       throw ClientMessageError(errorMsg.errstr(), errorMsg.code());
    }
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 void CallbackReturn_BinaryDataRef::callback(
    const WebSocketMessagePartial& partialMsg)
 {
+#ifdef BUILD_PROTOBUF
    auto msg = make_shared<::Codec_CommonTypes::BinaryData>();
    AsyncClient::deserialize(msg.get(), partialMsg);
 
@@ -1234,6 +1349,7 @@ void CallbackReturn_BinaryDataRef::callback(
       if (thr.joinable())
          thr.detach();
    }
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1242,6 +1358,7 @@ void CallbackReturn_String::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_CommonTypes::Strings msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -1262,6 +1379,7 @@ void CallbackReturn_String::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1276,6 +1394,7 @@ void CallbackReturn_LedgerDelegate::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_CommonTypes::Strings msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -1298,6 +1417,7 @@ void CallbackReturn_LedgerDelegate::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1312,6 +1432,7 @@ void CallbackReturn_Tx::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_CommonTypes::TxWithMetaData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -1352,6 +1473,7 @@ void CallbackReturn_Tx::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1366,6 +1488,7 @@ void CallbackReturn_TxBatch::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_CommonTypes::ManyTxWithMetaData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -1443,6 +1566,7 @@ void CallbackReturn_TxBatch::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1457,6 +1581,7 @@ void CallbackReturn_RawHeader::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_CommonTypes::BinaryData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -1484,6 +1609,7 @@ void CallbackReturn_RawHeader::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1504,6 +1630,7 @@ void CallbackReturn_NodeStatus::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       auto msg = make_shared<Codec_NodeStatus::NodeStatus>();
       AsyncClient::deserialize(msg.get(), partialMsg);
 
@@ -1521,6 +1648,7 @@ void CallbackReturn_NodeStatus::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1535,6 +1663,7 @@ void CallbackReturn_FeeEstimateStruct::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_FeeEstimate::FeeEstimate msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -1553,6 +1682,7 @@ void CallbackReturn_FeeEstimateStruct::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1567,6 +1697,7 @@ void CallbackReturn_FeeSchedule::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_FeeEstimate::FeeSchedule msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -1594,6 +1725,7 @@ void CallbackReturn_FeeSchedule::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1608,9 +1740,9 @@ void CallbackReturn_VectorLedgerEntry::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       auto msg = make_shared<::Codec_LedgerEntry::ManyLedgerEntry>();
       AsyncClient::deserialize(msg.get(), partialMsg);
-
 
       vector<LedgerEntry> lev;
 
@@ -1632,6 +1764,7 @@ void CallbackReturn_VectorLedgerEntry::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1646,6 +1779,7 @@ void CallbackReturn_UINT64::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_CommonTypes::OneUnsigned msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -1663,6 +1797,7 @@ void CallbackReturn_UINT64::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1677,6 +1812,7 @@ void CallbackReturn_VectorUTXO::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_Utxo::ManyUtxo utxos;
       AsyncClient::deserialize(&utxos, partialMsg);
 
@@ -1700,6 +1836,7 @@ void CallbackReturn_VectorUTXO::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1714,6 +1851,7 @@ void CallbackReturn_VectorUINT64::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_CommonTypes::ManyUnsigned msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -1733,6 +1871,7 @@ void CallbackReturn_VectorUINT64::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1747,6 +1886,7 @@ void CallbackReturn_Map_BD_U32::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_AddressData::ManyAddressData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -1777,6 +1917,7 @@ void CallbackReturn_Map_BD_U32::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1791,6 +1932,7 @@ void CallbackReturn_Map_BD_VecU64::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_AddressData::ManyAddressData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -1819,6 +1961,7 @@ void CallbackReturn_Map_BD_VecU64::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1833,6 +1976,7 @@ void CallbackReturn_LedgerEntry::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       auto msg = make_shared<::Codec_LedgerEntry::LedgerEntry>();
       AsyncClient::deserialize(msg.get(), partialMsg);
 
@@ -1850,6 +1994,7 @@ void CallbackReturn_LedgerEntry::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1864,6 +2009,7 @@ void CallbackReturn_VectorAddressBookEntry::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_AddressBook::AddressBook addressBook;
       AsyncClient::deserialize(&addressBook, partialMsg);
 
@@ -1896,6 +2042,7 @@ void CallbackReturn_VectorAddressBookEntry::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1909,6 +2056,7 @@ void CallbackReturn_Bool::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_CommonTypes::OneUnsigned msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -1924,6 +2072,7 @@ void CallbackReturn_Bool::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1938,6 +2087,7 @@ void CallbackReturn_BlockHeader::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_CommonTypes::BinaryData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -1959,6 +2109,7 @@ void CallbackReturn_BlockHeader::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -1971,10 +2122,12 @@ void CallbackReturn_BlockHeader::callback(
 void CallbackReturn_BDVCallback::callback(
    const WebSocketMessagePartial& partialMsg)
 {
+#ifdef BUILD_PROTOBUF
    auto msg = make_shared<::Codec_BDVCommand::BDVCallback>();
    AsyncClient::deserialize(msg.get(), partialMsg);
 
    userCallbackLambda_(msg);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1983,6 +2136,7 @@ void CallbackReturn_CombinedBalances::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_AddressData::ManyCombinedData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -2025,6 +2179,7 @@ void CallbackReturn_CombinedBalances::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -2039,6 +2194,7 @@ void CallbackReturn_CombinedCounts::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_AddressData::ManyCombinedData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -2075,6 +2231,7 @@ void CallbackReturn_CombinedCounts::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -2089,6 +2246,7 @@ void CallbackReturn_AddrOutpoints::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_Utxo::AddressOutpointsData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -2132,6 +2290,7 @@ void CallbackReturn_AddrOutpoints::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {
@@ -2146,6 +2305,7 @@ void CallbackReturn_SpentnessData::callback(
 {
    try
    {
+#ifdef BUILD_PROTOBUF
       ::Codec_Utxo::Spentness_BatchData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
@@ -2194,6 +2354,7 @@ void CallbackReturn_SpentnessData::callback(
          if (thr.joinable())
             thr.detach();
       }
+#endif
    }
    catch (ClientMessageError& e)
    {

@@ -212,10 +212,11 @@ public:
    ZcNotificationPacket(const std::string& bdvID) :
       bdvID_(bdvID)
    {}
-
+#ifdef BUILD_PROTOBUF
    void toProtobufNotification(
       std::shared_ptr<::Codec_BDVCommand::BDVCallback>, 
       const std::vector<LedgerEntry>&) const;
+#endif
 };
 
 ////////////////////////////////////////////////////////////////////////////////

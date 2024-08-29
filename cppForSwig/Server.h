@@ -27,8 +27,9 @@
 #include "AuthorizedPeers.h"
 
 #include "BIP150_151.h"
+#ifdef BUILD_PROTOBUF
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
-
+#endif
 #define SERVER_AUTH_PEER_FILENAME "server.peers"
 
 class Clients;
@@ -73,12 +74,14 @@ struct PendingMessage
 {
    const uint64_t id_;
    const uint32_t msgid_;
+#ifdef BUILD_PROTOBUF
    std::shared_ptr <::google::protobuf::Message> message_;
 
    PendingMessage(uint64_t id, uint32_t msgid, 
       std::shared_ptr<::google::protobuf::Message> msg) :
       id_(id), msgid_(msgid), message_(msg)
    {}
+#endif
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -302,6 +302,7 @@ void WebSocketClient::cleanUp()
    readPackets_.clear();
 
    //create error message to send to all outsanding read callbacks
+#ifdef BUILD_PROTOBUF
    ::Codec_BDVCommand::BDV_Error errMsg;
    errMsg.set_code(-1);
    errMsg.set_errstr("LWS client disconnected");
@@ -350,7 +351,7 @@ void WebSocketClient::cleanUp()
       if (thr.joinable())
          thr.join();
    }
-
+#endif
    LOGINFO << "lws client cleaned up";
 }
 
@@ -557,7 +558,7 @@ void WebSocketClient::readService()
             currentReadMessage_.reset();
             continue;
          }
-
+#ifdef BUILD_PROTOBUF
          auto msgptr = make_shared<::Codec_BDVCommand::BDVCallback>();
          if (!currentReadMessage_.message_.getMessage(msgptr.get()))
          {
@@ -566,8 +567,8 @@ void WebSocketClient::readService()
          }
 
          callbackPtr_->processNotifications(msgptr);
+#endif
          currentReadMessage_.reset();
-
          break;
       }
 

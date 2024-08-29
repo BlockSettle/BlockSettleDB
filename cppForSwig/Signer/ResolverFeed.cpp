@@ -180,6 +180,7 @@ BIP32_AssetPath BIP32_AssetPath::fromPSBT(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void BIP32_AssetPath::toProtobuf(
    Codec_SignerState::PubkeyBIP32Path& protoMsg) const
 {
@@ -200,7 +201,7 @@ BIP32_AssetPath BIP32_AssetPath::fromProtobuf(
 
    return BIP32_AssetPath(pubkey, path, protoMsg.fingerprint(), nullptr);
 }
-
+#endif
 ////////////////////////////////////////////////////////////////////////////////
 ////
 //// ResolverFeed

@@ -13,8 +13,9 @@
 #include "BinaryData.h"
 #include "BtcUtils.h"
 #include "ResolverFeed.h"
-
+#ifdef BUILD_PROTOBUF
 #include "protobuf/Signer.pb.h"
+#endif
 
 class TxOut;
 
@@ -83,8 +84,9 @@ namespace Armory
 
          void addBip32Path(const BIP32_AssetPath&);
          const std::map<BinaryData, BIP32_AssetPath>& getBip32Paths(void) const;
-
+#ifdef BUILD_PROTOBUF
          void toProtobuf(Codec_SignerState::RecipientState&, unsigned) const;
+#endif
          void toPSBT(BinaryWriter&) const;
          void merge(std::shared_ptr<ScriptRecipient>);
 
@@ -103,8 +105,10 @@ namespace Armory
          static std::shared_ptr<ScriptRecipient> fromScript(BinaryDataRef);
          static std::shared_ptr<ScriptRecipient> fromPSBT(
             BinaryRefReader& brr, const TxOut&);
+#ifdef BUILD_PROTOBUF
          static std::shared_ptr<ScriptRecipient> fromProtobuf(
             const Codec_SignerState::RecipientState&);
+#endif
       };
 
       //////////////////////////////////////////////////////////////////////////

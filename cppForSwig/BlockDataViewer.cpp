@@ -33,6 +33,7 @@ BlockDataViewer::~BlockDataViewer()
 }
 
 /////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void BlockDataViewer::registerWallet(
    shared_ptr<::Codec_BDVCommand::BDVCommand> msg)
 {
@@ -45,6 +46,7 @@ void BlockDataViewer::registerLockbox(
 {
    groups_[group_lockbox].registerAddresses(msg);
 }
+#endif
 
 /////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::unregisterWallet(const string& IDstr)
@@ -224,6 +226,7 @@ bool BlockDataViewer::hasWallet(const string& ID) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void BlockDataViewer::registerAddresses(
    shared_ptr<::Codec_BDVCommand::BDVCommand> msg)
 {
@@ -234,6 +237,7 @@ void BlockDataViewer::registerAddresses(
          group.registerAddresses(msg);
    }
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 Tx BlockDataViewer::getTxByHash(BinaryData const & txhash) const
@@ -1197,6 +1201,7 @@ void WalletGroup::unregisterWallet(const string& id)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void WalletGroup::registerAddresses(
    shared_ptr<::Codec_BDVCommand::BDVCommand> msg)
 {
@@ -1299,6 +1304,7 @@ void WalletGroup::registerAddresses(
    saf_->pushAddressBatch(batch);
    theWallet->resetCounters();
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 bool WalletGroup::hasID(const string& ID) const
