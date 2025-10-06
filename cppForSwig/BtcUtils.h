@@ -1534,7 +1534,11 @@ public:
          {
             uint16_t nb = READ_UINT16_LE(script.getPtr() + i+1);
             if(i+1+2+nb > sz) { error=true; break; }
-            BinaryData binObj = script.getSliceCopy(i+3, min((int)nb,256));
+#ifdef WIN32
+            BinaryData binObj = script.getSliceCopy(i + 3, min((int)nb, 256));
+#else
+            BinaryData binObj = script.getSliceCopy(i+3, std::min((int)nb,256));
+#endif
             opList.push_back("[OP_PUSHDATA2 -- " + std::to_string(nb) + " BYTES:]");
             opList.push_back(binObj.toHexStr() + "...");
             i += nb+3;
@@ -1543,7 +1547,11 @@ public:
          {
             uint32_t nb = READ_UINT32_LE(script.getPtr() + i+1);
             if(i+1+4+nb > sz) { error=true; break; }
-            BinaryData binObj = script.getSliceCopy(i+5, min((int)nb,256));
+#ifdef WIN32
+            BinaryData binObj = script.getSliceCopy(i + 5, min((int)nb, 256));
+#else
+            BinaryData binObj = script.getSliceCopy(i+5, std::min((int)nb,256));
+#endif
             opList.push_back("[OP_PUSHDATA4 -- " + std::to_string(nb) + " BYTES:]");
             opList.push_back(binObj.toHexStr() + "...");
             i += nb+5;
@@ -1590,8 +1598,11 @@ public:
       if(srcsz == FILE_DOES_NOT_EXIST)
          return false;
 
+#ifdef WIN32
       srcsz = min((uint32_t)srcsz, nbytes);
-   
+#else
+      srcsz = std::min((uint32_t)srcsz, nbytes);
+#endif
       BinaryData temp((size_t)srcsz);
       std::ifstream is(src.c_str(), std::ios::in  | std::ios::binary);
       is.read((char*)temp.getPtr(), srcsz);
