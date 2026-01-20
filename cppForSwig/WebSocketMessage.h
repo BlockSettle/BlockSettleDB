@@ -14,7 +14,9 @@
 #include <memory>
 
 #include "BinaryData.h"
+#ifdef BUILD_PROTOBUF
 #include <google/protobuf/message.h>
+#endif
 #include "SocketObject.h"
 
 #include "BIP150_151.h"
@@ -56,10 +58,11 @@ public:
       ArmoryAEAD::BIP151_PayloadType);
 
    static uint32_t getMessageId(const BinaryDataRef&);
-    
+#ifdef BUILD_PROTOBUF
    static bool reconstructFragmentedMessage(
       const std::map<uint16_t, BinaryDataRef>&, 
       ::google::protobuf::Message*);
+#endif
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -106,7 +109,9 @@ public:
    void reset(void);
    bool parsePacket(const BinaryDataRef&);
    bool isReady(void) const;
+#ifdef BUILD_PROTOBUF
    bool getMessage(::google::protobuf::Message*) const;
+#endif
    BinaryDataRef getSingleBinaryMessage(void) const;
    const uint32_t& getId(void) const { return id_; }
    ArmoryAEAD::BIP151_PayloadType getType(void) const { return type_; }

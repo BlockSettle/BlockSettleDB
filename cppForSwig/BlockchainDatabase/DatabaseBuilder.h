@@ -76,4 +76,5 @@ public:
    unsigned getCheckedTxCount(void) const { return checkedTransactions_; }
 
    //void verifyTxFilters(void);
+   void checkTxHintsIntegrity(void);
 };

@@ -10,8 +10,10 @@
 #include "ArmoryErrors.h"
 
 using namespace std;
+#ifdef BUILD_PROTOBUF
 using namespace ::google::protobuf;
 using namespace ::Codec_BDVCommand;
+#endif
 using namespace ::Armory::Threading;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -19,6 +21,7 @@ using namespace ::Armory::Threading;
 // BDV_Server_Object
 //
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 BDVCommandProcessingResultType BDV_Server_Object::processCommand(
    shared_ptr<BDVCommand> command, shared_ptr<Message>& resultingPayload)
 {
@@ -1804,6 +1807,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
 
    return BDVCommandProcess_Success;
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 shared_ptr<BDV_Server_Object> Clients::get(const string& id) const
@@ -1918,6 +1922,7 @@ void BDV_Server_Object::init()
       //fill with addresses from protobuf payloads
       for (auto& wlt : wltMap)
       {
+#ifdef BUILD_PROTOBUF
          for (int i = 0; i < wlt.second.command_->bindata_size(); i++)
          {
             auto& addrStr = wlt.second.command_->bindata(i);
@@ -1927,6 +1932,7 @@ void BDV_Server_Object::init()
             BinaryDataRef addrRef; addrRef.setRef(addrStr);
             batch->scrAddrSet_.insert(move(addrRef));
          }
+#endif
       }
 
       //callback only serves to wait on the registration event
@@ -1964,7 +1970,7 @@ void BDV_Server_Object::init()
    
    //mark bdv object as ready
    isReadyPromise_->set_value(true);
-
+#ifdef BUILD_PROTOBUF
    //callback client with BDM_Ready packet
    auto message = make_shared<BDVCallback>();
    auto notif = message->add_notification();
@@ -1972,6 +1978,7 @@ void BDV_Server_Object::init()
    auto newBlockNotif = notif->mutable_newblock();
    newBlockNotif->set_height(blockchain().top()->getBlockHeight());
    cb_->callback(message);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1987,7 +1994,7 @@ void BDV_Server_Object::processNotification(
    }
 
    scanWallets(notifPtr);
-
+#ifdef BUILD_PROTOBUF
    auto callbackPtr = make_shared<BDVCallback>();
 
    switch (action)
@@ -2130,9 +2137,11 @@ void BDV_Server_Object::processNotification(
 
    if(callbackPtr->notification_size() > 0)
       cb_->callback(callbackPtr);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void BDV_Server_Object::registerWallet(
    shared_ptr<::Codec_BDVCommand::BDVCommand> command)
 {
@@ -2192,6 +2201,7 @@ void BDV_Server_Object::registerLockbox(
    auto bdvPtr = (BlockDataViewer*)this;
    bdvPtr->registerLockbox(command);
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 void BDV_Server_Object::populateWallets(map<string, walletRegStruct>& wltMap)
@@ -2201,6 +2211,8 @@ void BDV_Server_Object::populateWallets(map<string, walletRegStruct>& wltMap)
 
    for (auto& wlt : wltMap)
    {
+      map<BinaryDataRef, shared_ptr<ScrAddrObj>> newAddrMap;
+#ifdef BUILD_PROTOBUF
       auto& walletId = wlt.second.command_->walletid();
 
       shared_ptr<BtcWallet> theWallet;
@@ -2215,7 +2227,6 @@ void BDV_Server_Object::populateWallets(map<string, walletRegStruct>& wltMap)
          continue;
       }
 
-      map<BinaryDataRef, shared_ptr<ScrAddrObj>> newAddrMap;
       for (int i = 0; i < wlt.second.command_->bindata_size(); i++)
       {
          auto& addrStr = wlt.second.command_->bindata(i);
@@ -2232,11 +2243,12 @@ void BDV_Server_Object::populateWallets(map<string, walletRegStruct>& wltMap)
             db_, &blockchain(), zeroConfCont_.get(), iter->first);
          newAddrMap.insert(move(make_pair(iter->first, addrObj)));
       }
-
+#endif
       if (newAddrMap.size() == 0)
          continue;
-
+#ifdef BUILD_PROTOBUF
       theWallet->scrAddrMap_.update(newAddrMap);
+#endif
    }
 }
 
@@ -2255,6 +2267,7 @@ void BDV_Server_Object::flagRefresh(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 BDVCommandProcessingResultType BDV_Server_Object::processPayload(
    shared_ptr<BDV_Payload>& packet, shared_ptr<Message>& result)
 {
@@ -2373,9 +2386,9 @@ BDVCommandProcessingResultType BDV_Server_Object::processPayload(
          
       result = errMsg;
    }
-      
    return BDVCommandProcess_Failure;
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -2525,6 +2538,7 @@ void Clients::bdvMaintenanceThread()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void Clients::processShutdownCommand(shared_ptr<StaticCommand> command)
 {
    const auto& thisCookie = Armory::Config::NetworkSettings::cookie();
@@ -2573,6 +2587,7 @@ void Clients::processShutdownCommand(shared_ptr<StaticCommand> command)
       LOGWARN << "unexpected command in processShutdownCommand";
    }
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 void Clients::shutdown()
@@ -2646,6 +2661,7 @@ void Clients::unregisterAllBDVs()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 shared_ptr<Message> Clients::registerBDV(
    shared_ptr<StaticCommand> command, string bdvID)
 {
@@ -2689,6 +2705,7 @@ shared_ptr<Message> Clients::registerBDV(
    response->set_data(newID);
    return response;
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 void Clients::unregisterBDV(std::string bdvId)
@@ -2838,8 +2855,9 @@ void Clients::messageParserThread(void)
       the object's process mutex
       */
       unique_lock<mutex> lock(bdvPtr->processPacketMutex_);
+#ifdef BUILD_PROTOBUF
       auto result = processCommand(payloadPtr);
-
+#endif
       //check if the map has the next message
       {
          auto msgIter = bdvPtr->messageMap_.find(
@@ -2869,10 +2887,12 @@ void Clients::messageParserThread(void)
       lock.unlock();
       bdvPtr->packetProcess_threadLock_.store(0);
 
+#ifdef BUILD_PROTOBUF
       //write return value if any
       if (result != nullptr)
          WebSocketServer::write(
             payloadPtr->bdvID_, payloadPtr->messageID_, result);
+#endif
    }
 }
 
@@ -3043,6 +3063,7 @@ void Clients::broadcastThroughRPC()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
 {
    //clear bdvPtr from the payload to avoid circular ownership
@@ -3420,6 +3441,7 @@ shared_ptr<Message> Clients::processUnregisteredCommand(const uint64_t& bdvId,
 
    return nullptr;
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -3430,6 +3452,7 @@ Callback::~Callback()
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void WS_Callback::callback(shared_ptr<BDVCallback> command)
 {
    //write to socket
@@ -3455,6 +3478,7 @@ shared_ptr<::Codec_BDVCommand::BDVCallback> UnitTest_Callback::getNotification()
 
    return nullptr;
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -3480,6 +3504,7 @@ void BDV_PartialMessage::reset()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 bool BDV_PartialMessage::getMessage(shared_ptr<Message> msgPtr)
 {
    if (!isReady())
@@ -3487,6 +3512,7 @@ bool BDV_PartialMessage::getMessage(shared_ptr<Message> msgPtr)
 
    return partialMessage_.getMessage(msgPtr.get());
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 size_t BDV_PartialMessage::topId() const

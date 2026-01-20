@@ -19,7 +19,7 @@
 
 #include "UniversalTimer.h"
 #include "bdmenums.h"
-#include "BlockUtils.h"
+#include "BlockchainDatabase/BlockUtils.h"
 #include "BDM_Server.h"
 
 struct BlockDataManagerConfig;

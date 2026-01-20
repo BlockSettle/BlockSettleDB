@@ -14,10 +14,10 @@
 #define SCRADDROBJ_H
 
 #include "BinaryData.h"
-#include "lmdb_wrapper.h"
-#include "Blockchain.h"
-#include "BlockObj.h"
-#include "txio.h"
+#include "BlockchainDatabase/lmdb_wrapper.h"
+#include "BlockchainDatabase/Blockchain.h"
+#include "BlockchainDatabase/txio.h"
+#include "BlockchainDatabase/BlockObj.h"
 #include "ZeroConf.h"
 #include "LedgerEntry.h"
 #include "HistoryPager.h"

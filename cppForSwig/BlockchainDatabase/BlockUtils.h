@@ -22,12 +22,12 @@
 #include <exception>
 
 #include "Blockchain.h"
+#include "StoredBlockObj.h"
+#include "lmdb_wrapper.h"
 #include "BinaryData.h"
 #include "BtcUtils.h"
 #include "BlockObj.h"
-#include "StoredBlockObj.h"
 #include "ArmoryConfig.h"
-#include "lmdb_wrapper.h"
 #include "ScrAddrObj.h"
 #include "bdmenums.h"
 

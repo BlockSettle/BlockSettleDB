@@ -13,10 +13,12 @@
 #include "ZeroConf.h"
 #include "BDM_Server.h"
 #include "LedgerEntry.h"
-#include "txio.h"
+#include "BlockchainDatabase/txio.h"
 
 using namespace std;
+#ifdef BUILD_PROTOBUF
 using namespace ::Codec_BDVCommand;
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -258,6 +260,7 @@ ZeroConfCallbacks_BDV::ZcNotifRequest::~ZcNotifRequest()
 // ZcNotificationPacket
 //
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void ZcNotificationPacket::toProtobufNotification(
    std::shared_ptr<::Codec_BDVCommand::BDVCallback> protoPtr, 
    const std::vector<LedgerEntry>& leVec) const
@@ -318,3 +321,4 @@ void ZcNotificationPacket::toProtobufNotification(
       }
    }
 }
+#endif

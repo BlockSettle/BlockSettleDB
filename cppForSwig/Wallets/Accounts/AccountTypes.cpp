@@ -320,7 +320,7 @@ AddressAccountId AccountType_ECDH::getAccountID() const
    }
    else
    {
-      auto&& root_pub = CryptoECDSA().ComputePublicKey(privateKey_);
+      auto&& root_pub = CryptoECDSA().ComputePublicKey(privateKey_, true);
       root_pub.getPtr()[0] ^= (uint8_t)type();
 
       auto&& pub_hash160 = BtcUtils::getHash160(root_pub);

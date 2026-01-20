@@ -577,9 +577,6 @@ BinaryData DerivationScheme_ECDH::serialize() const
 AssetKeyType DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt,
    shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
-   if (txPtr == nullptr)
-      throw DerivationSchemeException("addSalt: null tx");
-
    if (salt.getSize() != 32)
       throw DerivationSchemeException("salt is too small");
 
@@ -595,8 +592,9 @@ AssetKeyType DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt,
    if (!insertIter.second)
       throw DerivationSchemeException("failed to insert salt");
 
-   //update on disk
-   putSalt(id, salt, txPtr);
+   //update on disk if we have a db tx
+   if (txPtr != nullptr)
+      putSalt(id, salt, txPtr);
 
    //return insert index
    return id;
@@ -615,7 +613,11 @@ void DerivationScheme_ECDH::putSalt(AssetKeyType id,
    auto dataRef = txPtr->getDataRef(bwKey.getData());
    if (!dataRef.empty())
    {
-      if (dataRef != salt)
+      //read the salt
+      BinaryRefReader brr(dataRef);
+      auto size = brr.get_var_int();
+      auto saltRef = brr.get_BinaryDataRef(size);
+      if (saltRef != salt)
       {
          throw DerivationSchemeException(
             "trying to write a salt different from the one on disk");
@@ -849,4 +851,10 @@ AssetKeyType DerivationScheme_ECDH::getIdForSalt(
       throw DerivationSchemeException("missing salt");
 
    return iter->second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const map<SecureBinaryData, AssetKeyType>& DerivationScheme_ECDH::getSaltMap() const
+{
+   return saltMap_;
 }

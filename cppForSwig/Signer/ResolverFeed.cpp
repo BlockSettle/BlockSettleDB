@@ -42,7 +42,9 @@ uint32_t BIP32_PublicDerivedRoot::getThisFingerprint() const
    if (thisFingerprint_ == UINT32_MAX)
    {
       BIP32_Node node;
-      node.initFromBase58(SecureBinaryData::fromString(xpub_));
+      BinaryDataRef xpubRef;
+      xpubRef.setRef(xpub_);
+      node.initFromBase58(xpubRef);
       thisFingerprint_ = node.getThisFingerprint();
    }
 
@@ -178,6 +180,7 @@ BIP32_AssetPath BIP32_AssetPath::fromPSBT(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 void BIP32_AssetPath::toProtobuf(
    Codec_SignerState::PubkeyBIP32Path& protoMsg) const
 {
@@ -198,7 +201,7 @@ BIP32_AssetPath BIP32_AssetPath::fromProtobuf(
 
    return BIP32_AssetPath(pubkey, path, protoMsg.fingerprint(), nullptr);
 }
-
+#endif
 ////////////////////////////////////////////////////////////////////////////////
 ////
 //// ResolverFeed

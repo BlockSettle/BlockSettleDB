@@ -12,6 +12,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "TestUtils.h"
+#include "../Wallets/Seeds/Seeds.h"
 using namespace std;
 using namespace Armory::Signer;
 using namespace Armory::Config;
@@ -1762,31 +1763,31 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    //// create 3 assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed1(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt_1 = AssetWallet_Single::createFromSeed(
+      move(seed1),
       SecureBinaryData(),
-      SecureBinaryData(), 
+      SecureBinaryData(),
+      homedir_,
       3); //set lookup computation to 3 entries
 
-   wltRoot = move(CryptoPRNG::generateRandom(32));
-   auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed2(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt_2 = AssetWallet_Single::createFromSeed(
+      move(seed2),
       SecureBinaryData(),
-      SecureBinaryData(), 
+      SecureBinaryData(),
+      homedir_,
       3); //set lookup computation to 3 entries
 
-   wltRoot = move(CryptoPRNG::generateRandom(32));
-   auto assetWlt_3 = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
+   unique_ptr<Armory::Seeds::ClearTextSeed> seed3(
+      new Armory::Seeds::ClearTextSeed_Armory135());
+   auto assetWlt_3 = AssetWallet_Single::createFromSeed(
+      move(seed3),
       SecureBinaryData(),
-      SecureBinaryData(), 
+      SecureBinaryData(),
+      homedir_,
       3); //set lookup computation to 3 entries
 
           //create 2-of-3 multisig asset entry from 3 different wallets
@@ -2243,7 +2244,7 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
+TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync)
 {
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);

@@ -1,11 +1,12 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2019-20, goatpig                                            //
+//  Copyright (C) 2019-23, goatpig                                            //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
+#include <cstdlib>
 #include "BridgeSocket.h"
 #include "CppBridge.h"
 
@@ -16,14 +17,25 @@ int main(int argc, char* argv[])
    startupBIP151CTX();
    startupBIP150CTX(4);
 
+   unsigned count = argc + 1;
+   auto args = new char*[count];
+   for (int i=0; i<argc; i++)
+      args[i] = argv[i];
+
+
+   auto pubKeyHex = std::getenv("SERVER_PUBKEY");
+   auto pubKeyStr = std::string("--uiPubKey=") + pubKeyHex;
+   args[argc] = (char*)pubKeyStr.c_str();
+
    //init static configuration variables
    Armory::Config::parseArgs(
-      argc, argv, Armory::Config::ProcessType::Bridge);
+      count, args, Armory::Config::ProcessType::Bridge);
+
 
    //enable logs
    STARTLOGGING(
       Armory::Config::Pathing::logFilePath("bridgeLog"), LogLvlDebug);
-   LOGDISABLESTDOUT();
+   //LOGDISABLESTDOUT();
 
    //setup the bridge
    auto bridge = std::make_shared<Armory::Bridge::CppBridge>(
@@ -31,8 +43,6 @@ int main(int argc, char* argv[])
       "127.0.0.1", Armory::Config::NetworkSettings::listenPort(),
       Armory::Config::NetworkSettings::oneWayAuth(),
       Armory::Config::NetworkSettings::isOffline());
-
-   bridge->startThreads();
 
    //setup the socket
    auto sockPtr = std::make_shared<Armory::Bridge::CppBridgeSocket>(
@@ -55,8 +65,6 @@ int main(int argc, char* argv[])
 
    //block main thread till socket dies
    sockPtr->blockUntilClosed();
-
-   bridge->stopThreads();
 
    //done
    LOGINFO << "exiting";

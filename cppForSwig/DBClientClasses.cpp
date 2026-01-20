@@ -13,8 +13,9 @@
 
 using namespace std;
 using namespace DBClientClasses;
+#ifdef BUILD_PROTOBUF
 using namespace Codec_BDVCommand;
-
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 void initLibrary()
@@ -54,28 +55,35 @@ void DBClientClasses::BlockHeader::unserialize(uint8_t const * ptr, uint32_t siz
 // LedgerEntry
 //
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 LedgerEntry::LedgerEntry(shared_ptr<::Codec_LedgerEntry::LedgerEntry> msg) :
    msgPtr_(msg), ptr_(msg.get())
 {}
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 LedgerEntry::LedgerEntry(BinaryDataRef bdr)
 {
+#ifdef BUILD_PROTOBUF
    auto msg = make_shared<::Codec_LedgerEntry::LedgerEntry>();
    msg->ParseFromArray(bdr.getPtr(), (int)bdr.getSize());
    ptr_ = msg.get();
    msgPtr_ = msg;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 LedgerEntry::LedgerEntry(
    shared_ptr<::Codec_LedgerEntry::ManyLedgerEntry> msg, unsigned index) :
    msgPtr_(msg)
 {
    ptr_ = &msg->values(index);
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 LedgerEntry::LedgerEntry(
    shared_ptr<::Codec_BDVCommand::BDVCallback> msg, unsigned i, unsigned y) :
    msgPtr_(msg)
@@ -84,107 +92,153 @@ LedgerEntry::LedgerEntry(
    auto& ledgers = notif.ledgers();
    ptr_ = &ledgers.values(y);
 }
-
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 string LedgerEntry::getID() const
 {
+#ifdef BUILD_PROTOBUF
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
    if (ptr_->has_id())
       return ptr_->id();
+#endif
    return string();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 int64_t LedgerEntry::getValue() const
 {
+#ifdef BUILD_PROTOBUF
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
    return ptr_->balance();
+#else
+   return 0;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 uint32_t LedgerEntry::getBlockNum() const
 {
+#ifdef BUILD_PROTOBUF
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
    return ptr_->txheight();
+#else
+   return 0;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 BinaryDataRef LedgerEntry::getTxHash() const
 {
+#if 0
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
    auto& val = ptr_->txhash();
    BinaryDataRef bdr;
    bdr.setRef(val);
    return bdr;
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 uint32_t LedgerEntry::getIndex() const
 {
+#ifdef BUILD_PROTOBUF
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
    return ptr_->index();
+#else
+   return 0;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 uint32_t LedgerEntry::getTxTime() const
 {
+#ifdef BUILD_PROTOBUF
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
    return ptr_->txtime();
+#else
+   return 0;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 bool LedgerEntry::isCoinbase() const
 {
+#if 0
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
    return ptr_->iscoinbase();
+#else
+   return false;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 bool LedgerEntry::isSentToSelf() const
 {
+#ifdef BUILD_PROTOBUF
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
    return ptr_->issts();
+#else
+   return false;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 bool LedgerEntry::isChangeBack() const
 {
+#if 0
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
    return ptr_->ischangeback();
+#else
+   return false;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 bool LedgerEntry::isOptInRBF() const
 {
+#ifdef BUILD_PROTOBUF
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
    return ptr_->optinrbf();
+#else
+   return false;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 bool LedgerEntry::isChainedZC() const
 {
+#ifdef BUILD_PROTOBUF
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
    return ptr_->ischainedzc();
+#else
+   return false;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 bool LedgerEntry::isWitness() const
 {
+#ifdef BUILD_PROTOBUF
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
    return ptr_->iswitness();
+#else
+   return false;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -202,6 +256,7 @@ bool LedgerEntry::operator==(const LedgerEntry& rhs)
 ///////////////////////////////////////////////////////////////////////////////
 vector<BinaryData> LedgerEntry::getScrAddrList() const
 {
+#ifdef BUILD_PROTOBUF
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
 
@@ -215,6 +270,9 @@ vector<BinaryData> LedgerEntry::getScrAddrList() const
    }
 
    return addrList;
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -226,6 +284,7 @@ RemoteCallback::~RemoteCallback(void)
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 bool RemoteCallback::processNotifications(
    shared_ptr<BDVCallback> callback)
 {
@@ -398,6 +457,7 @@ bool RemoteCallback::processNotifications(
 
    return true;
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -406,14 +466,17 @@ bool RemoteCallback::processNotifications(
 ///////////////////////////////////////////////////////////////////////////////
 NodeStatus::NodeStatus(BinaryDataRef bdr)
 {
+#ifdef BUILD_PROTOBUF
    auto msg = make_shared<Codec_NodeStatus::NodeStatus>();
    if (!msg->ParseFromArray(bdr.getPtr(), (int)bdr.getSize()))
       throw runtime_error("invalid node status protobuf msg");
    ptr_ = msg.get();
    msgPtr_ = move(msg);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 NodeStatus::NodeStatus(
    shared_ptr<Codec_NodeStatus::NodeStatus> msg)
 {
@@ -429,36 +492,50 @@ NodeStatus::NodeStatus(
    auto& notif = msg->notification(i);
    ptr_ = &notif.nodestatus();
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 CoreRPC::NodeState NodeStatus::state() const
 {
+#ifdef BUILD_PROTOBUF
    return (CoreRPC::NodeState)ptr_->state();
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 bool NodeStatus::isSegWitEnabled() const
 {
+#ifdef BUILD_PROTOBUF
    if (ptr_->has_segwitenabled())
       return ptr_->segwitenabled();
+#endif
    return false;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 CoreRPC::RpcState NodeStatus::rpcState() const
 {
+#ifdef BUILD_PROTOBUF
    if (ptr_->has_rpcstate())
       return (CoreRPC::RpcState)ptr_->rpcstate();
+#endif
    return CoreRPC::RpcState::RpcState_Disabled;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 NodeChainStatus NodeStatus::chainStatus() const
 {
+#ifdef BUILD_PROTOBUF
    return NodeChainStatus(ptr_);
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 shared_ptr<NodeStatus> NodeStatus::make_new(
    shared_ptr<Codec_BDVCommand::BDVCallback> msg, unsigned i)
 {
@@ -475,35 +552,56 @@ NodeChainStatus::NodeChainStatus(
    const Codec_NodeStatus::NodeStatus* ptr) :
    ptr_(&ptr->chainstatus())
 {}
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 CoreRPC::ChainState NodeChainStatus::state() const
 {
+#ifdef BUILD_PROTOBUF
    return (CoreRPC::ChainState)ptr_->state();
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 float NodeChainStatus::getBlockSpeed() const
 {
+#ifdef BUILD_PROTOBUF
    return ptr_->blockspeed();
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 float NodeChainStatus::getProgressPct() const
 {
+#ifdef BUILD_PROTOBUF
    return ptr_->pct();
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 uint64_t NodeChainStatus::getETA() const
 {
+#ifdef BUILD_PROTOBUF
    return ptr_->eta();
+#else
+   return 0;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 unsigned NodeChainStatus::getBlocksLeft() const
 {
+#ifdef BUILD_PROTOBUF
    return ptr_->blocksleft();
+#else
+   return 0;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -513,12 +611,15 @@ unsigned NodeChainStatus::getBlocksLeft() const
 ///////////////////////////////////////////////////////////////////////////////
 ProgressData::ProgressData(BinaryDataRef)
 {
+#ifdef BUILD_PROTOBUF
    auto msg = make_shared<::Codec_NodeStatus::ProgressData>();
    ptr_ = msg.get();
    msgPtr_ = msg;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 ProgressData::ProgressData(
    shared_ptr<::Codec_BDVCommand::BDVCallback> msg, unsigned i) :
    msgPtr_(msg)
@@ -526,46 +627,65 @@ ProgressData::ProgressData(
    auto& notif = msg->notification(i);
    ptr_ = &notif.progress();
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 BDMPhase ProgressData::phase() const
 {
+#ifdef BUILD_PROTOBUF
    return (BDMPhase)ptr_->phase();
+#else
+   return {};
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 double ProgressData::progress() const
 {
+#ifdef BUILD_PROTOBUF
    return ptr_->progress();
+#else
+   return 0;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 unsigned ProgressData::time() const
 {
+#ifdef BUILD_PROTOBUF
    return ptr_->time();
+#else
+   return 0;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 unsigned ProgressData::numericProgress() const
 {
+#ifdef BUILD_PROTOBUF
    return ptr_->numericprogress();
+#else
+   return 0;
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 vector<string> ProgressData::wltIDs() const
 {
    vector<string> vec;
+#ifdef BUILD_PROTOBUF
    for (int i = 0; i < ptr_->id_size(); i++)
       vec.push_back(ptr_->id(i));
-
+#endif
    return vec;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 std::shared_ptr<ProgressData> ProgressData::make_new(
    std::shared_ptr<::Codec_BDVCommand::BDVCallback> msg, unsigned i)
 {
    auto pd = make_shared<ProgressData>(ProgressData(msg, i));
    return pd;
 }
-
+#endif

@@ -13,7 +13,7 @@
 #include <chrono>
 #include "TestUtils.h"
 #include "hkdf.h"
-#include "TxHashFilters.h"
+#include "BlockchainDatabase/TxHashFilters.h"
 
 using namespace std;
 using namespace Armory::Signer;
@@ -2014,7 +2014,7 @@ TEST_F(BinaryDataTest, Contains)
    EXPECT_FALSE(bd4_.contains(d, 8));
 }
 
-TEST_F(BinaryDataTest, CompareBench)
+TEST_F(BinaryDataTest, DISABLED_CompareBench)
 {
    auto start = chrono::system_clock::now();
 
@@ -2839,9 +2839,7 @@ protected:
    string homedir_;
 };
 
-
-
-
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(BtcUtilsTest, ReadVarInt)
 {
    BinaryData vi0 = READHEX("00");
@@ -2898,7 +2896,7 @@ TEST_F(BtcUtilsTest, ReadVarInt)
    EXPECT_EQ(BtcUtils::calcVarIntSize(z), 9ULL);
 }
 
-
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(BtcUtilsTest, Num2Str)
 {
    EXPECT_EQ(BtcUtils::numToStrWCommas(0),         string("0"));
@@ -2911,8 +2909,7 @@ TEST_F(BtcUtilsTest, Num2Str)
    EXPECT_EQ(BtcUtils::numToStrWCommas(-12345678), string("-12,345,678"));
 }
 
-
-
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(BtcUtilsTest, PackBits)
 {
    list<bool>::iterator iter, iter2;
@@ -3000,14 +2997,12 @@ TEST_F(BtcUtilsTest, PackBits)
    EXPECT_EQ(packed, READHEX("0170"));
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BtcUtilsTest, SimpleHash)
 {
-   BinaryData hashOut; 
+   BinaryData hashOut;
 
-   // sha256(sha256(X));
+   // sha256(sha256(X))
    BtcUtils::getHash256(rawHead_.getPtr(), rawHead_.getSize(), hashOut);
    EXPECT_EQ(hashOut, headHashLE_);
    EXPECT_EQ(hashOut, headHashBE_.copySwapEndian());
@@ -3028,8 +3023,7 @@ TEST_F(BtcUtilsTest, SimpleHash)
    hashOut = BtcUtils::getHash256(rawHead_);
    EXPECT_EQ(hashOut, headHashLE_);
 
-   
-   // ripemd160(sha256(X));
+   // ripemd160(sha256(X))
    BtcUtils::getHash160(satoshiPubKey_.getPtr(), satoshiPubKey_.getSize(), hashOut);
    EXPECT_EQ(hashOut, satoshiHash160_);
 
@@ -3049,7 +3043,20 @@ TEST_F(BtcUtilsTest, SimpleHash)
    EXPECT_EQ(hashOut, satoshiHash160_);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(BtcUtilsTest, BotchedArmoryHMAC)
+{
+   auto sha_abcd = READHEX("88d4266fd4e6338d13b845fcf289579d209c897823b9217da3e161936f031589");
+   auto sha_efgh = READHEX("e5e088a0b66163a0a26a5e053d2a4496dc16ab6e0e3dd1adf2d16aa84a078c9d");
+   auto hmac_1 = READHEX("edd2c945dc57a5eecdb4dbb2db8ae4f33f9669046e47acb517c8f6bcdf6ee591");
 
+   auto abcd = BinaryData::fromString("abcd");
+   auto efgh = BinaryData::fromString("efgh");
+
+   EXPECT_EQ(BtcUtils::getSha256(abcd), sha_abcd);
+   EXPECT_EQ(BtcUtils::getSha256(efgh), sha_efgh);
+   EXPECT_EQ(BtcUtils::getBotchedArmoryHMAC256(abcd, efgh), hmac_1);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BtcUtilsTest, TxOutScriptID_Hash160)
@@ -3202,18 +3209,6 @@ TEST_F(BtcUtilsTest, TxOutScriptID_MultiList)
    EXPECT_EQ(pkList[1], pub1);
 }
 
-
-//TEST_F(BtcUtilsTest, TxInScriptID)
-//{
-   //TXIN_SCRIPT_STDUNCOMPR,
-   //TXIN_SCRIPT_STDCOMPR,
-   //TXIN_SCRIPT_COINBASE,
-   //TXIN_SCRIPT_SPENDPUBKEY,
-   //TXIN_SCRIPT_SPENDMULTI,
-   //TXIN_SCRIPT_SPENDP2SH,
-   //TXIN_SCRIPT_NONSTANDARD
-//}
- 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BtcUtilsTest, TxInScriptID_StdUncompr)
 {
@@ -3285,8 +3280,6 @@ TEST_F(BtcUtilsTest, TxInScriptID_SpendPubKey)
    //txInHash160s.push_back( READHEX("957efec6af757ccbbcf9a436f0083c5ddaa3bf1d")); // this one can't be determined
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BtcUtilsTest, TxInScriptID_SpendMultisig)
 {
@@ -3350,8 +3343,6 @@ TEST_F(BtcUtilsTest, TxInScriptID_SpendP2SH)
    EXPECT_EQ(BtcUtils::getTxInAddrFromType(script,  scrType), a160);
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BtcUtilsTest, BitsToDifficulty)
 {
@@ -3359,12 +3350,11 @@ TEST_F(BtcUtilsTest, BitsToDifficulty)
    double a = BtcUtils::convertDiffBitsToDouble(READHEX("ffff001d"));
    double b = BtcUtils::convertDiffBitsToDouble(READHEX("be2f021a"));
    double c = BtcUtils::convertDiffBitsToDouble(READHEX("3daa011a"));
-   
+
    EXPECT_DOUBLE_EQ(a, 1.0);
    EXPECT_DOUBLE_EQ(b, 7672999.920164138);
    EXPECT_DOUBLE_EQ(c, 10076292.883418716);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BtcUtilsTest, ScriptToOpCodes)
@@ -3422,8 +3412,6 @@ TEST_F(BtcUtilsTest, ScriptToOpCodes)
    for(uint32_t i=0; i<opstr.size(); i++)
       EXPECT_EQ(output[i], opstr[i]);
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -3558,8 +3546,6 @@ protected:
    Tx tx2_;
 };
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockObjTest, HeaderNoInit)
 {
@@ -3568,7 +3554,6 @@ TEST_F(BlockObjTest, HeaderNoInit)
    EXPECT_EQ(bh.getNumTx(), UINT32_MAX);
    EXPECT_EQ(bh.getBlockSize(), UINT32_MAX);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockObjTest, HeaderUnserialize)
@@ -3609,8 +3594,6 @@ TEST_F(BlockObjTest, HeaderProperties)
    EXPECT_EQ(BlockHeader(rawHead_).serialize(), rawHead_);
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockObjTest, OutPointProperties)
 {
@@ -3638,7 +3621,6 @@ TEST_F(BlockObjTest, OutPointProperties)
    EXPECT_EQ(op.getTxHash(), prevHash);
    EXPECT_EQ(op.getTxHashRef(), prevHash.getRef());
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockObjTest, OutPointSerialize)
@@ -3728,7 +3710,6 @@ TEST_F(BlockObjTest, DISABLED_FullBlock)
    BinaryRefReader brr(rawBlock_);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockObjTest, DISABLED_TxIOPairStuff)
 {
@@ -3740,8 +3721,6 @@ TEST_F(BlockObjTest, DISABLED_RegisteredTxStuff)
 {
    EXPECT_TRUE(false);
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -3938,7 +3917,6 @@ protected:
    StoredHeader sbh_;
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, StoredObjNoInit)
 {
@@ -4023,8 +4001,6 @@ TEST_F(StoredBlockObjTest, GetDBKeys)
    EXPECT_EQ(sths.getDBKey( false ),         key);
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, LengthUnfrag)
 {
@@ -4046,8 +4022,6 @@ TEST_F(StoredBlockObjTest, LengthUnfrag)
    EXPECT_EQ(offout[1],     400ULL);
    EXPECT_EQ(offout[2],     434ULL);
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, LengthFragged)
@@ -4236,7 +4210,7 @@ TEST_F(StoredBlockObjTest, ReadBlkKeyData)
    EXPECT_EQ( txi,          7);
    EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TX);
-   
+
    brr.setNewData(key7);
    bdtype = DBUtils::readBlkDataKeyNoPrefix(brr, hgt, dup, txi, txo);
    EXPECT_EQ( hgt,     123000ULL);
@@ -4263,7 +4237,7 @@ TEST_F(StoredBlockObjTest, ReadBlkKeyData)
    EXPECT_EQ( txi,          7);
    EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TXOUT);
-   
+
    brr.setNewData(key9);
    bdtype = DBUtils::readBlkDataKeyNoPrefix(brr, hgt, dup, txi, txo);
    EXPECT_EQ( hgt,     123000ULL);
@@ -4309,7 +4283,6 @@ TEST_F(StoredBlockObjTest, SHeaderDBSerFull_H)
    EXPECT_EQ(serializeDBValue(sbh_, HEADERS, ARMORY_DB_FULL), rawHead_ + last4);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, SHeaderDBSerFull_B1)
 {
@@ -4352,7 +4325,6 @@ TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_H)
    EXPECT_EQ(sbh_.duplicateID_, 1);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B1)
 {
@@ -4375,7 +4347,6 @@ TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B1)
    EXPECT_EQ(sbh_.unserDbType_,  ARMORY_DB_FULL);
    EXPECT_EQ(sbh_.unserMkType_,  MERKLE_SER_NONE);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B2)
@@ -4476,8 +4447,6 @@ TEST_F(StoredBlockObjTest, STxUnserFragged)
    EXPECT_EQ(   stx.stxoMap_[0].txOutIndex_, 0);
    EXPECT_EQ(   stx.stxoMap_[1].txOutIndex_, 1);
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, STxReconstruct)
@@ -4607,8 +4576,6 @@ TEST_F(StoredBlockObjTest, STxUnserDBValue_2)
    EXPECT_EQ(   stx.fragBytes_,   370ULL);
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, STxOutUnserialize)
 {
@@ -4657,7 +4624,6 @@ TEST_F(StoredBlockObjTest, STxOutSerDBValue_1)
    EXPECT_EQ(serializeDBValue(stxo0),  
       READHEX("1400") + rawTxOut0_);
 }
-   
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, STxOutSerDBValue_2)
@@ -4681,8 +4647,6 @@ TEST_F(StoredBlockObjTest, STxOutSerDBValue_2)
    );
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, STxOutSerDBValue_3)
 {
@@ -4705,7 +4669,6 @@ TEST_F(StoredBlockObjTest, STxOutSerDBValue_3)
    );
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, STxOutUnserDBValue_1)
 {
@@ -4726,6 +4689,7 @@ TEST_F(StoredBlockObjTest, STxOutUnserDBValue_1)
    EXPECT_FALSE(stxo.isCoinbase_);
    EXPECT_EQ(   stxo.unserArmVer_,  0ULL);
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, STxOutUnserDBValue_2)
 {
@@ -4746,7 +4710,6 @@ TEST_F(StoredBlockObjTest, STxOutUnserDBValue_2)
    EXPECT_EQ(   stxo.spentByTxInKey_, READHEX("01a086017f000f00"));
    EXPECT_EQ(   stxo.unserArmVer_,  0ULL);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, STxOutUnserDBValue_3)
@@ -4769,7 +4732,6 @@ TEST_F(StoredBlockObjTest, STxOutUnserDBValue_3)
    EXPECT_EQ(   stxo.unserArmVer_,  0ULL);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, SHeaderFullBlock)
 {
@@ -4782,7 +4744,6 @@ TEST_F(StoredBlockObjTest, SHeaderFullBlock)
 
    EXPECT_EQ(bw.getDataRef(), rawBlock_.getRef());
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, SUndoDataSer)
@@ -4845,8 +4806,6 @@ TEST_F(StoredBlockObjTest, SUndoDataSer)
    EXPECT_EQ(serializeDBValue(sud), answer);
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, SUndoDataUnser)
 {
@@ -4904,7 +4863,6 @@ TEST_F(StoredBlockObjTest, SUndoDataUnser)
    EXPECT_EQ(sud.stxOutsRemovedByBlock_[0].txIndex_, 17ULL);
    EXPECT_EQ(sud.stxOutsRemovedByBlock_[1].txIndex_, 17ULL);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, STxHintsSer)
@@ -5081,7 +5039,6 @@ TEST_F(StoredBlockObjTest, SHeadHgtListSer)
    expectOut.put_uint8_t(dup2);        expectOut.put_BinaryData(hash2);
    EXPECT_EQ(testHHL.serializeDBValue(), expectOut.getData());
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, SHeadHgtListUnser)
@@ -5355,7 +5312,6 @@ TEST_F(StoredBlockObjTest, SScriptHistoryUnser)
    EXPECT_EQ(   subref.txioMap_[txio1key].getValue(), val1);
    EXPECT_EQ(   subref.txioMap_[txio0key].getDBKeyOfOutput(), txio0key);
    EXPECT_EQ(   subref.txioMap_[txio1key].getDBKeyOfOutput(), txio1key);
-   
 
 
    /////////////////////////////////////////////////////////////////////////////

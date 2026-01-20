@@ -11,41 +11,48 @@
 
 #include <future>
 
-#include "../protobuf/ClientProto.pb.h"
 #include "../Wallets/WalletIdTypes.h"
 #include "../Wallets/PassphraseLambda.h"
 
-#define BRIDGE_CALLBACK_PROMPTUSER UINT32_MAX - 2
+namespace BridgeProto
+{
+   class Payload;
+   class CallbackReply;
+};
 
 namespace Armory
 {
    namespace Bridge
    {
-      struct WritePayload_Bridge;
+      using CallbackHandler = std::function<bool(const BridgeProto::CallbackReply&)>;
+ 
+      //////////////////////////////////////////////////////////////////////////
+      struct ServerPushWrapper
+      {
+         const uint32_t referenceId;
+         CallbackHandler handler = nullptr;
+         std::unique_ptr<BridgeProto::Payload> payload;
+      };
 
       //////////////////////////////////////////////////////////////////////////
       class BridgePassphrasePrompt
       {
+         static uint32_t referenceCounter_;
+
       private:
-         std::unique_ptr<std::promise<SecureBinaryData>> promPtr_;
-         std::unique_ptr<std::shared_future<SecureBinaryData>> futPtr_;
-
          const std::string promptId_;
-         std::function<void(std::unique_ptr<WritePayload_Bridge>)> writeLambda_;
+         std::function<void(ServerPushWrapper)> writeFunc_;
 
-         std::set<Wallets::EncryptionKeyId> encryptionKeyIds_;
+      private:
+         SecureBinaryData processFeedRequest(
+            const std::set<Armory::Wallets::EncryptionKeyId>&);
 
       public:
-         static const Wallets::EncryptionKeyId concludeKey;
+         BridgePassphrasePrompt(const std::string&,
+            std::function<void(ServerPushWrapper)>);
 
-      public:
-         BridgePassphrasePrompt(const std::string& id,
-            std::function<void(std::unique_ptr<WritePayload_Bridge>)> lbd) :
-            promptId_(id), writeLambda_(lbd)
-         {}
-
-         PassphraseLambda getLambda(::Codec_ClientProto::UnlockPromptType);
-         void setReply(const std::string&);
+         PassphraseLambda getLambda();
+         void cleanup(void);
       };
    }; //namespace Bridge
 }; //namespace Armory

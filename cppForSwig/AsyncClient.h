@@ -97,11 +97,11 @@ public:
       error_ = std::make_shared<ClientMessageError>(err);
    }
 
-   U get(void) 
+   U get(void)
    { 
       if (error_ != nullptr)
          throw *error_;
-         
+
       return std::move(value_);
    }
 };
@@ -403,11 +403,12 @@ namespace AsyncClient
       ~BlockDataViewer(void);
 
       //utility
+#ifdef BUILD_PROTOBUF
       static std::unique_ptr<WritePayload_Protobuf> make_payload(
          ::Codec_BDVCommand::Methods);
       static std::unique_ptr<WritePayload_Protobuf> make_payload(
          ::Codec_BDVCommand::StaticMethods);
-      
+#endif      
       BtcWallet instantiateWallet(const std::string& id);
       Lockbox instantiateLockbox(const std::string& id);
 
@@ -527,9 +528,10 @@ namespace AsyncClient
    };
 
    ////////////////////////////////////////////////////////////////////////////
-   void deserialize(::google::protobuf::Message*, 
+#ifdef BUILD_PROTOBUF
+   void deserialize(::google::protobuf::Message*,
       const WebSocketMessagePartial&);
-
+#endif
    ///////////////////////////////////////////////////////////////////////////////
    ///////////////////////////////////////////////////////////////////////////////
    //// callback structs for async networking
@@ -863,16 +865,18 @@ namespace AsyncClient
    ///////////////////////////////////////////////////////////////////////////////
    struct CallbackReturn_BDVCallback : public CallbackReturn_WebSocket
    {
+#ifdef BUILD_PROTOBUF
    private:
       std::function<void(std::shared_ptr<::Codec_BDVCommand::BDVCallback>)>
          userCallbackLambda_;
-
+#endif
    public:
+#ifdef BUILD_PROTOBUF
       CallbackReturn_BDVCallback(
          std::function<void(std::shared_ptr<::Codec_BDVCommand::BDVCallback>)> lbd) :
          userCallbackLambda_(lbd)
       {}
-
+#endif
       //virtual
       void callback(const WebSocketMessagePartial&);
    };

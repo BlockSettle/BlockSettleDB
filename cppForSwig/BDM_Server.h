@@ -52,8 +52,10 @@ class BDV_Server_Object;
 
 namespace DBTestUtils
 {
+#ifdef BUILD_PROTOBUF
    std::tuple<std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned> waitOnSignal(
       Clients*, const std::string&, ::Codec_BDVCommand::NotificationType);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -97,7 +99,9 @@ public:
 
    virtual ~Callback() = 0;
 
+#ifdef BUILD_PROTOBUF
    virtual void callback(std::shared_ptr<::Codec_BDVCommand::BDVCallback>) = 0;
+#endif
    virtual bool isValid(void) = 0;
    virtual void shutdown(void) = 0;
 };
@@ -113,7 +117,9 @@ public:
       bdvID_(bdvid)
    {}
 
+#ifdef BUILD_PROTOBUF
    void callback(std::shared_ptr<::Codec_BDVCommand::BDVCallback>);
+#endif
    bool isValid(void) { return true; }
    void shutdown(void) {}
 };
@@ -121,26 +127,32 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 class UnitTest_Callback : public Callback
 {
+#ifdef BUILD_PROTOBUF
 private:
    Armory::Threading::BlockingQueue<
       std::shared_ptr<::Codec_BDVCommand::BDVCallback>> notifQueue_;
-
+#endif
 public:
+#ifdef BUILD_PROTOBUF
    void callback(std::shared_ptr<::Codec_BDVCommand::BDVCallback>);
+#endif
    bool isValid(void) { return true; }
    void shutdown(void) {}
 
+#ifdef BUILD_PROTOBUF
    std::shared_ptr<::Codec_BDVCommand::BDVCallback> getNotification(void);
+#endif
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 class BDV_Server_Object : public BlockDataViewer
 {
    friend class Clients;
+#ifdef BUILD_PROTOBUF
    friend std::tuple<std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned>
       DBTestUtils::waitOnSignal(
       Clients*, const std::string&, ::Codec_BDVCommand::NotificationType);
-
+#endif
 private: 
    std::atomic<unsigned> started_;
    std::thread initT_;
@@ -153,7 +165,9 @@ private:
 
    struct walletRegStruct
    {
+#ifdef BUILD_PROTOBUF
       std::shared_ptr<::Codec_BDVCommand::BDVCommand> command_;
+#endif
       WalletType type_;
    };
 
@@ -173,13 +187,17 @@ private:
 private:
    BDV_Server_Object(BDV_Server_Object&) = delete; //no copies
       
+#ifdef BUILD_PROTOBUF
    BDVCommandProcessingResultType processCommand(
       std::shared_ptr<::Codec_BDVCommand::BDVCommand>,
       std::shared_ptr<::google::protobuf::Message>&);
+#endif
    void startThreads(void);
 
+#ifdef BUILD_PROTOBUF
    void registerWallet(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
    void registerLockbox(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
+#endif
    void populateWallets(std::map<std::string, walletRegStruct>&);
    void setup(void);
 
@@ -255,10 +273,12 @@ public:
 
    std::shared_ptr<BDV_Server_Object> get(const std::string& id) const;
    
+#ifdef BUILD_PROTOBUF
    void processShutdownCommand(
       std::shared_ptr<::Codec_BDVCommand::StaticCommand>);
    std::shared_ptr<::google::protobuf::Message> registerBDV(
       std::shared_ptr<::Codec_BDVCommand::StaticCommand>, std::string bdvID);
+#endif
    void unregisterBDV(std::string bdvId);
    void shutdown(void);
    void exitRequestLoop(void);
@@ -267,12 +287,13 @@ public:
    {  
       packetQueue_.push_back(move(payload));
    }
-
+#ifdef BUILD_PROTOBUF
    std::shared_ptr<::google::protobuf::Message> processUnregisteredCommand(
       const uint64_t& bdvId, std::shared_ptr<::Codec_BDVCommand::StaticCommand>);
 
    std::shared_ptr<::google::protobuf::Message> processCommand(
       std::shared_ptr<BDV_Payload>);
+#endif
 };
 
 #endif

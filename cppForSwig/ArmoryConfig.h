@@ -126,6 +126,7 @@ namespace Armory
          static bool reportProgress_;
          static bool checkChain_;
          static bool clearMempool_;
+         static bool checkTxHints_;
 
       private:
          static void processArgs(const std::map<std::string, std::string>&);
@@ -158,6 +159,7 @@ namespace Armory
          static BDM_INIT_MODE initMode(void) { return initMode_; }
          static bool clearMempool(void) { return clearMempool_; }
          static bool reportProgress(void) { return reportProgress_; }
+         static bool checkTxHints(void) { return checkTxHints_; }
       };
 
       //////////////////////////////////////////////////////////////////////////

@@ -46,6 +46,7 @@ gtest_UtilsTests_LDADD = gtest/libgtest.la \
 			$(LIBARMORYCLI) \
 			$(LIBHKDF) \
 			$(LIBBTC) \
+			$(LIBTREZORCRYPTO) \
 			$(LIBLMDBPP) \
 			-llmdb \
 			$(LIBPROTOBUF_STATIC) \
@@ -116,6 +117,7 @@ gtest_SupernodeTests_LDADD = gtest/libgtest.la \
 			-llmdb \
 			$(LIBHKDF) \
 			$(LIBBTC) \
+			$(LIBTREZORCRYPTO) \
 			$(LIBCHACHA20POLY1305) \
 			$(LIBPROTOBUF_STATIC) \
 			$(LIBWEBSOCKETS_STATIC)
@@ -147,6 +149,7 @@ gtest_CppBlockUtilsTests_LDADD = gtest/libgtest.la \
 			$(LIBHKDF) \
 			$(LIBBTC) \
 			$(LIBLMDBPP) \
+			$(LIBTREZORCRYPTO) \
 			-llmdb \
 			$(LIBPROTOBUF_STATIC) \
 			$(LIBWEBSOCKETS_STATIC)
@@ -178,6 +181,7 @@ gtest_ZeroConfTests_LDADD = gtest/libgtest.la \
 			-llmdb \
 			$(LIBHKDF) \
 			$(LIBBTC) \
+			$(LIBTREZORCRYPTO) \
 			$(LIBCHACHA20POLY1305) \
 			$(LIBPROTOBUF_STATIC) \
 			$(LIBWEBSOCKETS_STATIC)
@@ -209,6 +213,7 @@ gtest_WalletTests_LDADD = gtest/libgtest.la \
 			$(LIBHKDF) \
 			$(LIBBTC) \
 			$(LIBLMDBPP) \
+			$(LIBTREZORCRYPTO) \
 			-llmdb \
 			$(LIBPROTOBUF_STATIC) \
 			$(LIBWEBSOCKETS_STATIC)
@@ -240,6 +245,7 @@ gtest_SignerTests_LDADD = gtest/libgtest.la \
 			$(LIBBTC) \
 			$(LIBCHACHA20POLY1305) \
 			$(LIBLMDBPP) \
+			$(LIBTREZORCRYPTO) \
 			-llmdb \
 			$(LIBPROTOBUF_STATIC) \
 			$(LIBWEBSOCKETS_STATIC)

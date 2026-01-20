@@ -144,8 +144,21 @@ public:
 
    static SecureBinaryData fromString(const std::string& str)
    {
+      if (str.empty())
+         return {};
+
       SecureBinaryData sbd(str.size());
-      memcpy(sbd.getPtr(), str.c_str(), str.size());
+      memcpy(sbd.getPtr(), str.data(), str.size());
+      return sbd;
+   }
+
+   static SecureBinaryData fromStringView(const std::string_view& strv)
+   {
+      if (strv.empty())
+         return {};
+
+      SecureBinaryData sbd(strv.size());
+      memcpy(sbd.getPtr(), strv.data(), strv.size());
       return sbd;
    }
 };

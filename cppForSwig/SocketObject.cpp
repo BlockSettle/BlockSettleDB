@@ -10,8 +10,9 @@
 #include "SocketWritePayload.h"
 #include <cstring>
 #include <stdexcept>
-
+#ifdef BUILD_PROTOBUF
 #include "google/protobuf/text_format.h"
+#endif
 
 using namespace std;
 
@@ -1091,6 +1092,7 @@ void WritePayload_Raw::serialize(vector<uint8_t>& data)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifdef BUILD_PROTOBUF
 string WritePayload_Protobuf::serializeToText(void)
 {
    if (message_ == nullptr)
@@ -1110,3 +1112,4 @@ void WritePayload_Protobuf::serialize(vector<uint8_t>& data)
    data.resize(message_->ByteSizeLong());
    message_->SerializeToArray(&data[0], (int)data.size());
 }
+#endif

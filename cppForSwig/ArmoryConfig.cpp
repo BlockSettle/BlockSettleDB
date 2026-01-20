@@ -131,6 +131,7 @@ const string& Armory::Config::getDataDir()
 void Armory::Config::parseArgs(int argc, char* argv[], ProcessType procType)
 {
    vector<string> lines;
+   lines.reserve(argc);
    for (int i=1; i<argc; i++)
       lines.emplace_back(argv[i], strlen(argv[i]));
 
@@ -512,6 +513,7 @@ unsigned DBSettings::zcThreadCount_ = DEFAULT_ZCTHREAD_COUNT;
 bool DBSettings::reportProgress_ = true;
 bool DBSettings::checkChain_ = false;
 bool DBSettings::clearMempool_ = false;
+bool DBSettings::checkTxHints_ = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 void DBSettings::processArgs(const map<string, string>& args)
@@ -536,6 +538,10 @@ void DBSettings::processArgs(const map<string, string>& args)
    iter = args.find("clear-mempool");
    if (iter != args.end())
       clearMempool_ = true;
+
+   iter = args.find("check-txhints");
+   if (iter != args.end())
+      checkTxHints_ = true;
 
    //db type
    iter = args.find("db-type");
@@ -1052,7 +1058,7 @@ void Pathing::processArgs(const map<string, string>& args, ProcessType procType)
       return;
    }
 
-   //create dbdir if was set automatically
+   //create dbdir if set automatically
    if (autoDbDir)
    {
       if (!testPath(dbDir_, 0))
@@ -1068,8 +1074,7 @@ void Pathing::processArgs(const map<string, string>& args, ProcessType procType)
    //now for the regular test, let it throw if it fails
    if (!testPath(dbDir_, 6))
    {
-      string errMsg = Armory::Config::getDataDir() +
-         " is not a valid db path";
+      string errMsg = dbDir_ + " is not a valid db path";
       throw DbErrorMsg(errMsg); 
    }
 
@@ -1082,8 +1087,7 @@ void Pathing::processArgs(const map<string, string>& args, ProcessType procType)
    {
       if (!testPath(blkFilePath_, 2))
       {
-         string errMsg = Armory::Config::getDataDir() +
-            " is not a valid blockchain data path";
+         string errMsg = blkFilePath_ + " is not a valid blockchain data path";
          throw DbErrorMsg(errMsg); 
       }
    }

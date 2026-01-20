@@ -24,8 +24,8 @@ BlockData::BlockData(uint32_t blockid)
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<BlockData> BlockData::deserialize(const uint8_t* data, size_t size,
    const shared_ptr<BlockHeader> blockHeader,
-   function<unsigned int(const BinaryData&)> getID, 
-   bool checkMerkle, bool keepHashes)
+   function<unsigned int(const BinaryData&)> getID,
+   BlockData::CheckHashes mode)
 {
    //deser header from raw block and run a quick sanity check
    if (size < HEADER_SIZE)
@@ -73,26 +73,39 @@ shared_ptr<BlockData> BlockData::deserialize(const uint8_t* data, size_t size,
    result->data_ = data;
    result->size_ = size;
 
-   if (!checkMerkle)
-      return result;
-
-   //let's check the merkle root
-   vector<BinaryData> allhashes;
-   for (auto& txn : result->txns_)
+   vector<BinaryData> allHashes;
+   switch (mode)
    {
-      if (!keepHashes)
+      case CheckHashes::NoChecks:
+         return result;
+
+      case CheckHashes::MerkleOnly:
+      case CheckHashes::TxFilters:
       {
-         auto txhash = txn->moveHash();
-         allhashes.push_back(move(txhash));
+         allHashes.reserve(result->txns_.size());
+         for (auto& txn : result->txns_)
+         {
+            auto txhash = txn->moveHash();
+            allHashes.emplace_back(move(txhash));
+         }
+         break;
       }
-      else
+
+      case CheckHashes::FullHints:
       {
-         auto& txhash = txn->getHash();
-         allhashes.push_back(txhash);
+         allHashes.reserve(result->txns_.size());
+         for (auto& txn : result->txns_)
+         {
+            const auto& txhash = txn->getHash();
+            allHashes.emplace_back(txhash);
+         }
+         break;
       }
    }
 
-   auto&& merkleroot = BtcUtils::calculateMerkleRoot(allhashes);
+   //any form of later txhash filtering implies we check the merkle
+   //root, otherwise we would have no guarantees the hashes are valid
+   auto&& merkleroot = BtcUtils::calculateMerkleRoot(allHashes);
    if (merkleroot != bh.getMerkleRoot())
    {
       LOGERR << "merkle root mismatch!";
@@ -101,7 +114,8 @@ shared_ptr<BlockData> BlockData::deserialize(const uint8_t* data, size_t size,
       throw BlockDeserializingException("invalid merkle root");
    }
 
-   result->computeTxFilter(allhashes);
+   if (mode == CheckHashes::TxFilters)
+      result->computeTxFilter(allHashes);
    return result;
 }
 

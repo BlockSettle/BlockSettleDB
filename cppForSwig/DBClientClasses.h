@@ -122,18 +122,20 @@ namespace DBClientClasses
    ////////////////////////////////////////////////////////////////////////////
    class LedgerEntry
    {
+#ifdef BUILD_PROTOBUF
    private:
       std::shared_ptr<::google::protobuf::Message> msgPtr_;
       const ::Codec_LedgerEntry::LedgerEntry* ptr_ = nullptr;
-
+#endif
    public:
       LedgerEntry(BinaryDataRef bdr);
+#ifdef BUILD_PROTOBUF
       LedgerEntry(std::shared_ptr<::Codec_LedgerEntry::LedgerEntry>);
       LedgerEntry(std::shared_ptr<::Codec_LedgerEntry::ManyLedgerEntry>,
          unsigned);
       LedgerEntry(std::shared_ptr<::Codec_BDVCommand::BDVCallback>,
          unsigned, unsigned);
-
+#endif
       std::string         getID(void) const;
       int64_t             getValue(void) const;
       uint32_t            getBlockNum(void) const;
@@ -155,13 +157,15 @@ namespace DBClientClasses
    ////////////////////////////////////////////////////////////////////////////
    class NodeChainStatus
    {
+#ifdef BUILD_PROTOBUF
    private:
       std::shared_ptr<::google::protobuf::Message> msgPtr_;
       const Codec_NodeStatus::NodeChainStatus* ptr_;
-
+#endif
    public:
+#ifdef BUILD_PROTOBUF
       NodeChainStatus(const Codec_NodeStatus::NodeStatus*);
-
+#endif
       CoreRPC::ChainState state(void) const;
       float getBlockSpeed(void) const;
 
@@ -173,36 +177,39 @@ namespace DBClientClasses
    ////////////////////////////////////////////////////////////////////////////
    class NodeStatus
    {
+#ifdef BUILD_PROTOBUF
    private:
       std::shared_ptr<::google::protobuf::Message> msgPtr_;
       const Codec_NodeStatus::NodeStatus* ptr_;
-
    private:
       NodeStatus(std::shared_ptr<Codec_BDVCommand::BDVCallback>, unsigned);
-      
+#endif
    public:
       NodeStatus(BinaryDataRef);
+#ifdef BUILD_PROTOBUF
       NodeStatus(std::shared_ptr<Codec_NodeStatus::NodeStatus>);
-
+#endif
       CoreRPC::NodeState state(void) const;
       bool isSegWitEnabled(void) const;
       CoreRPC::RpcState rpcState(void) const;
       NodeChainStatus chainStatus(void) const;
-
+#ifdef BUILD_PROTOBUF
       static std::shared_ptr<NodeStatus> make_new(
          std::shared_ptr<Codec_BDVCommand::BDVCallback>, unsigned);
+#endif
    };
 
    ////////////////////////////////////////////////////////////////////////////
    class ProgressData
    {
+#ifdef BUILD_PROTOBUF
    private:
       std::shared_ptr<::google::protobuf::Message> msgPtr_;
       const ::Codec_NodeStatus::ProgressData* ptr_;
 
    private:
       ProgressData(std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned);
-
+#endif
    public:
       ProgressData(BinaryDataRef);
 
@@ -211,9 +218,10 @@ namespace DBClientClasses
       unsigned time(void) const;
       unsigned numericProgress(void) const;
       std::vector<std::string> wltIDs(void) const;
-
+#ifdef BUILD_PROTOBUF
       static std::shared_ptr<ProgressData> make_new(
          std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned);
+#endif
    };
 }; //namespace DBClientClasses
 
@@ -255,8 +263,9 @@ public:
       unsigned progressNumeric
    ) = 0;
    virtual void disconnected(void) = 0;
-
+#ifdef BUILD_PROTOBUF
    bool processNotifications(std::shared_ptr<::Codec_BDVCommand::BDVCallback>);
+#endif
 };
 
 #endif

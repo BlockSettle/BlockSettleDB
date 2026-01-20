@@ -83,6 +83,18 @@ namespace Armory
       };
 
       //////////////////////////////////////////////////////////////////////////
+      struct AssetAccountExtendedData
+      {
+         virtual ~AssetAccountExtendedData(void) = 0;
+      };
+
+      struct AssetAccountSaltMap : public AssetAccountExtendedData
+      {
+         std::map<Wallets::AssetKeyType, SecureBinaryData> salts_;
+         ~AssetAccountSaltMap(void) override;
+      };
+
+      ////
       struct AssetAccountPublicData
       {
          const Wallets::AssetAccountId id_;
@@ -92,6 +104,8 @@ namespace Armory
 
          const Wallets::AssetKeyType lastUsedIndex_;
          const Wallets::AssetKeyType lastComputedIndex_;
+
+         std::shared_ptr<AssetAccountExtendedData> extendedData;
       };
 
       //////////////////////////////////////////////////////////////////////////

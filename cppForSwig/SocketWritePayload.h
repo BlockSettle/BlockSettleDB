@@ -10,11 +10,14 @@
 #define _SOCKET_WRITE_PAYLOAD_H
 
 #include "SocketObject.h"
+#ifdef BUILD_PROTOBUF
 #include <google/protobuf/message.h>
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 struct WritePayload_Protobuf : public Socket_WritePayload
 {
+#ifdef BUILD_PROTOBUF
    std::unique_ptr<::google::protobuf::Message> message_;
 
    void serialize(std::vector<uint8_t>&);
@@ -22,6 +25,7 @@ struct WritePayload_Protobuf : public Socket_WritePayload
    size_t getSerializedSize(void) const {
       return message_->ByteSizeLong();
    }
+#endif
 };
 
 ///////////////////////////////////////////////////////////////////////////////

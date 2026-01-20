@@ -101,8 +101,8 @@ void BIP32_Node::decodeBase58(const char* str)
 {
    btc_hdnode node;
 
-   //b58 decode 
-   if(!btc_hdnode_deserialize(
+   //b58 decode
+   if (!btc_hdnode_deserialize(
       str, Armory::Config::BitcoinSettings::get_chain_params(), &node))
       throw std::runtime_error("invalid bip32 serialized string " + std::string(str));
 
@@ -120,7 +120,7 @@ void BIP32_Node::initFromSeed(const SecureBinaryData& seed)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BIP32_Node::initFromBase58(const SecureBinaryData& b58)
+void BIP32_Node::initFromBase58(BinaryDataRef b58)
 {
    //sbd doesnt 0 terminate strings as it is not specialized for char strings,
    //have to set it manually since libbtc b58 code derives string length from

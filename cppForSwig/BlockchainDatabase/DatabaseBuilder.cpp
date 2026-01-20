@@ -125,6 +125,9 @@ void DatabaseBuilder::init()
    double updatetime = TIMER_READ_SEC("updateblocksindb");
    LOGINFO << "updated HEADERS db in " << updatetime << "s";
 
+   if (DBSettings::checkTxHints())
+      checkTxHintsIntegrity();
+
    cycleDatabases();
 
    int scanFrom = -1;
@@ -315,7 +318,6 @@ Blockchain::ReorganizationState DatabaseBuilder::updateBlocksInDB(
          baseID);
    }
 
-
    auto addblocks = [&](uint16_t fileID, size_t startOffset, 
       shared_ptr<BlockOffset> bo, bool _verbose)->void
    {
@@ -388,7 +390,7 @@ bool DatabaseBuilder::addBlocksToDB(BlockDataLoader& bdl,
    uint16_t fileID, size_t startOffset, shared_ptr<BlockOffset> bo,
    bool fullHints)
 {
-   auto&& blockfilemappointer = bdl.get(fileID);
+   auto blockfilemappointer = bdl.get(fileID);
    auto ptr = blockfilemappointer->getPtr();
 
    //ptr is null if we're out of block files
@@ -413,7 +415,9 @@ bool DatabaseBuilder::addBlocksToDB(BlockDataLoader& bdl,
       {
          bd = BlockData::deserialize(
             data, size, nullptr,
-            getID, true, fullHints);
+            getID, fullHints ?
+            BlockData::CheckHashes::FullHints :
+            BlockData::CheckHashes::TxFilters);
       }
       catch (const BlockDeserializingException &e)
       {
@@ -791,7 +795,8 @@ map<BinaryData, shared_ptr<BlockHeader>> DatabaseBuilder::assessBlkFile(
       try
       {
          bd = BlockData::deserialize(
-            data, size, nullptr, getID, true, false);
+            data, size, nullptr, getID,
+            BlockData::CheckHashes::TxFilters);
       }
       catch (...)
       {
@@ -1129,7 +1134,7 @@ void DatabaseBuilder::verifyTransactions()
                auto bdata = BlockData::deserialize(
                   fileMap->getPtr() + bhPtr->getOffset(),
                   bhPtr->getBlockSize(),
-                  bhPtr, getID, false, false);
+                  bhPtr, getID, BlockData::CheckHashes::NoChecks);
 
                const auto& txns = bdata->getTxns();
                if (txid > txns.size())
@@ -1185,7 +1190,7 @@ void DatabaseBuilder::verifyTransactions()
          auto bdata = BlockData::deserialize(
             fileMap->getPtr() + blockheader->getOffset(),
             blockheader->getBlockSize(),
-            blockheader, getID, false, false);
+            blockheader, getID, BlockData::CheckHashes::NoChecks);
 
          const auto& txns = bdata->getTxns();
          for (unsigned i = 1; i < txns.size(); i++)
@@ -1524,4 +1529,115 @@ void DatabaseBuilder::cycleDatabases()
 {
    db_->closeDatabases();
    db_->openDatabases(Pathing::dbDir());
+}
+
+/////////////////////////////////////////////////////////////////////////////
+void DatabaseBuilder::checkTxHintsIntegrity()
+{
+   BlockDataLoader bdl(blockFiles_.folderPath());
+   unsigned threadcount = min(DBSettings::threadCount(),
+      blockFiles_.fileCount());
+
+   auto fileID = std::make_shared<std::atomic<uint32_t>>();
+   fileID->store(0, std::memory_order_relaxed);
+
+   auto parserThread = [this, fileID, &bdl]()
+   {
+      while (true) {
+         auto counter = fileID->fetch_add(1, std::memory_order_relaxed);
+         if (counter % 25 == 0)
+            LOGINFO << "checking txhints for file " << counter;
+
+         auto blockfilemappointer = bdl.get(counter);
+         auto ptr = blockfilemappointer->getPtr();
+         if (ptr == nullptr)
+            return;
+
+         //tally all blocks in file
+         std::list<shared_ptr<BlockData>> bdList;
+         parseBlockFile(ptr, blockfilemappointer->size(),
+            0, [&bdList](const uint8_t* data, size_t size, size_t)->bool
+            {
+               try
+               {
+                  auto bd = BlockData::deserialize(
+                     data, size, nullptr,
+                     nullptr, BlockData::CheckHashes::FullHints);
+                  bdList.emplace_back(bd);
+                  return true;
+               }
+               catch (...)
+               {
+                  return false;
+               }
+            }
+         );
+
+         //check hashes can be resolved via tx hints db
+         int missedCount = 0;
+         auto dbtx = db_->beginTransaction(TXHINTS, LMDB::ReadOnly);
+         for (const auto& blockData : bdList)
+         {
+            //skip blocks not in the main chain
+            auto headerPtr = blockchain_->getHeaderByHash(blockData->getHash());
+            if (headerPtr == nullptr || !headerPtr->isMainBranch())
+               continue;
+
+            const auto& txns = blockData->getTxns();
+            for (const auto& txn : txns)
+            {
+               auto hash4 = txn->getHash().getSliceRef(0, 4);
+               BinaryRefReader brrHints = db_->getValueRef(
+                  TXHINTS, DB_PREFIX_TXHINTS, hash4);
+
+               uint32_t valSize = brrHints.getSize();
+               if (valSize < 6)
+               {
+                  ++missedCount;
+                  return;
+               }
+
+               bool hit = false;
+               uint32_t numHints = (uint32_t)brrHints.get_var_int();
+               for (uint32_t i = 0; i < numHints; i++)
+               {
+                  BinaryDataRef hint = brrHints.get_BinaryDataRef(6);
+
+                  //check this key is on the main branch
+                  auto hintRef = hint.getSliceRef(0, 4);
+                  auto blockId = DBUtils::hgtxToHeight(hintRef);
+                  if (blockId == headerPtr->getThisID())
+                  {
+                     hit = true;
+                     break;
+                  }
+               }
+
+               if (!hit)
+                  ++missedCount;
+            }
+         }
+
+         if (missedCount != 0)
+         {
+            LOGERR << "missed " << missedCount << " hashes" <<
+               " in file " << counter;
+         }
+      }
+   };
+
+   std::vector<std::thread> threads;
+   LOGINFO << "checking txhints for " << blockFiles_.fileCount() <<
+      " files on " << threadcount << " threads";
+   threads.reserve(threadcount);
+   for (unsigned i=0; i<threadcount; i++)
+      threads.emplace_back(thread(parserThread));
+
+   for (auto& thr : threads)
+   {
+      if (thr.joinable())
+         thr.join();
+   }
+
+   LOGINFO << "done checking txhints";
 }

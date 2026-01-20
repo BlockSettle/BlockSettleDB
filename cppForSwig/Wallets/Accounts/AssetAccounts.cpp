@@ -37,6 +37,9 @@ shared_ptr<AssetAccountData> AssetAccountData::copy(
    return accDataCopy;
 }
 
+AssetAccountExtendedData::~AssetAccountExtendedData() {}
+AssetAccountSaltMap::~AssetAccountSaltMap() {}
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// AssetAccount
@@ -801,7 +804,7 @@ AssetKeyType AssetAccount_ECDH::addSalt(
    shared_ptr<IO::WalletIfaceTransaction> tx,
    const SecureBinaryData& salt)
 {
-   auto derScheme = 
+   auto derScheme =
       dynamic_pointer_cast<DerivationScheme_ECDH>(data_->derScheme_);
 
    if (derScheme == nullptr)

@@ -129,6 +129,7 @@ namespace Armory
             void initAfterLock(void);
             void cleanUpBeforeUnlock(void);
 
+         public:
             const EncryptionKeyId& getDefaultEncryptionKeyId(void) const
             {
                return defaultEncryptionKeyId_;
@@ -157,15 +158,10 @@ namespace Armory
             EncryptionKeyId populateEncryptionKey(
                const std::map<EncryptionKeyId, BinaryData>&);
 
-            void addKdf(std::shared_ptr<KeyDerivationFunction> kdfPtr)
-            {
-               kdfMap_.insert(std::make_pair(kdfPtr->getId(), kdfPtr));
-            }
-
-            void addEncryptionKey(std::shared_ptr<EncryptionKey> keyPtr)
-            {
-               encryptedKeys_.insert(std::make_pair(keyPtr->getId(), keyPtr));
-            }
+            void addKdf(std::shared_ptr<KeyDerivationFunction>);
+            std::shared_ptr<KeyDerivationFunction> getKdf(
+               const SecureBinaryData&) const;
+            void addEncryptionKey(std::shared_ptr<EncryptionKey>);
 
             void updateOnDisk(void);
             void updateOnDisk(std::unique_ptr<IO::DBIfaceTransaction>);

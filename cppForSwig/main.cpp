@@ -80,6 +80,7 @@ int main(int argc, char* argv[])
    {
       //setup remote peers db, this will block the init process until 
       //peers db is unlocked
+      LOGINFO << "datadir: " << Armory::Config::getDataDir();
       auto&& passLbd = TerminalPassphrasePrompt::getLambda("peers db");
       WebSocketServer::initAuthPeers(passLbd);
    }

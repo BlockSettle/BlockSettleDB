@@ -12,7 +12,7 @@
 #include <map>
 #include <set>
 #include "BinaryData.h"
-#include "txio.h"
+#include "BlockchainDatabase/txio.h"
 
 class LMDBBlockDatabase;
 

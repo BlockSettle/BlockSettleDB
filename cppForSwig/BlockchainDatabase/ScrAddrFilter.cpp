@@ -17,8 +17,9 @@
 #include "TxOutScrRef.h"
 
 #include <thread>
+#ifdef BUILD_PROTOBUF
 #include <google/protobuf/message.h>
-
+#endif
 
 using namespace std;
 

@@ -27,7 +27,7 @@
 
 namespace Armory
 {
-   namespace Backups
+   namespace Seeds
    {
       struct WalletBackup;
    };
@@ -41,6 +41,7 @@ namespace Armory
    {
       class AddressAccountId;
       class AssetWallet;
+      class EncryptionKeyId;
    };
 };
 
@@ -214,9 +215,13 @@ public:
    Armory::Wallets::AssetKeyType getHighestUsedIndex(void) const;
    std::map<BinaryData, std::shared_ptr<AddressEntry>> getUpdatedAddressMap();
 
-   Armory::Backups::WalletBackup getBackupStrings(const PassphraseLambda&) const;
+   std::unique_ptr<Armory::Seeds::WalletBackup> getBackupStrings(
+      const PassphraseLambda&) const;
 
    void setComment(const std::string&, const std::string&);
+   void setLabels(const std::string&, const std::string&);
+
+   const Armory::Wallets::EncryptionKeyId& getDefaultEncryptionKeyId() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

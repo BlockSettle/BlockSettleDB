@@ -16,11 +16,11 @@
 #include "../BinaryData.h"
 #include "../BtcUtils.h"
 
-#include "../BlockUtils.h"
+#include "../BlockchainDatabase/BlockUtils.h"
 #include "../BitcoinP2p.h"
-#include "../Blockchain.h"
+#include "../BlockchainDatabase/Blockchain.h"
 #include "../Signer/ScriptRecipient.h"
-#include "../BlockDataMap.h"
+#include "../BlockchainDatabase/BlockDataMap.h"
 #include "../nodeRPC.h"
 
 ////////////////////////////////////////////////////////////////////////////////

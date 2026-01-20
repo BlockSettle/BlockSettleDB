@@ -189,30 +189,6 @@ namespace Armory
       };
 
       //////////////////////////////////////////////////////////////////////////
-      class EncryptedSeed : public Wallets::Encryption::EncryptedAssetData
-      {
-      public:
-         static const Wallets::AssetId seedAssetId_;
-
-      public:
-         //tors
-         EncryptedSeed(
-            std::unique_ptr<Wallets::Encryption::CipherData> cipher) :
-            Wallets::Encryption::EncryptedAssetData(move(cipher))
-         {}
-
-         //virtual
-         bool isSame(
-            Wallets::Encryption::EncryptedAssetData* const) const override;
-         BinaryData serialize(void) const override;
-         const Wallets::AssetId& getAssetId(void) const override;
-
-         //static
-         static std::unique_ptr<EncryptedSeed> deserialize(
-            const BinaryDataRef&);
-      };
-
-      //////////////////////////////////////////////////////////////////////////
       //////////////////////////////////////////////////////////////////////////
       class AssetEntry
       {

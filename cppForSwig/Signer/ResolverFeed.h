@@ -16,8 +16,9 @@
 #include "../BinaryData.h"
 #include "../SecureBinaryData.h"
 #include "../Wallets/BIP32_Node.h"
-
+#ifdef BUILD_PROTOBUF
 #include "protobuf/Signer.pb.h"
+#endif
 
 ////
 class NoAssetException : public std::runtime_error
@@ -102,10 +103,11 @@ namespace Armory
          static BIP32_AssetPath fromPSBT(
             const BinaryDataRef&, const BinaryDataRef&);
 
-         ////
+#ifdef BUILD_PROTOBUF
          void toProtobuf(Codec_SignerState::PubkeyBIP32Path&) const;
          static BIP32_AssetPath fromProtobuf(
             const Codec_SignerState::PubkeyBIP32Path&);
+#endif
       };
 
       //////////////////////////////////////////////////////////////////////////

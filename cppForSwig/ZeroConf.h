@@ -21,9 +21,9 @@
 
 #include "ThreadSafeClasses.h"
 #include "BitcoinP2p.h"
-#include "lmdb_wrapper.h"
-#include "Blockchain.h"
-#include "ScrAddrFilter.h"
+#include "BlockchainDatabase/lmdb_wrapper.h"
+#include "BlockchainDatabase/Blockchain.h"
+#include "BlockchainDatabase/ScrAddrFilter.h"
 #include "ArmoryErrors.h"
 #include "ZeroConfUtils.h"
 #include "ZeroConfNotifications.h"

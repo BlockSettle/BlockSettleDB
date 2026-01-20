@@ -29,6 +29,7 @@
 #endif
 #endif // __GNUC__
 
+#ifdef BUILD_PROTOBUF
 #include "protobuf/AddressBook.pb.h"
 #include "protobuf/AddressData.pb.h"
 #include "protobuf/CommonTypes.pb.h"
@@ -37,6 +38,7 @@
 #include "protobuf/Utxo.pb.h"
 #include "protobuf/NodeStatus.pb.h"
 #include "protobuf/BDVCommand.pb.h"
+#endif
 
 #ifdef _MSC_VER
 #pragma warning(pop)
