@@ -4,7 +4,7 @@
 # Distributed under the GNU Affero General Public License (AGPL v3)          #
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                       #
 #                                                                            #
-# Copyright (C) 2016-2022, goatpig                                           #
+# Copyright (C) 2016-2024, goatpig                                           #
 #  Distributed under the MIT license                                         #
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
 #                                                                            #
@@ -28,25 +28,23 @@ class DlgUriCopyAndPaste(ArmoryDialog):
                             'link and select "Copy Link Location" then paste it '
                             'into the box below. '))
 
-      lblShowExample = QLabel()
-      lblShowExample.setPixmap(QPixmap('./img/armory_rightclickcopy.png'))
+      lblShowExample = QtWidgets.QLabel()
+      lblShowExample.setPixmap(QtGui.QPixmap('./img/armory_rightclickcopy.png'))
 
-      self.txtUriString = QLineEdit()
+      self.txtUriString = QtWidgets.QLineEdit()
       self.txtUriString.setFont(GETFONT('Fixed', 8))
 
-      self.btnOkay = QPushButton(self.tr('Done'))
-      self.btnCancel = QPushButton(self.tr('Cancel'))
-      buttonBox = QDialogButtonBox()
-      buttonBox.addButton(self.btnOkay, QDialogButtonBox.AcceptRole)
-      buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
+      self.btnOkay = QtWidgets.QPushButton(self.tr('Done'))
+      self.btnCancel = QtWidgets.QPushButton(self.tr('Cancel'))
+      buttonBox = QtWidgets.QDialogButtonBox()
+      buttonBox.addButton(self.btnOkay, QtWidgets.QDialogButtonBox.AcceptRole)
+      buttonBox.addButton(self.btnCancel, QtWidgets.QDialogButtonBox.RejectRole)
 
-      self.connect(self.btnOkay, SIGNAL(CLICKED), self.clickedOkay)
-      self.connect(self.btnCancel, SIGNAL(CLICKED), self.reject)
-
+      self.btnOkay.clicked.connect(self.clickedOkay)
+      self.btnCancel.clicked.connect(self.reject)
       frmImg = makeHorizFrame([STRETCH, lblShowExample, STRETCH])
 
-
-      layout = QVBoxLayout()
+      layout = QtWidgets.QVBoxLayout()
       layout.addWidget(lblDescr)
       layout.addWidget(HLINE())
       layout.addWidget(frmImg)
@@ -54,7 +52,6 @@ class DlgUriCopyAndPaste(ArmoryDialog):
       layout.addWidget(self.txtUriString)
       layout.addWidget(buttonBox)
       self.setLayout(layout)
-
 
    def clickedOkay(self):
       uriStr = str(self.txtUriString.text())

@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2017, goatpig                                               //
+//  Copyright (C) 2017-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -10,11 +10,10 @@
 #define _H_DERIVATION_SCHEME
 
 #include <vector>
-#include <set>
 #include <memory>
+#include <functional>
 
-#include "BinaryData.h"
-#include "EncryptionUtils.h"
+#include "Utils/SecureBinaryData.h"
 #include "Assets.h"
 
 #define DERIVATIONSCHEME_LEGACY        0xA0
@@ -23,9 +22,7 @@
 #define DERIVATIONSCHEME_BIP32_ECDH    0xA3
 
 #define DERIVATIONSCHEME_KEY  0x00000004
-
 #define DERIVATION_LOOKUP        100
-
 
 namespace Armory
 {
@@ -60,9 +57,7 @@ namespace Armory
       class DerivationSchemeException : public std::runtime_error
       {
       public:
-         DerivationSchemeException(const std::string& msg) :
-            std::runtime_error(msg)
-         {}
+         DerivationSchemeException(const std::string&);
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -75,27 +70,24 @@ namespace Armory
 
       public:
          //tors
-         DerivationScheme(DerivationSchemeType type) :
-            type_(type)
-         {}
-
+         DerivationScheme(DerivationSchemeType);
          virtual ~DerivationScheme(void) = 0;
 
          //local
-         DerivationSchemeType getType(void) const { return type_; }
+         DerivationSchemeType getType(void) const;
 
          //virtual
          virtual std::vector<std::shared_ptr<Assets::AssetEntry>>
          extendPublicChain(std::shared_ptr<Assets::AssetEntry>,
-            uint32_t start, uint32_t end,
+            int32_t start, int32_t end,
             const std::function<void(int)>&) = 0;
          virtual std::vector<std::shared_ptr<Assets::AssetEntry>>
          extendPrivateChain(
             std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             std::shared_ptr<Assets::AssetEntry>,
-            uint32_t start, uint32_t end) = 0;
-         virtual BinaryData serialize(void) const = 0;
+            int32_t start, int32_t end) = 0;
 
+         virtual BinaryData serialize(void) const = 0;
          virtual const SecureBinaryData& getChaincode(void) const = 0;
 
          //static
@@ -112,10 +104,7 @@ namespace Armory
 
       public:
          //tors
-         DerivationScheme_ArmoryLegacy(SecureBinaryData& chainCode) :
-            DerivationScheme(DerivationSchemeType::ArmoryLegacy),
-            chainCode_(std::move(chainCode))
-         {}
+         DerivationScheme_ArmoryLegacy(SecureBinaryData&);
 
          //locals
          std::shared_ptr<AssetEntry_Single> computeNextPrivateEntry(
@@ -125,19 +114,19 @@ namespace Armory
             Wallets::AssetId);
 
          std::shared_ptr<AssetEntry_Single> computeNextPublicEntry(
-            const SecureBinaryData& pubKey, Wallets::AssetId);
+            const SecureBinaryData&, Wallets::AssetId);
 
          //virtuals
          std::vector<std::shared_ptr<AssetEntry>> extendPublicChain(
-            std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end,
+            std::shared_ptr<AssetEntry>, int32_t start, int32_t end,
             const std::function<void(int)>&) override;
          std::vector<std::shared_ptr<AssetEntry>> extendPrivateChain(
             std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
-            std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
+            std::shared_ptr<AssetEntry>, int32_t start, int32_t end) override;
 
          BinaryData serialize(void) const;
 
-         const SecureBinaryData& getChaincode(void) const { return chainCode_; }
+         const SecureBinaryData& getChaincode(void) const;
       };
 
       ////////////////////////////////////////////////////////////////////////////////
@@ -152,22 +141,12 @@ namespace Armory
          const unsigned leafId_;
 
       private:
-         DerivationScheme_BIP32(DerivationSchemeType type,
-            SecureBinaryData& chainCode,
-            unsigned depth, unsigned leafId) :
-            DerivationScheme(type),
-            chainCode_(std::move(chainCode)),
-            depth_(depth), leafId_(leafId)
-         {}
+         DerivationScheme_BIP32(DerivationSchemeType,
+            SecureBinaryData&, unsigned, unsigned);
 
       public:
          //tors
-         DerivationScheme_BIP32(SecureBinaryData& chainCode,
-            unsigned depth, unsigned leafId) :
-            DerivationScheme(DerivationSchemeType::BIP32),
-            chainCode_(std::move(chainCode)),
-            depth_(depth), leafId_(leafId)
-         {}
+         DerivationScheme_BIP32(SecureBinaryData&, unsigned, unsigned);
 
          //locals
          virtual std::shared_ptr<AssetEntry_Single> computeNextPrivateEntry(
@@ -182,19 +161,17 @@ namespace Armory
 
          //virtuals
          std::vector<std::shared_ptr<AssetEntry>> extendPublicChain(
-            std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end,
+            std::shared_ptr<AssetEntry>, int32_t start, int32_t end,
             const std::function<void(int)>&) override;
          std::vector<std::shared_ptr<AssetEntry>> extendPrivateChain(
             std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
-            std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
+            std::shared_ptr<AssetEntry>, int32_t start, int32_t end) override;
 
          virtual BinaryData serialize(void) const;
 
-         const SecureBinaryData& getChaincode(void) const
-         { return chainCode_; }
-
-         unsigned getDepth(void) const { return depth_; }
-         unsigned getLeafId(void) const { return leafId_; }
+         const SecureBinaryData& getChaincode(void) const;
+         unsigned getDepth(void) const;
+         unsigned getLeafId(void) const;
       };
 
       ////////////////////////////////////////////////////////////////////////////////
@@ -205,12 +182,8 @@ namespace Armory
 
       public:
          DerivationScheme_BIP32_Salted(
-            SecureBinaryData& salt,
-            SecureBinaryData& chainCode,
-            unsigned depth, unsigned leafId) :
-            DerivationScheme_BIP32(DerivationSchemeType::BIP32_Salted,
-               chainCode, depth, leafId), salt_(std::move(salt))
-         {}
+            SecureBinaryData&, SecureBinaryData&,
+            unsigned, unsigned);
 
          //virtuals
          std::shared_ptr<AssetEntry_Single> computeNextPrivateEntry(
@@ -224,7 +197,7 @@ namespace Armory
             Wallets::AssetId) override;
 
          BinaryData serialize(void) const override;
-         const SecureBinaryData& getSalt(void) const { return salt_; }
+         const SecureBinaryData& getSalt(void) const;
       };
 
       ////////////////////////////////////////////////////////////////////////////////
@@ -251,20 +224,16 @@ namespace Armory
             std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
 
       public:
-         DerivationScheme_ECDH(void) :
-            DerivationScheme(DerivationSchemeType::ECDH),
-            id_(CryptoPRNG::generateRandom(8))
-         {}
-
+         DerivationScheme_ECDH(void);
          DerivationScheme_ECDH(const BinaryData& id);
 
          //virtuals
          std::vector<std::shared_ptr<AssetEntry>> extendPublicChain(
-            std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end,
+            std::shared_ptr<AssetEntry>, int32_t start, int32_t end,
             const std::function<void(int)>&) override;
          std::vector<std::shared_ptr<AssetEntry>> extendPrivateChain(
             std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
-            std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
+            std::shared_ptr<AssetEntry>, int32_t start, int32_t end) override;
          BinaryData serialize(void) const override;
 
          const SecureBinaryData& getChaincode(void) const override;

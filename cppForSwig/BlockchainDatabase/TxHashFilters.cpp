@@ -8,6 +8,8 @@
 
 #include <memory>
 #include <functional>
+#include <cstring>
+
 #include "TxHashFilters.h"
 
 using namespace std;

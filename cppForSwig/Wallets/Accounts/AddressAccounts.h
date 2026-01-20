@@ -14,10 +14,8 @@
 #include <memory>
 
 
-#include "../../ReentrantLock.h"
-#include "../../BinaryData.h"
+#include "Utils/ReentrantLock.h"
 #include "../WalletIdTypes.h"
-#include "../../EncryptionUtils.h"
 #include "../Assets.h"
 #include "../Addresses.h"
 #include "../DerivationScheme.h"
@@ -29,10 +27,12 @@
 
 #define ADDRESS_ACCOUNT_PREFIX 0xD0
 
+class BinaryData;
+
 ////
 namespace Armory
 {
-   namespace Signer
+   namespace Signing
    {
       class BIP32_AssetPath;
    };
@@ -51,9 +51,8 @@ namespace Armory
 
    namespace Accounts
    {
-      //////////////////////////////////////////////////////////////////////////
-      struct UnrequestedAddressException
-      {};
+      class AccountType;
+      struct UnrequestedAddressException {};
 
       //////////////////////////////////////////////////////////////////////////
       struct AddressAccountPublicData
@@ -63,7 +62,7 @@ namespace Armory
          const Wallets::AssetAccountId outerAccountId_;
          const Wallets::AssetAccountId innerAccountId_;
 
-         AddressEntryType defaultAddressEntryType_ = AddressEntryType_P2PKH;
+         AddressEntryType defaultAddressEntryType_ = AddressEntryType::P2PKH;
          std::set<AddressEntryType> addressTypes_;
 
          std::map<Wallets::AssetId,
@@ -96,7 +95,7 @@ namespace Armory
          Wallets::AssetAccountId outerAccountId_;
          Wallets::AssetAccountId innerAccountId_;
 
-         AddressEntryType defaultAddressEntryType_ = AddressEntryType_P2PKH;
+         AddressEntryType defaultAddressEntryType_ = AddressEntryType::P2PKH;
          std::set<AddressEntryType> addressTypes_;
 
          //<prefixed address hash, <assetID, address type>>
@@ -160,48 +159,49 @@ namespace Armory
             const Wallets::AddressAccountId&);
 
          void extendPublicChain(
-            std::shared_ptr<Wallets::IO::WalletDBInterface>, unsigned,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>, int32_t,
             const std::function<void(int)>& = nullptr);
          void extendPublicChain(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            const Wallets::AssetAccountId&, unsigned,
+            const Wallets::AssetAccountId&, int32_t,
             const std::function<void(int)>& = nullptr);
          void extendPublicChainToIndex(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            const Wallets::AssetAccountId&, unsigned,
+            const Wallets::AssetAccountId&, int32_t,
             const std::function<void(int)>& = nullptr);
 
          void extendPrivateChain(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
             std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
-            unsigned);
+            int32_t);
          void extendPrivateChainToIndex(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
             std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
-            const Wallets::AssetAccountId&, unsigned);
+            const Wallets::AssetAccountId&, int32_t);
 
          std::shared_ptr<AddressEntry> getNewAddress(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            AddressEntryType aeType = AddressEntryType_Default);
+            AddressEntryType aeType=AddressEntryType::Default,
+            const ProgressFunc& progFunc=nullptr);
          std::shared_ptr<AddressEntry> getNewAddress(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            const Wallets::AssetAccountId&, AddressEntryType);
+            const Wallets::AssetAccountId&, AddressEntryType,
+            const ProgressFunc&);
          std::shared_ptr<AddressEntry> getNewChangeAddress(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            AddressEntryType aeType = AddressEntryType_Default);
+            AddressEntryType aeType=AddressEntryType::Default,
+            const ProgressFunc& progFunc=nullptr);
          std::shared_ptr<AddressEntry> peekNextChangeAddress(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            AddressEntryType aeType = AddressEntryType_Default);
+            AddressEntryType aeType=AddressEntryType::Default,
+            const ProgressFunc& progFunc=nullptr);
          bool isAssetChange(const Wallets::AssetId&) const;
          bool isAssetInUse(const Wallets::AssetId&) const;
 
          std::shared_ptr<Assets::AssetEntry> getOuterAssetRoot(void) const;
 
-
-         AddressEntryType getDefaultAddressType(void) const
-            { return defaultAddressEntryType_; }
-         const std::set<AddressEntryType>& getAddressTypeSet(void) const
-            { return addressTypes_; }
+         AddressEntryType getDefaultAddressType(void) const;
+         const std::set<AddressEntryType>& getAddressTypeSet(void) const;
          bool hasAddressType(AddressEntryType);
 
          std::shared_ptr<Assets::AssetEntry> getAssetForID(
@@ -213,9 +213,8 @@ namespace Armory
             getAssetIDPairForAddrUnprefixed(const BinaryData&);
 
          void updateAddressHashMap(void);
-         const std::map<BinaryData,
-            std::pair<Wallets::AssetId, AddressEntryType>>&
-               getAddressHashMap(void);
+         const std::map<BinaryData, std::pair<Wallets::AssetId, AddressEntryType>>&
+         getAddressHashMap(void);
 
          size_t getNumAssetAccounts(void) const;
          std::set<Wallets::AssetAccountId> getAccountIdSet(void) const;
@@ -225,10 +224,8 @@ namespace Armory
             const Wallets::AssetAccountId&) const;
          std::unique_ptr<AssetAccount> getOuterAccount(void) const;
 
-         const Wallets::AssetAccountId& getOuterAccountID(void) const
-         { return outerAccountId_; }
-         const Wallets::AssetAccountId& getInnerAccountID(void) const
-         { return innerAccountId_; }
+         const Wallets::AssetAccountId& getOuterAccountID(void) const;
+         const Wallets::AssetAccountId& getInnerAccountID(void) const;
 
          AddressAccountPublicData exportPublicData() const;
          void importPublicData(const AddressAccountPublicData&);
@@ -243,7 +240,7 @@ namespace Armory
          void initAfterLock(void) {}
          void cleanUpBeforeUnlock(void) {}
 
-         bool hasBip32Path(const Signer::BIP32_AssetPath&) const;
+         bool hasBip32Path(const Signing::BIP32_AssetPath&) const;
          bool isLegacy(void) const;
       };
    }; //namespace Accounts

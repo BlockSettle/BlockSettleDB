@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2018-2021, goatpig.                                         //
+//  Copyright (C) 2018-2025, goatpig.                                         //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -13,20 +13,29 @@
 #include <future>
 #include <string>
 #include <thread>
+#include <filesystem>
 
 #include "libwebsockets.h"
-#include "ThreadSafeClasses.h"
-#include "BinaryData.h"
+#include "Utils/ThreadSafeClasses.h"
 #include "SocketObject.h"
 #include "WebSocketMessage.h"
-#include "ArmoryConfig.h"
-#include "DBClientClasses.h"
-#include "AsyncClient.h" //TODO <-- nuke this
-
-#include "BIP150_151.h"
-#include "AuthorizedPeers.h"
 
 #define CLIENT_AUTH_PEER_FILENAME "client.peers"
+
+namespace Armory
+{
+   namespace Wallets
+   {
+      class AuthorizedPeers;
+
+      namespace IO
+      {
+         struct ReadOnlyFileParams;
+      }
+   }
+}
+
+class RemoteCallback;
 
 ////////////////////////////////////////////////////////////////////////////////
 struct WriteAndReadPacket
@@ -60,38 +69,6 @@ namespace SwigClient
 {
    class PythonCallback;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-class ClientPartialMessage
-{
-private:
-   int counter_ = 0;
-
-public:
-   std::map<int, BinaryData> packets_;
-   WebSocketMessagePartial message_;
-
-   void reset(void) 
-   {
-      packets_.clear();
-      message_.reset();
-   }
-
-   BinaryDataRef insertDataAndGetRef(BinaryData& data)
-   {
-      auto&& data_pair = std::make_pair(counter_++, std::move(data));
-      auto iter = packets_.insert(std::move(data_pair));
-      return iter.first->second.getRef();
-   }
-
-   void eraseLast(void)
-   {
-      if (counter_ == 0)
-         return;
-
-      packets_.erase(counter_--);
-   }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 class WSClientWriteQueue
@@ -139,7 +116,7 @@ private:
 
    std::shared_ptr<RemoteCallback> callbackPtr_ = nullptr;
    
-   ClientPartialMessage currentReadMessage_;
+   WebSocketMessagePartial currentReadMessage_;
    std::promise<bool> connectionReadyProm_;
 
    std::shared_ptr<BIP151Connection> bip151Connection_;
@@ -155,6 +132,7 @@ private:
 
 public:
    std::atomic<int> count_;
+   bool serverPubkeyAnnounce_ = false;
 
 private:
    struct lws_context* init();
@@ -166,37 +144,27 @@ private:
 
 public:
    WebSocketClient(const std::string& addr, const std::string& port,
-      const std::string& datadir, const PassphraseLambda&, 
-      const bool& ephemeralPeers, bool oneWayAuth,
-      std::shared_ptr<RemoteCallback> cbPtr);
-
-   ~WebSocketClient()
-   {
-      shutdown();
-
-      if (serviceThr_.joinable())
-         serviceThr_.join();
-   }
+      std::shared_ptr<Armory::Wallets::AuthorizedPeers>, bool,
+      std::shared_ptr<RemoteCallback>);
+   ~WebSocketClient(void);
 
    //locals
-   void shutdown(void);   
-   void cleanUp(void);
-   std::pair<unsigned, unsigned> 
-      getRekeyCount(void) const { return std::make_pair(outerRekeyCount_, innerRekeyCount_); }
+   void shutdown(void);
+   void cleanup(void);
+   bool running(void) const override;
+   std::pair<unsigned, unsigned> getRekeyCount(void) const;
    void addPublicKey(const SecureBinaryData&);
    void setPubkeyPromptLambda(std::function<bool(const BinaryData&, const std::string&)>);
 
    //virtuals
-   SocketType type(void) const { return SocketWS; }
+   SocketType type(void) const override;
    void pushPayload(
       std::unique_ptr<Socket_WritePayload>,
-      std::shared_ptr<Socket_ReadPayload>);
-   bool connectToRemote(void);
-
-   bool serverPubkeyAnnounce_ = false;
+      std::shared_ptr<Socket_ReadPayload>) override;
+   bool connectToRemote(void) override;
 
    static int callback(
-      struct lws *wsi, enum lws_callback_reasons reason, 
+      struct lws *wsi, enum lws_callback_reasons reason,
       void *user, void *in, size_t len);
 };
 

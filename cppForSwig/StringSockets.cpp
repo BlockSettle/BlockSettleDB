@@ -2,12 +2,13 @@
 //                                                                            //
 //  Copyright (C) 2016, goatpig.                                              //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "StringSockets.h"
 #include "SocketWritePayload.h"
+#include "bdmenums.h"
 
 using namespace std;
 
@@ -20,6 +21,11 @@ HttpSocket::HttpSocket(const string& addr, const string& port) :
    SimpleSocket(addr, port)
 {
    messageWithPrecacheHeaders_ = make_unique<HttpMessage>(getAddrStr());
+}
+
+SocketType HttpSocket::type() const
+{
+   return SocketType::Http;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

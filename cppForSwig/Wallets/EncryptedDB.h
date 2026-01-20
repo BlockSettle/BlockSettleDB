@@ -16,14 +16,13 @@
 #include <mutex>
 #include <functional>
 
-#include "make_unique.h"
 #include "lmdbpp.h"
-#include "BinaryData.h"
-#include "SecureBinaryData.h"
-#include "ReentrantLock.h"
+#include "Utils/BinaryData.h"
+#include "Utils/SecureBinaryData.h"
+#include "Utils/ReentrantLock.h"
 
-#define ERASURE_PLACE_HOLDER "erased"
-#define KEY_CYCLE_FLAG "cycle"
+#define ERASURE_PLACE_HOLDER "erased"sv
+#define KEY_CYCLE_FLAG "cycle"sv
 
 namespace Armory
 {
@@ -233,11 +232,11 @@ namespace Armory
                LMDB* dbPtr, bool write) :
                DBIfaceTransaction(), dbPtr_(dbPtr)
             {
-               auto type = LMDB::ReadOnly;
+               auto type = LMDB::Mode::ReadOnly;
                if (write)
-                  type = LMDB::ReadWrite;
+                  type = LMDB::Mode::ReadWrite;
 
-               txPtr_ = make_unique<LMDBEnv::Transaction>(dbEnv, type);
+               txPtr_ = std::make_unique<LMDBEnv::Transaction>(dbEnv, type);
             }
 
             ~RawIfaceTransaction(void) noexcept(false)

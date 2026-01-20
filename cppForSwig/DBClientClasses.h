@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2018, goatpig.                                              //
+//  Copyright (C) 2018-2024, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,19 +13,22 @@
 #include <string>
 #include <functional>
 
-#include "BinaryData.h"
+#include <Utils/BinaryData.h>
+#include "bdmenums.h"
 #include "SocketObject.h"
-#include "BDVCodec.h"
 #include "nodeRPC.h"
 
 #define FILTER_CHANGE_FLAG "wallet_filter_changed"
 
-namespace AsyncClient
-{
+namespace AsyncClient {
    class BlockDataViewer;
 };
-   
-///////////////////////////////////////////////////////////////////////////////
+
+namespace capnp {
+   class MessageReader;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 struct NoArmoryDBExcept : public std::runtime_error
 {
    NoArmoryDBExcept(void) : runtime_error("")
@@ -38,12 +41,12 @@ struct BDVAlreadyRegistered : public std::runtime_error
    {}
 };
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 namespace DBClientClasses
 {
    void initLibrary(void);
 
-   ///////////////////////////////////////////////////////////////////////////////
+   /////////////////////////////////////////////////////////////////////////////
    struct FeeEstimateStruct
    {
       std::string error_;
@@ -54,11 +57,11 @@ namespace DBClientClasses
          error_(error), val_(val), isSmart_(isSmart)
       {}
 
-      FeeEstimateStruct(void) 
+      FeeEstimateStruct(void)
       {}
    };
 
-   ///////////////////////////////////////////////////////////////////////////////
+   /////////////////////////////////////////////////////////////////////////////
    class BlockHeader
    {
       friend class Blockchain;
@@ -123,22 +126,33 @@ namespace DBClientClasses
    class LedgerEntry
    {
    private:
-      std::shared_ptr<::google::protobuf::Message> msgPtr_;
-      const ::Codec_LedgerEntry::LedgerEntry* ptr_ = nullptr;
+      const std::string id_;
+      const int64_t     value_;
+      const uint32_t    blockHeight_;
+      const BinaryData  txHash_;
+      const uint32_t    txOutIndex_;
+      const uint32_t    timestamp_; //seconds
+      const bool        isCoinbase_;
+      const bool        isSentToSelf_;
+      const bool        isChangeBack_;
+      const bool        isOptInRBF_;
+      const bool        isChainedZC_;
+      const bool        isWitness_;
+
+      const std::vector<BinaryData> scrAddrList_;
 
    public:
-      LedgerEntry(BinaryDataRef bdr);
-      LedgerEntry(std::shared_ptr<::Codec_LedgerEntry::LedgerEntry>);
-      LedgerEntry(std::shared_ptr<::Codec_LedgerEntry::ManyLedgerEntry>,
-         unsigned);
-      LedgerEntry(std::shared_ptr<::Codec_BDVCommand::BDVCallback>,
-         unsigned, unsigned);
+      LedgerEntry(const std::string& id, int64_t value, uint32_t blockHeight,
+         BinaryData& txHash, uint32_t txOutIndex, uint32_t timestamp,
+         bool isCoinbase, bool isSentToSelf, bool isChangeBack,
+         bool isOptInRBF, bool isChainedZC, bool isWitness,
+         std::vector<BinaryData>& scrAddrList);
 
-      std::string         getID(void) const;
+      const std::string&  getID(void) const;
       int64_t             getValue(void) const;
-      uint32_t            getBlockNum(void) const;
+      uint32_t            getBlockHeight(void) const;
       BinaryDataRef       getTxHash(void) const;
-      uint32_t            getIndex(void) const;
+      uint32_t            getTxOutIndex(void) const;
       uint32_t            getTxTime(void) const;
       bool                isCoinbase(void) const;
       bool                isSentToSelf(void) const;
@@ -147,20 +161,26 @@ namespace DBClientClasses
       bool                isChainedZC(void) const;
       bool                isWitness(void) const;
 
-      std::vector<BinaryData> getScrAddrList(void) const;
+      const std::vector<BinaryData>& getScrAddrList(void) const;
 
       bool operator==(const LedgerEntry& rhs);
    };
+   using HistoryPage = std::vector<LedgerEntry>;
 
    ////////////////////////////////////////////////////////////////////////////
    class NodeChainStatus
    {
    private:
-      std::shared_ptr<::google::protobuf::Message> msgPtr_;
-      const Codec_NodeStatus::NodeChainStatus* ptr_;
+      const CoreRPC::ChainState chainState_;
+      const float blockSpeed_;
+      const float progressPct_;
+      const uint64_t etaSeconds_;
+      const unsigned blocksLeft_;
 
    public:
-      NodeChainStatus(const Codec_NodeStatus::NodeStatus*);
+      NodeChainStatus(void);
+      NodeChainStatus(CoreRPC::ChainState, float, float, uint64_t, unsigned);
+      NodeChainStatus(NodeChainStatus&&) = default;
 
       CoreRPC::ChainState state(void) const;
       float getBlockSpeed(void) const;
@@ -174,69 +194,51 @@ namespace DBClientClasses
    class NodeStatus
    {
    private:
-      std::shared_ptr<::google::protobuf::Message> msgPtr_;
-      const Codec_NodeStatus::NodeStatus* ptr_;
+      const CoreRPC::NodeState nodeState_;
+      const CoreRPC::RpcState rpcState_;
+      const bool isSegWitEnabled_;
+      const NodeChainStatus nodeChainStatus_;
 
-   private:
-      NodeStatus(std::shared_ptr<Codec_BDVCommand::BDVCallback>, unsigned);
-      
    public:
-      NodeStatus(BinaryDataRef);
-      NodeStatus(std::shared_ptr<Codec_NodeStatus::NodeStatus>);
+      NodeStatus(CoreRPC::NodeState, CoreRPC::RpcState, bool, NodeChainStatus&);
 
       CoreRPC::NodeState state(void) const;
       bool isSegWitEnabled(void) const;
       CoreRPC::RpcState rpcState(void) const;
-      NodeChainStatus chainStatus(void) const;
-
-      static std::shared_ptr<NodeStatus> make_new(
-         std::shared_ptr<Codec_BDVCommand::BDVCallback>, unsigned);
-   };
-
-   ////////////////////////////////////////////////////////////////////////////
-   class ProgressData
-   {
-   private:
-      std::shared_ptr<::google::protobuf::Message> msgPtr_;
-      const ::Codec_NodeStatus::ProgressData* ptr_;
-
-   private:
-      ProgressData(std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned);
-
-   public:
-      ProgressData(BinaryDataRef);
-
-      BDMPhase phase(void) const;
-      double progress(void) const;
-      unsigned time(void) const;
-      unsigned numericProgress(void) const;
-      std::vector<std::string> wltIDs(void) const;
-
-      static std::shared_ptr<ProgressData> make_new(
-         std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned);
+      const NodeChainStatus& chainStatus(void) const;
    };
 }; //namespace DBClientClasses
 
 ///////////////////////////////////////////////////////////////////////////////
+struct BDV_Error_Struct
+{
+   std::string errorStr_;
+   BinaryData errData_;
+   int errCode_;
+
+   BinaryData serialize(void) const;
+   void deserialize(const BinaryData&);
+};
+
 struct BdmNotification
 {
-   const BDMAction action_;
+   const BDMAction action;
 
-   unsigned height_;
-   unsigned branchHeight_ = UINT32_MAX;
+   unsigned height;
+   unsigned branchHeight = UINT32_MAX;
 
-   std::set<BinaryData> invalidatedZc_;
-   std::vector<std::shared_ptr<DBClientClasses::LedgerEntry>> ledgers_;
+   std::set<BinaryData> invalidatedZc;
+   std::vector<std::shared_ptr<DBClientClasses::LedgerEntry>> ledgers;
 
-   std::vector<BinaryData> ids_;
+   std::set<std::string> ids;
 
-   std::shared_ptr<DBClientClasses::NodeStatus> nodeStatus_;
-   BDV_Error_Struct error_;
+   std::shared_ptr<DBClientClasses::NodeStatus> nodeStatus;
+   BDV_Error_Struct error;
 
-   std::string requestID_;
+   std::string requestID;
 
    BdmNotification(BDMAction action) :
-      action_(action)
+      action(action)
    {}
 };
 
@@ -256,7 +258,7 @@ public:
    ) = 0;
    virtual void disconnected(void) = 0;
 
-   bool processNotifications(std::shared_ptr<::Codec_BDVCommand::BDVCallback>);
+   bool processNotifications(std::unique_ptr<capnp::MessageReader>);
 };
 
 #endif

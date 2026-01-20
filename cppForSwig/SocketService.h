@@ -10,9 +10,8 @@
 #define _H_SOCKETSERVICE
 
 #include <functional>
+#include "Utils/ThreadSafeClasses.h"
 #include "SocketIncludes.h"
-#include "ThreadSafeClasses.h"
-#include "log.h"
 
 struct SocketStruct
 {

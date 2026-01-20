@@ -1,239 +1,263 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2019-2021, goatpig                                          //
+//  Copyright (C) 2019-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _CPPBRIDGE_H
-#define _CPPBRIDGE_H
+#pragma once
 
-#include "../ArmoryConfig.h"
-#include "WalletManager.h"
-#include "btc/ecc.h"
-#include "../protobuf/BridgeProto.pb.h"
-#include "../AsyncClient.h"
+#include <set>
+#include <map>
+#include <string>
+#include <mutex>
+#include <functional>
+#include <filesystem>
 
-namespace BridgeProto
+class BinaryData;
+class BinaryDataRef;
+class SecureBinaryData;
+
+namespace AsyncClient
 {
-   class CallbackReply;
-};
+   class LedgerDelegate;
+   class BlockDataViewer;
+}
 
 namespace Armory
 {
+   namespace Seeds
+   {
+      struct PromptReply;
+   };
+
+   namespace Signing
+   {
+      class Signer;
+      class TxEvalState;
+   }
+
+   namespace CoinSelection
+   {
+      class CoinSelectionInstance;
+   }
+
+   namespace Wallets
+   {
+      class WalletId;
+      class AddressAccountId;
+      class AssetWallet;
+
+      namespace IO
+      {
+         struct CreateWalletParams;
+      }
+   }
+
    namespace Bridge
    {
-      struct WritePayload_Bridge;
       struct ServerPushWrapper;
-      using BridgePayload = std::unique_ptr<BridgeProto::Payload>;
-
-      //////////////////////////////////////////////////////////////////////////
-      typedef std::function<void(
-         std::unique_ptr<BridgeProto::Payload>)> notifLbd;
+      struct WritePayload_Bridge;
+      class WalletManager;
 
       ////
-      class BridgeCallback : public RemoteCallback
-      {
-      private:
-         std::shared_ptr<WalletManager> wltManager_;
-
-         //to push packets to the gui
-         notifLbd pushNotifLbd_;
-
-         //id members
-         Armory::Threading::BlockingQueue<std::string> idQueue_;
-         std::set<std::string> validIds_;
-         std::mutex idMutex_;
-
-      public:
-         BridgeCallback(
-            std::shared_ptr<WalletManager> mgr, const notifLbd& lbd) :
-            RemoteCallback(), wltManager_(mgr), pushNotifLbd_(lbd)
-         {}
-
-         //virtuals
-         void run(BdmNotification) override;
-
-         void progress(
-            BDMPhase phase,
-            const std::vector<std::string> &walletIdVec,
-            float progress, unsigned secondsRem,
-            unsigned progressNumeric
-         ) override;
-
-         void disconnected(void) override;
-
-         //local notifications
-         void notify_SetupDone(void);
-         void notify_RegistrationDone(const std::set<std::string>&);
-         void notify_SetupRegistrationDone(const std::set<std::string>&);
-         void notify_NewBlock(unsigned);
-         void notify_Ready(unsigned);
-
-         //
-         void waitOnId(const std::string&);
-      };
+      using MessageId = uint64_t;
 
       //////////////////////////////////////////////////////////////////////////
       using WalletPtr = std::shared_ptr<Armory::Wallets::AssetWallet>;
       class CppBridgeSignerStruct
       {
       private:
-         std::unique_ptr<Armory::Signer::TxEvalState> signState_{};
-         const std::function<WalletPtr(const std::string&)> getWalletFunc_;
+         std::unique_ptr<Signing::TxEvalState> signState_{};
+         const std::function<WalletPtr(const Wallets::WalletId&)> getWalletFunc_;
          const std::function<void(ServerPushWrapper)> writeFunc_;
 
       public:
-         Armory::Signer::Signer signer_{};
+         std::unique_ptr<Signing::Signer> signer;
 
       public:
-         CppBridgeSignerStruct(std::function<WalletPtr(const std::string&)>,
+         CppBridgeSignerStruct(std::function<WalletPtr(const Wallets::WalletId&)>,
             std::function<void(ServerPushWrapper)>);
 
-         void signTx(const std::string&, const std::string&, unsigned);
-         bool resolve(const std::string&);
-         BridgePayload getSignedStateForInput(unsigned);
+         void signTx(const Wallets::WalletId&, const std::string&, MessageId);
+         bool resolve(const Wallets::WalletId&);
+         BinaryData getSignedStateForInput(unsigned, MessageId);
       };
 
       //////////////////////////////////////////////////////////////////////////
-      using CallbackHandler = std::function<bool(const BridgeProto::CallbackReply&)>;
-      struct ProtobufCommandParser;
+      using CallbackHandler = std::function<bool(const Seeds::PromptReply&)>;
 
       class CppBridge
       {
-         friend struct ProtobufCommandParser;
-
       private:
-         const std::string path_;
+         //datadir
+         const std::filesystem::path path_;
 
-         const std::string dbAddr_;
-         const std::string dbPort_;
+         //armorydb config
+         const bool dbOffline_;
 
+         //to write to the bridge client
+         std::function<void(std::unique_ptr<WritePayload_Bridge>)> writeLambda_;
+
+         //these objects are the core of the bridge
          std::shared_ptr<WalletManager> wltManager_;
          std::shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_;
 
-         std::shared_ptr<BridgeCallback> callbackPtr_;
-
+         //various states cache
          std::map<std::string, AsyncClient::LedgerDelegate> delegateMap_;
          std::map<std::string,
             std::shared_ptr<CoinSelection::CoinSelectionInstance>> csMap_;
          std::map<std::string,
             std::shared_ptr<CppBridgeSignerStruct>> signerMap_;
 
-         PRNG_Fortuna fortuna_;
-
-         std::function<void(
-            std::unique_ptr<WritePayload_Bridge>)> writeLambda_;
-
-         const bool dbOneWayAuth_;
-         const bool dbOffline_;
-
+         //UI related ad hoc callbacks
          std::mutex callbackHandlerMu_;
          std::map<uint32_t, CallbackHandler> callbackHandlers_;
 
-      private:
+      public:
+         std::shared_ptr<AsyncClient::BlockDataViewer> bdvPtr(void) const;
+         void reset(void);
+
+      public:
+         //wallet manager init methods
+         BinaryData listWallets(MessageId);
+         void unlockControlHeader(const std::string&, const std::string&,
+            MessageId);
+         bool stageWallet(const Wallets::WalletId&, bool);
+         void migrateWallet(const std::filesystem::path&,
+            const std::string&, MessageId);
+         BinaryData loadWallets(MessageId);
+
          //wallet setup
-         void loadWallets(const std::string&, unsigned);
-         BridgePayload createWalletsPacket(void);
-         bool deleteWallet(const std::string&);
-         BridgePayload getWalletPacket(const std::string&) const;
+         const std::filesystem::path& getDataDir(void) const;
+         BinaryData createWalletsPacket(MessageId);
+         bool unloadWallet(const Wallets::WalletId&);
+         bool deleteWallet(const Wallets::WalletId&);
+         BinaryData getWalletPacket(const Wallets::WalletId&,
+            Wallets::AddressAccountId, MessageId) const;
 
-         //AsyncClient::BlockDataViewer setup
-         void setupDB(void);
+         //db setup
+         void setupDB(MessageId);
+         void cleanupDb(MessageId);
+         void goOnline(void);
+
+         //wallet registration
          void registerWallets(void);
-         void registerWallet(const std::string&, bool isNew);
-
-         BridgePayload getNodeStatus(void);
+         void registerWallet(const Wallets::WalletId&,
+            const Wallets::AddressAccountId&, bool isNew);
+         BinaryData getNodeStatus(MessageId);
 
          //balance and counts
-         BridgePayload getBalanceAndCount(const std::string&);
-         BridgePayload getAddrCombinedList(const std::string&);
-         BridgePayload getHighestUsedIndex(const std::string&);
+         BinaryData getBalanceAndCount(const Wallets::WalletId&,
+            const Wallets::AddressAccountId&, MessageId);
+         BinaryData getAddrCombinedList(const Wallets::WalletId&,
+            const Wallets::AddressAccountId&, MessageId);
+         BinaryData getHighestUsedIndex(const Wallets::WalletId&,
+            const Wallets::AddressAccountId&, MessageId);
 
-         //wallet & addresses
-         void extendAddressPool(const std::string&, unsigned,
-            const std::string&, unsigned);
-         BridgePayload getNewAddress(const std::string&, unsigned);
-         BridgePayload getChangeAddress(const std::string&, unsigned);
-         BridgePayload peekChangeAddress(const std::string&, unsigned);
-         std::string createWallet(const BridgeProto::Utils::CreateWalletStruct&);
-         void createBackupStringForWallet(const std::string&,
-            const std::string&, unsigned);
-         void restoreWallet(const BinaryDataRef&);
+         //create/generate wallet & addresses
+         void extendAddressPool(const Wallets::WalletId&,
+            const Wallets::AddressAccountId&, unsigned, bool,
+            const std::string&, MessageId);
+         void getAddress(const Wallets::WalletId&,
+            const Wallets::AddressAccountId&, uint32_t,
+            uint32_t, MessageId);
+         void createWallet(
+            SecureBinaryData, //extra entropy
+            Wallets::IO::CreateWalletParams,
+            const std::string&, //callbackId
+            MessageId);
+         void createBackupStringForWallet(const Wallets::WalletId&,
+            bool, const std::string&, MessageId);
+         void changeWalletPassphrase(const Wallets::WalletId&,
+            const std::string&, bool, MessageId);
+         void restoreWallet(
+            const std::vector<std::string_view>&,
+            const std::string_view&,
+            const std::string_view&, MessageId);
+         void importWallet(const std::filesystem::path&, MessageId);
+         void forkWatchingOnly(const Wallets::WalletId&,
+            const std::string&, MessageId);
 
          //ledgers
-         const std::string& getLedgerDelegateIdForWallets(void);
+         const std::string& getLedgerDelegateId(void);
+         const std::string& getLedgerDelegateIdForWallet(
+            const Wallets::WalletId&, const Wallets::AddressAccountId&);
          const std::string& getLedgerDelegateIdForScrAddr(
-            const std::string&, const BinaryDataRef&);
-         void getHistoryPageForDelegate(const std::string&, unsigned, unsigned);
-         void getHistoryForWalletSelection(const std::string&,
-            std::vector<std::string>, unsigned);
-         void createAddressBook(const std::string&, unsigned);
-         void setComment(const std::string&,
-            const BridgeProto::Wallet::SetComment&);
-         void setWalletLabels(const std::string&,
-            const BridgeProto::Wallet::SetLabels&);
+            const Wallets::WalletId&, const Wallets::AddressAccountId&,
+            const BinaryDataRef&);
+         void getPageCountForDelegate(const std::string&, MessageId);
+         void getHistoryPageForDelegate(const std::string&,
+            unsigned, unsigned, MessageId);
+         void createAddressBook(const Wallets::WalletId&,
+            const Wallets::AddressAccountId&, MessageId);
+         void setComment(const Wallets::WalletId&,
+            const std::string&, const std::string&);
+         void setWalletLabels(const Wallets::WalletId&,
+            const std::string&, const std::string&);
 
          //txs & headers
-         void getTxByHash(const BinaryData&, unsigned);
-         void getHeaderByHeight(unsigned, unsigned);
+         void getTxsByHash(const std::set<BinaryData>&, MessageId);
+         void getHeadersByHeight(const std::vector<unsigned>&, MessageId);
 
          //utxos
-         void getUtxosForValue(const std::string&, uint64_t, unsigned);
-         void getSpendableZCList(const std::string&, unsigned);
-         void getRBFTxOutList(const std::string&, unsigned);
+         void getUTXOs(const Wallets::WalletId&,
+            const Wallets::AddressAccountId&,
+            uint64_t, bool, bool, MessageId);
 
          //coin selection
-         void setupNewCoinSelectionInstance(
-            const std::string&, unsigned, unsigned);
+         void setupNewCoinSelectionInstance(const Wallets::WalletId&,
+            const Wallets::AddressAccountId&, unsigned, MessageId);
          void destroyCoinSelectionInstance(const std::string&);
          std::shared_ptr<CoinSelection::CoinSelectionInstance>
             coinSelectionInstance(const std::string&) const;
 
          //signer
-         BridgePayload initNewSigner(void);
+         BinaryData initNewSigner(MessageId);
          void destroySigner(const std::string&);
          std::shared_ptr<CppBridgeSignerStruct> signerInstance(
             const std::string&) const;
-         WalletPtr getWalletPtr(const std::string&) const;
+         WalletPtr getWalletPtr(const Wallets::WalletId&) const;
+
+         //script utils
+         BinaryData getTxInScriptType(
+            const BinaryData&, const BinaryData&, MessageId) const;
+         BinaryData getTxOutScriptType(const BinaryData&, MessageId) const;
+         BinaryData getScrAddrForScript(const BinaryData&, MessageId) const;
+         BinaryData getScrAddrForAddrStr(const std::string&, MessageId) const;
+         BinaryData getLastPushDataInScript(const BinaryData&, MessageId) const;
 
          //utils
-         BridgePayload getTxInScriptType(
-            const BinaryData&, const BinaryData&) const;
-         BridgePayload getTxOutScriptType(const BinaryData&) const;
-         BridgePayload getScrAddrForScript(const BinaryData&) const;
-         BridgePayload getScrAddrForAddrStr(const std::string&) const;
-         BridgePayload getLastPushDataInScript(const BinaryData&) const;
-         BridgePayload getHash160(const BinaryDataRef&) const;
+         BinaryData getHash160(const BinaryDataRef&, MessageId) const;
          void broadcastTx(const std::vector<BinaryData>&);
-         BridgePayload getTxOutScriptForScrAddr(const BinaryData&) const;
-         BridgePayload getAddrStrForScrAddr(const BinaryData&) const;
+         BinaryData getTxOutScriptForScrAddr(const BinaryData&, MessageId) const;
+         BinaryData getAddrStrForScrAddr(const BinaryData&, MessageId) const;
          std::string getNameForAddrType(int) const;
-         BridgePayload setAddressTypeFor(
-            const std::string&, const std::string&, uint32_t) const;
-         void getBlockTimeByHeight(uint32_t, uint32_t) const;
-         void estimateFee(uint32_t, const std::string&, uint32_t) const;
+         BinaryData setAddressTypeFor(const Wallets::WalletId&,
+            const Wallets::AddressAccountId&, const BinaryDataRef&,
+            uint32_t, MessageId) const;
+         void getBlockTimeByHeight(uint32_t, MessageId) const;
+         void getFeeSchedule(const std::string&, MessageId) const;
 
          //custom callback handlers
          void callbackWriter(ServerPushWrapper&);
          void setCallbackHandler(ServerPushWrapper&);
          CallbackHandler getCallbackHandler(uint32_t);
 
+         //sanity checks
+         bool isOffline(void) const;
+
+         //wallet misc
+         void getUnlockTime(const Wallets::WalletId&, MessageId);
+
       public:
-         CppBridge(const std::string&, const std::string&,
-            const std::string&, bool, bool);
+         CppBridge(void);
 
-         bool processData(BinaryDataRef socketData);
-         void writeToClient(BridgePayload msgPtr) const;
-
+         void writeToClient(BinaryData&) const;
          void setWriteLambda(
-            std::function<void(std::unique_ptr<WritePayload_Bridge>)> lbd)
-         {
-            writeLambda_ = lbd;
-         }
+            const std::function<void(std::unique_ptr<WritePayload_Bridge>)>&);
+         SecureBinaryData generateRandom(size_t) const;
       };
-   }; //namespace Bridge
-}; //namespace Armory
-
-#endif
+   } //namespace Bridge
+} //namespace Armory

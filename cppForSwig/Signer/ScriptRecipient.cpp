@@ -1,148 +1,167 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2019, goatpig                                               //
+//  Copyright (C) 2019-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "ScriptRecipient.h"
-#include "TxClasses.h"
+#include <Utils/OpCodes.h>
+#include <Utils/BtcUtils.h>
+#include <TxClasses.h>
+
+#include "PSBT.h"
 #include "Signer.h"
 
-using namespace std;
-using namespace Armory::Signer;
+using namespace Armory;
+using namespace Armory::Signing;
 
 ////////////////////////////////////////////////////////////////////////////////
-//
-// ScriptRecipient
-//
-////////////////////////////////////////////////////////////////////////////////
-ScriptRecipient::~ScriptRecipient()
+// exceptions
+ScriptRecipientException::ScriptRecipientException(const std::string& err) :
+   std::runtime_error(err)
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
-const map<BinaryData, BIP32_AssetPath>& ScriptRecipient::getBip32Paths() const
+// ScriptRecipient
+ScriptRecipient::ScriptRecipient(SpendScriptType sst, uint64_t value) :
+   type_(sst), value_(value)
+{}
+
+ScriptRecipient::~ScriptRecipient()
+{}
+
+////////
+bool ScriptRecipient::isSame(const ScriptRecipient& rhs) const
 {
-   return bip32Paths_; 
+   if (type_ != rhs.type_) {
+      return false;
+   }
+   if (value_ != rhs.value_) {
+      return false;
+   }
+   return getSerializedScript() == rhs.getSerializedScript();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-shared_ptr<ScriptRecipient> ScriptRecipient::fromScript(BinaryDataRef dataRef)
+const BinaryData& ScriptRecipient::getSerializedScript() const
 {
-   shared_ptr<ScriptRecipient> result_ptr;
+   if (script_.empty()) {
+      serialize();
+   }
+   return script_;
+}
 
+uint64_t ScriptRecipient::getValue() const
+{
+   if (value_ == 0) {
+      throw ScriptRecipientException("invalid recipient value");
+   }
+   return value_;
+}
+
+const std::map<BinaryData, BIP32_AssetPath>&
+ScriptRecipient::getBip32Paths() const
+{
+   return bip32Paths_;
+}
+
+////////
+std::shared_ptr<ScriptRecipient>
+ScriptRecipient::fromScript(BinaryDataRef dataRef)
+{
+   std::shared_ptr<ScriptRecipient> result_ptr;
    BinaryRefReader brr(dataRef);
 
    auto value = brr.get_uint64_t();
    auto script = brr.get_BinaryDataRef(brr.getSizeRemaining());
 
    BinaryRefReader brr_script(script);
-
    auto byte0 = brr_script.get_uint8_t();
    auto byte1 = brr_script.get_uint8_t();
    auto byte2 = brr_script.get_uint8_t();
 
-   if (byte0 == 25 && byte1 == OP_DUP && byte2 == OP_HASH160)
-   {
+   if (byte0 == 25 && byte1 == OP_DUP && byte2 == OP_HASH160) {
       auto byte3 = brr_script.get_uint8_t();
-      if (byte3 == 20)
-      {
-         auto&& hash160 = brr_script.get_BinaryData(20);
-         result_ptr = make_shared<Recipient_P2PKH>(hash160, value);
+      if (byte3 == 20) {
+         auto hash160 = brr_script.get_BinaryData(20);
+         result_ptr = std::make_shared<Recipient_P2PKH>(hash160, value);
       }
-   }
-   else if (byte0 == 22 && byte1 == 0 && byte2 == 20)
-   {
-      auto&& hash160 = brr_script.get_BinaryData(20);
-      result_ptr = make_shared<Recipient_P2WPKH>(hash160, value);
-   }
-   else if (byte0 == 23 && byte1 == OP_HASH160 && byte2 == 20)
-   {
-      auto&& hash160 = brr_script.get_BinaryData(20);
-      result_ptr = make_shared<Recipient_P2SH>(hash160, value);
-   }
-   else if (byte0 == 34 && byte1 == 0 && byte2 == 32)
-   {
-      auto&& hash256 = brr_script.get_BinaryData(32);
-      result_ptr = make_shared<Recipient_P2WSH>(hash256, value);
-   }
-   else
-   {
+   } else if (byte0 == 22 && byte1 == 0 && byte2 == 20) {
+      auto hash160 = brr_script.get_BinaryData(20);
+      result_ptr = std::make_shared<Recipient_P2WPKH>(hash160, value);
+   } else if (byte0 == 23 && byte1 == OP_HASH160 && byte2 == 20) {
+      auto hash160 = brr_script.get_BinaryData(20);
+      result_ptr = std::make_shared<Recipient_P2SH>(hash160, value);
+   } else if (byte0 == 34 && byte1 == 0 && byte2 == 32) {
+      auto hash256 = brr_script.get_BinaryData(32);
+      result_ptr = std::make_shared<Recipient_P2WSH>(hash256, value);
+   } else {
       //is this an OP_RETURN?
-      if (byte0 == script.getSize() - 1 && byte1 == OP_RETURN)
-      {
-         if (byte2 == OP_PUSHDATA1)
+      if (byte0 == script.getSize() - 1 && byte1 == OP_RETURN) {
+         if (byte2 == OP_PUSHDATA1) {
             byte2 = brr_script.get_uint8_t();
-
-         auto&& opReturnMessage = brr_script.get_BinaryData(byte2);
-         result_ptr = make_shared<Recipient_OPRETURN>(opReturnMessage);
+         }
+         auto opReturnMessage = brr_script.get_BinaryData(byte2);
+         result_ptr = std::make_shared<Recipient_OPRETURN>(opReturnMessage);
       }
    }
 
-   if (result_ptr == nullptr)
+   if (result_ptr == nullptr) {
       throw ScriptRecipientException("unexpected recipient script");
-
+   }
    return result_ptr;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-shared_ptr<ScriptRecipient> ScriptRecipient::fromPSBT(
+std::shared_ptr<ScriptRecipient> ScriptRecipient::fromPSBT(
    BinaryRefReader& brr, const TxOut& txout)
 {
    auto globalDataPairs = BtcUtils::getPSBTDataPairs(brr);
-   map<BinaryData, BIP32_AssetPath> bip32Paths;
+   std::map<BinaryData, BIP32_AssetPath> bip32Paths;
    std::map<BinaryData, BinaryData> prioprietaryPSBTData;
 
-   for (const auto& dataPair : globalDataPairs)
-   {
+   for (const auto& dataPair : globalDataPairs) {
       const auto& key = dataPair.first;
       const auto& val = dataPair.second;
-      
+
       //key type
       auto typePtr = key.getPtr();
-
       switch (*typePtr)
       {
-      case PSBT::ENUM_OUTPUT::PSBT_OUT_BIP32_DERIVATION:
-      {
-         auto assetPath = BIP32_AssetPath::fromPSBT(key, val);
-         auto insertIter = bip32Paths.emplace(
-            assetPath.getPublicKey(), move(assetPath));
-
-         if (!insertIter.second)
+         case PSBT::ENUM_OUTPUT::PSBT_OUT_BIP32_DERIVATION:
          {
-            throw PSBTDeserializationError(
-               "txout pubkey collision");
+            auto assetPath = BIP32_AssetPath::fromPSBT(key, val);
+            auto insertIter = bip32Paths.emplace(
+               assetPath.getPublicKey(), std::move(assetPath));
+
+            if (!insertIter.second) {
+               throw PSBT::DeserError("txout pubkey collision");
+            }
+
+            break;
          }
 
-         break;
-      }
+         case PSBT::ENUM_OUTPUT::PSBT_OUT_PROPRIETARY:
+         {
+            prioprietaryPSBTData.emplace(
+               key.getSliceRef(1, key.getSize() - 1), val);
+            break;
+         }
 
-      case PSBT::ENUM_OUTPUT::PSBT_OUT_PROPRIETARY:
-      {
-         prioprietaryPSBTData.emplace(
-            key.getSliceRef(1, key.getSize() - 1), val);
-         break;
-      }
-
-      default: 
-         throw PSBTDeserializationError("unexpected txout key");
+         default:
+            throw PSBT::DeserError("unexpected txout key");
       }
    }
 
    auto scriptRecipient = ScriptRecipient::fromScript(txout.serializeRef());
-   scriptRecipient->bip32Paths_ = move(bip32Paths);
-   scriptRecipient->prioprietaryPSBTData_ = move(prioprietaryPSBTData);
-
+   scriptRecipient->bip32Paths_ = std::move(bip32Paths);
+   scriptRecipient->prioprietaryPSBTData_ = std::move(prioprietaryPSBTData);
    return scriptRecipient;
 }
 
-////////////////////////////////////////////////////////////////////////////////
 void ScriptRecipient::toPSBT(BinaryWriter& bw) const
 {
-   for (auto& bip32Path : bip32Paths_)
-   {
+   for (const auto& bip32Path : bip32Paths_) {
       bw.put_uint8_t(34); //key length
       bw.put_uint8_t( //key type
          PSBT::ENUM_OUTPUT::PSBT_OUT_BIP32_DERIVATION);
@@ -152,8 +171,7 @@ void ScriptRecipient::toPSBT(BinaryWriter& bw) const
       bip32Path.second.toPSBT(bw);
    }
 
-   for (auto& data : prioprietaryPSBTData_)
-   {
+   for (auto& data : prioprietaryPSBTData_) {
       //key
       bw.put_var_int(data.first.getSize() + 1);
       bw.put_uint8_t(
@@ -169,60 +187,29 @@ void ScriptRecipient::toPSBT(BinaryWriter& bw) const
    bw.put_uint8_t(0);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void ScriptRecipient::toProtobuf(
-   Codec_SignerState::RecipientState& protoMsg, unsigned group) const
-{
-   const auto& script = getSerializedScript();
-   protoMsg.set_data(script.getPtr(), script.getSize());
-   protoMsg.set_groupid(group);
-
-   for (auto& keyPair : bip32Paths_)
-   {
-      auto pathPtr = protoMsg.add_bip32paths();
-      keyPair.second.toProtobuf(*pathPtr);
-   }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-shared_ptr<ScriptRecipient> ScriptRecipient::fromProtobuf(
-   const Codec_SignerState::RecipientState& protoMsg)
-{
-   BinaryDataRef scriptRef;
-   scriptRef.setRef(protoMsg.data());
-   auto recipient = fromScript(scriptRef);
-
-   for (int i=0; i<protoMsg.bip32paths_size(); i++)
-   {
-      auto path = BIP32_AssetPath::fromProtobuf(protoMsg.bip32paths(i));
-      recipient->addBip32Path(path);
-   }
-
-   return recipient;
-}
-
-////////////////////////////////////////////////////////////////////////////////
+////////
 void ScriptRecipient::addBip32Path(const BIP32_AssetPath& bip32Path)
 {
    auto insertIter = bip32Paths_.emplace(bip32Path.getPublicKey(), bip32Path);
-   if (!insertIter.second)
-   {
-      if (insertIter.first->second != bip32Path)
+   if (!insertIter.second) {
+      if (insertIter.first->second != bip32Path) {
          throw ScriptRecipientException("bip32Path conflict");
+      }
    }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void ScriptRecipient::merge(shared_ptr<ScriptRecipient> recipientPtr)
+void ScriptRecipient::merge(std::shared_ptr<ScriptRecipient> recipientPtr)
 {
-   if (type_ != recipientPtr->type_ || 
-      value_ != recipientPtr->value_)
+   if (type_ != recipientPtr->type_ ||
+      value_ != recipientPtr->value_) {
       throw ScriptRecipientException("recipient mismatch");
+   }
 
    serialize();
    recipientPtr->serialize();
-   if (script_ != recipientPtr->script_)
+   if (script_ != recipientPtr->script_) {
       throw ScriptRecipientException("recipient mismatch");
+   }
 
    bip32Paths_.insert(
       recipientPtr->bip32Paths_.begin(),
@@ -234,129 +221,146 @@ void ScriptRecipient::merge(shared_ptr<ScriptRecipient> recipientPtr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//
 // Recipient_P2PKH
-//
-////////////////////////////////////////////////////////////////////////////////
+Recipient_P2PKH::Recipient_P2PKH(const BinaryData& h160, uint64_t val) :
+   ScriptRecipient(SpendScriptType::P2PKH, val), h160_(h160)
+{
+   if (h160_.getSize() != 20) {
+      throw ScriptRecipientException("a160 is not 20 bytes long!");
+   }
+}
+
 void Recipient_P2PKH::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
 
-   auto&& rawScript = BtcUtils::getP2PKHScript(h160_);
+   auto rawScript = BtcUtils::getP2PKHScript(h160_);
    bw.put_var_int(rawScript.getSize());
    bw.put_BinaryData(rawScript);
-
    script_ = std::move(bw.getData());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-size_t Recipient_P2PKH::getSize() const 
+size_t Recipient_P2PKH::getSize() const
 { 
-   return 34; 
+   return 34;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//
 // Recipient_P2PK
-//
-////////////////////////////////////////////////////////////////////////////////
+Recipient_P2PK::Recipient_P2PK(const BinaryData& pubkey, uint64_t val) :
+   ScriptRecipient(SpendScriptType::P2PK, val), pubkey_(pubkey)
+{
+   if (pubkey.getSize() != 33 && pubkey.getSize() != 65) {
+      throw ScriptRecipientException("a160 is not 20 bytes long!");
+   }
+}
+
 void Recipient_P2PK::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
 
-   auto&& rawScript = BtcUtils::getP2PKScript(pubkey_);
-
+   auto rawScript = BtcUtils::getP2PKScript(pubkey_);
    bw.put_var_int(rawScript.getSize());
    bw.put_BinaryData(rawScript);
-
    script_ = std::move(bw.getData());
 }
 
-////////////////////////////////////////////////////////////////////////////////
 size_t Recipient_P2PK::getSize() const
 {
    return 10 + pubkey_.getSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//
 // Recipient_P2WPKH
-//
-////////////////////////////////////////////////////////////////////////////////
+Recipient_P2WPKH::Recipient_P2WPKH(const BinaryData& h160, uint64_t val) :
+   ScriptRecipient(SpendScriptType::P2WPKH, val), h160_(h160)
+{
+   if (h160_.getSize() != 20) {
+      throw ScriptRecipientException("a160 is not 20 bytes long!");
+   }
+}
+
 void Recipient_P2WPKH::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
 
-   auto&& rawScript = BtcUtils::getP2WPKHOutputScript(h160_);
-
+   auto rawScript = BtcUtils::getP2WPKHOutputScript(h160_);
    bw.put_var_int(rawScript.getSize());
    bw.put_BinaryData(rawScript);
-
    script_ = std::move(bw.getData());
 }
 
-////////////////////////////////////////////////////////////////////////////////
 size_t Recipient_P2WPKH::getSize() const
 { 
-   return 31; 
+   return 31;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//
 // Recipient_P2SH
-//
-////////////////////////////////////////////////////////////////////////////////
+Recipient_P2SH::Recipient_P2SH(const BinaryData& h160, uint64_t val) :
+   ScriptRecipient(SpendScriptType::P2SH, val), h160_(h160)
+{
+   if (h160_.getSize() != 20) {
+      throw ScriptRecipientException("a160 is not 20 bytes long!");
+   }
+}
+
 void Recipient_P2SH::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
 
-   auto&& rawScript = BtcUtils::getP2SHScript(h160_);
-
+   auto rawScript = BtcUtils::getP2SHScript(h160_);
    bw.put_var_int(rawScript.getSize());
    bw.put_BinaryData(rawScript);
-
    script_ = std::move(bw.getData());
 }
 
-////////////////////////////////////////////////////////////////////////////////
 size_t Recipient_P2SH::getSize() const
 {
    return 32;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//
 // Recipient_P2WSH
-//
-////////////////////////////////////////////////////////////////////////////////
+Recipient_P2WSH::Recipient_P2WSH(const BinaryData& h256, uint64_t val) :
+   ScriptRecipient(SpendScriptType::P2WSH, val), h256_(h256)
+{
+   if (h256_.getSize() != 32) {
+      throw ScriptRecipientException("a256 is not 32 bytes long!");
+   }
+}
+
 void Recipient_P2WSH::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
 
-   auto&& rawScript = BtcUtils::getP2WSHOutputScript(h256_);
-
+   auto rawScript = BtcUtils::getP2WSHOutputScript(h256_);
    bw.put_var_int(rawScript.getSize());
    bw.put_BinaryData(rawScript);
-
    script_ = std::move(bw.getData());
 }
 
-////////////////////////////////////////////////////////////////////////////////
 size_t Recipient_P2WSH::getSize() const
 {
    return 43;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//
 // Recipient_OPRETURN
-//
-////////////////////////////////////////////////////////////////////////////////
+Recipient_OPRETURN::Recipient_OPRETURN(const BinaryData& message) :
+   ScriptRecipient(SpendScriptType::OPRETURN, 0), message_(message)
+{
+   if (message_.getSize() > 80) {
+      throw ScriptRecipientException(
+         "OP_RETURN message cannot exceed 80 bytes");
+   }
+}
+
 void Recipient_OPRETURN::serialize() const
 {
    BinaryWriter bw;
@@ -364,27 +368,22 @@ void Recipient_OPRETURN::serialize() const
 
    BinaryWriter bw_msg;
    auto size = message_.getSize();
-   if (size > 75)
-   {
+   if (size > 75) {
       bw_msg.put_uint8_t(OP_PUSHDATA1);
       bw_msg.put_uint8_t(size);
-   }
-   else if (size > 0)
-   {
+   } else if (size > 0) {
       bw_msg.put_uint8_t(size);
    }
 
-   if (size > 0)
+   if (size > 0) {
       bw_msg.put_BinaryData(message_);
-
+   }
    bw.put_uint8_t(bw_msg.getSize() + 1);
    bw.put_uint8_t(OP_RETURN);
    bw.put_BinaryData(bw_msg.getData());
-
    script_ = bw.getData();
 }
 
-////////////////////////////////////////////////////////////////////////////////
 size_t Recipient_OPRETURN::getSize() const
 {
    auto size = message_.getSize();
@@ -397,30 +396,36 @@ size_t Recipient_OPRETURN::getSize() const
    return size;
 }
 
+uint64_t Recipient_OPRETURN::getValue() const
+{
+   return 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-//
 // Recipient_Universal
-//
-////////////////////////////////////////////////////////////////////////////////
+Recipient_Universal::Recipient_Universal(
+   const BinaryData& script, uint64_t val) :
+   ScriptRecipient(SpendScriptType::UNIVERSAL, val), binScript_(script)
+{}
+
 void Recipient_Universal::serialize() const
 {
-   if (script_.getSize() != 0)
+   if (!script_.empty()) {
       return;
+   }
 
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
    bw.put_var_int(binScript_.getSize());
    bw.put_BinaryData(binScript_);
-
    script_ = std::move(bw.getData());
 }
 
-////////////////////////////////////////////////////////////////////////////////
 size_t Recipient_Universal::getSize() const
 {
    size_t varint_len = 1;
-   if (binScript_.getSize() >= 0xfd)
+   if (binScript_.getSize() >= 0xfd) {
       varint_len = 3; //larger scripts would make the tx invalid
-
+   }
    return 8 + binScript_.getSize() + varint_len;
 }

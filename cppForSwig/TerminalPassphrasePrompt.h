@@ -1,44 +1,42 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 20119, goatpig.                                             //
+//  Copyright (C) 2019-2025, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <mutex>
 #include <map>
 
-#include "SecureBinaryData.h"
+#include "Utils/SecureBinaryData.h"
 #include "Wallets/WalletIdTypes.h"
-#include "Wallets/PassphraseLambda.h"
-
-#define CHANGE_PASS_FLAG BinaryData::fromString("change-pass     ")
+#include "Wallets/GetPassphrase.h"
 
 class TerminalPassphrasePrompt
 {
 private:
-    std::mutex mu_;
-    std::map<Armory::Wallets::EncryptionKeyId, unsigned> countMap_;
+   std::mutex mu_;
+   std::map<Armory::Wallets::EncryptionKeyId, unsigned> countMap_;
+   const std::string verbose_;
 
-    const std::string verbose_;
+private:
+   TerminalPassphrasePrompt(const std::string& verbose) :
+      verbose_(verbose)
+   {
+      if (verbose_.empty()) {
+         throw std::runtime_error("empty verbose is not allowed");
+      }
+   }
 
-private:  
-    TerminalPassphrasePrompt(const std::string& verbose) :
-        verbose_(verbose)
-    {
-        if (verbose_.size() == 0)
-            throw std::runtime_error("empty verbose is not allowed");
-    }
-    
-    SecureBinaryData prompt(
-        const std::set<Armory::Wallets::EncryptionKeyId>& idSet);
-    SecureBinaryData promptForPassphrase(
-        const std::set<Armory::Wallets::EncryptionKeyId>& idSet);
-    SecureBinaryData promptNewPass();
+   SecureBinaryData prompt(
+      const std::set<Armory::Wallets::EncryptionKeyId>&);
+   SecureBinaryData promptForPassphrase(
+      const std::set<Armory::Wallets::EncryptionKeyId>&);
+   SecureBinaryData promptNewPass(void);
 
-    static void setEcho(bool);
+   static void setEcho(bool);
 
 public:
-    static PassphraseLambda getLambda(const std::string&);
+   static Armory::Passphrase::UnlockFunc getLambda(const std::string&);
 };

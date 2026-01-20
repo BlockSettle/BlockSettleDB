@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2017-2021, goatpig                                          //
+//  Copyright (C) 2017-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -11,7 +11,6 @@
 #include "../EncryptedDB.h"
 #include "../WalletFileInterface.h"
 
-using namespace std;
 using namespace Armory::Assets;
 using namespace Armory::Accounts;
 using namespace Armory::Wallets;
@@ -24,28 +23,28 @@ using namespace Armory::Wallets;
 void MetaDataAccount::make_new(MetaAccountType type)
 {
    type_ = type;
-
    switch (type_)
    {
-   case MetaAccount_Comments:
-   {
-      ID_ = WRITE_UINT32_BE(META_ACCOUNT_COMMENTS);
-      break;
-   }
+      case MetaAccountType::Comments:
+      {
+         ID_ = WRITE_UINT32_BE(META_ACCOUNT_COMMENTS);
+         break;
+      }
 
-   case MetaAccount_AuthPeers:
-   {
-      ID_ = WRITE_UINT32_BE(META_ACCOUNT_AUTHPEER);
-      break;
-   }
+      case MetaAccountType::AuthPeers:
+      {
+         ID_ = WRITE_UINT32_BE(META_ACCOUNT_AUTHPEER);
+         break;
+      }
 
-   default:
-      throw AccountException("unexpected meta account type");
+      default:
+         throw AccountException("unexpected meta account type");
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void MetaDataAccount::commit(unique_ptr<IO::DBIfaceTransaction> txPtr) const
+void MetaDataAccount::commit(
+   std::unique_ptr<IO::DBIfaceTransaction> txPtr) const
 {
    ReentrantLock lock(this);
 
@@ -58,9 +57,10 @@ void MetaDataAccount::commit(unique_ptr<IO::DBIfaceTransaction> txPtr) const
    bwData.put_uint32_t((uint32_t)type_);
 
    //commit assets
-   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(txPtr));
-   for (auto& asset : assets_)
+   std::shared_ptr<IO::DBIfaceTransaction> sharedTx(std::move(txPtr));
+   for (auto& asset : assets_) {
       writeAssetToDisk(sharedTx, asset.second);
+   }
 
    //commit serialized account data
    sharedTx->insert(bwKey.getData(), bwData.getData());
@@ -68,50 +68,44 @@ void MetaDataAccount::commit(unique_ptr<IO::DBIfaceTransaction> txPtr) const
 
 ////////////////////////////////////////////////////////////////////////////////
 bool MetaDataAccount::writeAssetToDisk(
-   shared_ptr<IO::DBIfaceTransaction> txPtr,
-   shared_ptr<MetaData> assetPtr) const
+   std::shared_ptr<IO::DBIfaceTransaction> txPtr,
+   std::shared_ptr<MetaData> assetPtr) const
 {
-   if (!assetPtr->needsCommit())
-      return true;
-   
-   assetPtr->needsCommit_ = false;
-
-   auto&& key = assetPtr->getDbKey();
-   auto&& data = assetPtr->serialize();
-
-   if (data.getSize() != 0)
-   {
-      txPtr->insert(key, data);
+   if (!assetPtr->needsCommit()) {
       return true;
    }
-   else
-   {
+   assetPtr->needsCommit_ = false;
+
+   const auto& key = assetPtr->getDbKey();
+   const auto& data = assetPtr->serialize();
+   if (!data.empty()) {
+      txPtr->insert(key, data);
+      return true;
+   } else {
       txPtr->erase(key);
       return false;
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void MetaDataAccount::updateOnDisk(shared_ptr<IO::DBIfaceTransaction> txPtr)
+void MetaDataAccount::updateOnDisk(
+   std::shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    ReentrantLock lock(this);
 
    bool needsCommit = false;
-   for (auto& asset : assets_)
+   for (const auto& asset : assets_) {
       needsCommit |= asset.second->needsCommit();
-
-   if (!needsCommit)
+   }
+   if (!needsCommit) {
       return;
-
+   }
    auto iter = assets_.begin();
-   while (iter != assets_.end())
-   {
-      if (writeAssetToDisk(txPtr, iter->second))
-      {
+   while (iter != assets_.end()) {
+      if (writeAssetToDisk(txPtr, iter->second)) {
          ++iter;
          continue;
       }
-
       assets_.erase(iter++);
    }
 }
@@ -119,29 +113,28 @@ void MetaDataAccount::updateOnDisk(shared_ptr<IO::DBIfaceTransaction> txPtr)
 ////////////////////////////////////////////////////////////////////////////////
 void MetaDataAccount::reset()
 {
-   type_ = MetaAccount_Unset;
+   type_ = MetaAccountType::Unset;
    ID_.clear();
    assets_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void MetaDataAccount::readFromDisk(
-   shared_ptr<IO::WalletDBInterface> iface, const BinaryData& key)
+   std::shared_ptr<IO::WalletDBInterface> iface, const BinaryData& key)
 {
    //sanity checks
-   if (iface == nullptr || dbName_.size() == 0)
+   if (iface == nullptr || dbName_.empty()) {
       throw AccountException("invalid db pointers");
-
-   if (key.getSize() != 5)
+   }
+   if (key.getSize() != 5) {
       throw AccountException("invalid key size");
-
-   if (key.getPtr()[0] != META_ACCOUNT_PREFIX)
+   }
+   if (key.getPtr()[0] != META_ACCOUNT_PREFIX) {
       throw AccountException("unexpected prefix for AssetAccount key");
-
-   auto&& tx = iface->beginReadTransaction(dbName_);
+   }
 
    CharacterArrayRef carKey(key.getSize(), key.getCharPtr());
-
+   auto tx = iface->beginReadTransaction(dbName_);
    auto diskDataRef = tx->getDataRef(key);
    BinaryRefReader brr(diskDataRef);
 
@@ -155,96 +148,136 @@ void MetaDataAccount::readFromDisk(
    brr.get_var_int();
    type_ = (MetaAccountType)brr.get_uint32_t();
 
-   uint8_t prefix;
+   std::set<uint8_t> prefixes;
    switch (type_)
    {
-   case MetaAccount_Comments:
-   {
-      prefix = METADATA_COMMENTS_PREFIX;
-      break;
-   }
+      case MetaAccountType::Comments:
+      {
+         prefixes.emplace(METADATA_COMMENTS_PREFIX);
+         break;
+      }
 
-   case MetaAccount_AuthPeers:
-   {
-      prefix = METADATA_AUTHPEER_PREFIX;
-      break;
-   }
+      case MetaAccountType::AuthPeers:
+      {
+         prefixes = {
+            METADATA_AUTHPEER_PREFIX,
+            METADATA_PEERROOT_PREFIX,
+            METADATA_ROOTSIG_PREFIX,
+            METADATA_PEERMASTER_PREFIX
+         };
+         break;
+      }
 
-   default:
-      throw AccountException("unexpected meta account type");
+      default:
+         throw AccountException("unexpected meta account type");
    }
 
    //get assets
-   BinaryWriter bwAssetKey;
-   bwAssetKey.put_uint8_t(prefix);
-   bwAssetKey.put_BinaryData(ID_);
-   auto& assetDbKey = bwAssetKey.getData();
+   for (const uint8_t prefix : prefixes) {
+      BinaryWriter bwAssetKey;
+      bwAssetKey.put_uint8_t(prefix);
+      bwAssetKey.put_BinaryData(ID_);
+      const auto& assetDbKey = bwAssetKey.getData();
 
-   auto dbIter = tx->getIterator();
-   dbIter->seek(assetDbKey);
+      auto dbIter = tx->getIterator();
+      dbIter->seek(assetDbKey);
 
-   while (dbIter->isValid())
-   {
-      auto&& key = dbIter->key();
-      auto&& data = dbIter->value();
+      while (dbIter->isValid()) {
+         const auto& key = dbIter->key();
+         const auto& data = dbIter->value();
 
-      //check key isnt prefix
-      if (key == assetDbKey)
-         continue;
+         //check key isnt prefix
+         if (key == assetDbKey) {
+            continue;
+         }
 
-      //check key starts with prefix
-      if (!key.startsWith(assetDbKey))
-         break;
+         //check key starts with prefix
+         if (!key.startsWith(assetDbKey)) {
+            break;
+         }
 
-      //deser asset
-      try
-      {
-         auto assetPtr = MetaData::deserialize(key, data);
-         assets_.insert(make_pair(
-            assetPtr->index_, assetPtr));
+         //deser asset
+         try {
+            auto assetPtr = MetaData::deserialize(key, data);
+            if (lastAssetId_ != UINT32_MAX) {
+               lastAssetId_ = std::max(assetPtr->index_, lastAssetId_);
+            } else {
+               lastAssetId_ = assetPtr->index_;
+            }
+            assets_.emplace(assetPtr->index_, assetPtr);
+         } catch (const std::exception&) {}
+         dbIter->advance();
       }
-      catch (exception&)
-      {}
-
-      dbIter->advance();
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<MetaData> MetaDataAccount::getMetaDataByIndex(unsigned id) const
+std::shared_ptr<MetaData> MetaDataAccount::getMetaDataByIndex(uint32_t id) const
 {
    auto iter = assets_.find(id);
-   if (iter == assets_.end())
+   if (iter == assets_.end()) {
       throw AccountException("invalid asset index");
-
+   }
    return iter->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void MetaDataAccount::eraseMetaDataByIndex(unsigned id)
+uint32_t MetaDataAccount::getNextAssetId()
+{
+   return ++lastAssetId_;
+}
+
+////
+void MetaDataAccount::addAsset(std::shared_ptr<MetaData> asset)
+{
+   if (asset == nullptr) {
+      throw AccountException("cannot add null asset");
+   }
+   assets_.emplace(asset->getIndex(), std::move(asset));
+}
+
+////
+const std::map<uint32_t, std::shared_ptr<MetaData>>&
+MetaDataAccount::getAssetMap() const
+{
+   return assets_;
+}
+
+////
+MetaAccountType MetaDataAccount::getType() const
+{
+   return type_;
+}
+
+////
+const BinaryData& MetaDataAccount::getID() const
+{
+   return ID_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void MetaDataAccount::eraseMetaDataByIndex(uint32_t id)
 {
    auto iter = assets_.find(id);
-   if (iter == assets_.end())
+   if (iter == assets_.end()) {
       return;
-
+   }
    iter->second->clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<MetaDataAccount> MetaDataAccount::copy(const string& dbName) const
+std::shared_ptr<MetaDataAccount> MetaDataAccount::copy(
+   const std::string& dbName) const
 {
-   auto copyPtr = make_shared<MetaDataAccount>(dbName);
-   
+   auto copyPtr = std::make_shared<MetaDataAccount>(dbName);
    copyPtr->type_ = type_;
    copyPtr->ID_ = ID_;
 
-   for (auto& assetPair : assets_)
-   {
+   for (auto& assetPair : assets_) {
       auto assetCopy = assetPair.second->copy();
       assetCopy->flagForCommit();
       copyPtr->assets_.insert(make_pair(assetPair.first, assetCopy));
    }
-
    return copyPtr;
 }
 
@@ -256,89 +289,99 @@ shared_ptr<MetaDataAccount> MetaDataAccount::copy(const string& dbName) const
 AuthPeerAssetMap AuthPeerAssetConversion::getAssetMap(
    const MetaDataAccount* account)
 {
-   if (account == nullptr || account->type_ != MetaAccount_AuthPeers)
+   if (account == nullptr || account->getType() != MetaAccountType::AuthPeers) {
       throw AccountException("invalid metadata account ptr");
+   }
    ReentrantLock lock(account);
 
    AuthPeerAssetMap result;
-
-   for (auto& asset : account->assets_)
-   {
+   const auto& assets = account->getAssetMap();
+   for (const auto& asset : assets) {
       switch (asset.second->type())
       {
-      case MetaType_AuthorizedPeer:
-      {
-         auto assetPeer = dynamic_pointer_cast<PeerPublicData>(asset.second);
-         if (assetPeer == nullptr)
+         case MetaType::AuthorizedPeer:
+         {
+            auto assetPeer = std::dynamic_pointer_cast<PeerPublicData>(
+               asset.second);
+            if (assetPeer == nullptr) {
+               continue;
+            }
+
+            const auto& names = assetPeer->getNames();
+            const auto& pubKey = assetPeer->getPublicKey();
+            for (auto& name : names) {
+               result.nameKeyPair.emplace(name, &pubKey);
+            }
+            break;
+         }
+
+         case MetaType::PeerRootKey:
+         {
+            auto assetRoot = std::dynamic_pointer_cast<PeerRootKey>(
+               asset.second);
+            if (assetRoot == nullptr) {
+               continue;
+            }
+            auto descPair = make_pair(assetRoot->getDescription(), asset.first);
+            result.peerRootKeys.emplace(assetRoot->getKey(), descPair);
+            break;
+         }
+
+         case MetaType::PeerRootSig:
+         {
+            auto assetSig = std::dynamic_pointer_cast<PeerRootSignature>(
+               asset.second);
+            if (assetSig == nullptr) {
+               continue;
+            }
+            result.rootSignature = std::make_pair(
+               assetSig->getKey(), assetSig->getSig());
+            break;
+         }
+
+         case MetaType::PeerMasterKey:
+         {
+            auto assetMasterKey = std::dynamic_pointer_cast<PeerMasterKey>(
+               asset.second);
+            if (assetMasterKey == nullptr) {
+               continue;
+            }
+            result.masterKey = assetMasterKey->getKey();
+            break;
+         }
+
+         default:
             continue;
-
-         auto& names = assetPeer->getNames();
-         auto& pubKey = assetPeer->getPublicKey();
-
-         for (auto& name : names)
-            result.nameKeyPair_.emplace(make_pair(name, &pubKey));
-
-         break;
-      }
-
-      case MetaType_PeerRootKey:
-      {
-         auto assetRoot = dynamic_pointer_cast<PeerRootKey>(asset.second);
-         if (assetRoot == nullptr)
-            continue;
-
-         auto descPair = make_pair(assetRoot->getDescription(), asset.first);
-         result.peerRootKeys_.emplace(make_pair(assetRoot->getKey(), descPair));
-         
-         break;
-      }
-
-      case MetaType_PeerRootSig:
-      {
-         auto assetSig = dynamic_pointer_cast<PeerRootSignature>(asset.second);
-         if (assetSig == nullptr)
-            continue;
-
-         result.rootSignature_ = make_pair(assetSig->getKey(), assetSig->getSig());
-      }
-
-      default:
-         continue;
       }
    }
-
    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-map<SecureBinaryData, set<unsigned>> 
+std::map<SecureBinaryData, std::set<uint32_t>>
    AuthPeerAssetConversion::getKeyIndexMap(const MetaDataAccount* account)
 {
-   if (account == nullptr || account->type_ != MetaAccount_AuthPeers)
+   if (account == nullptr || account->getType() != MetaAccountType::AuthPeers) {
       throw AccountException("invalid metadata account ptr");
+   }
    ReentrantLock lock(account);
 
-   map<SecureBinaryData, set<unsigned>> result;
-
-   for (auto& asset : account->assets_)
-   {
-      auto assetPeer = dynamic_pointer_cast<PeerPublicData>(asset.second);
-      if (assetPeer == nullptr)
-         throw AccountException("invalid asset type");
-
-      auto& pubKey = assetPeer->getPublicKey();
-
-      auto iter = result.find(pubKey);
-      if (iter == result.end())
-      {
-         auto insertIter = result.insert(make_pair(
-            pubKey, set<unsigned>()));
-         iter = insertIter.first;
+   std::map<SecureBinaryData, std::set<uint32_t>> result;
+   const auto& assets = account->getAssetMap();
+   for (const auto& asset : assets) {
+      auto assetPeer = std::dynamic_pointer_cast<PeerPublicData>(asset.second);
+      if (assetPeer == nullptr) {
+         continue;
       }
 
+      const auto& pubKey = assetPeer->getPublicKey();
+      auto iter = result.find(pubKey);
+      if (iter == result.end()) {
+         auto insertIter = result.emplace(pubKey, std::set<uint32_t>{});
+         iter = insertIter.first;
+      }
       iter->second.insert(asset.first);
    }
-
    return result;
 }
 
@@ -346,69 +389,104 @@ map<SecureBinaryData, set<unsigned>>
 int AuthPeerAssetConversion::addAsset(
    MetaDataAccount* account, const SecureBinaryData& pubkey,
    const std::vector<std::string>& names,
-   shared_ptr<IO::DBIfaceTransaction> txPtr)
+   std::shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    ReentrantLock lock(account);
 
-   if (account == nullptr || account->type_ != MetaAccount_AuthPeers)
+   if (account == nullptr || account->getType() != MetaAccountType::AuthPeers) {
       throw AccountException("invalid metadata account ptr");
+   }
+   uint32_t index = account->getNextAssetId();
 
-   auto& accountID = account->ID_;
-   unsigned index = account->assets_.size();
-
-   auto metaObject = make_shared<PeerPublicData>(accountID, index);
+   auto metaObject = std::make_shared<PeerPublicData>(account->getID(), index);
    metaObject->setPublicKey(pubkey);
-   for (auto& name : names)
+   for (const auto& name : names) {
       metaObject->addName(name);
+   }
 
    metaObject->flagForCommit();
-   account->assets_.emplace(make_pair(index, metaObject));
+   account->addAsset(metaObject);
    account->updateOnDisk(txPtr);
-
    return index;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void AuthPeerAssetConversion::addRootSignature(MetaDataAccount* account,
    const SecureBinaryData& key, const SecureBinaryData& sig,
-   shared_ptr<IO::DBIfaceTransaction> txPtr)
+   std::shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    ReentrantLock lock(account);
 
-   if (account == nullptr || account->type_ != MetaAccount_AuthPeers)
+   if (account == nullptr || account->getType() != MetaAccountType::AuthPeers) {
       throw AccountException("invalid metadata account ptr");
+   }
+   const auto& accountID = account->getID();
+   unsigned index = account->getNextAssetId();
 
-   auto& accountID = account->ID_;
-   unsigned index = account->assets_.size();
-
-   auto metaObject = make_shared<PeerRootSignature>(accountID, index);
+   auto metaObject = std::make_shared<PeerRootSignature>(accountID, index);
    metaObject->set(key, sig);
-   
    metaObject->flagForCommit();
-   account->assets_.emplace(make_pair(index, metaObject));
+   account->addAsset(metaObject);
    account->updateOnDisk(txPtr);
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 unsigned AuthPeerAssetConversion::addRootPeer(MetaDataAccount* account,
-   const SecureBinaryData& key, const std::string& desc, 
-   shared_ptr<IO::DBIfaceTransaction> txPtr)
+   const SecureBinaryData& key, const std::string& desc,
+   std::shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    ReentrantLock lock(account);
 
-   if (account == nullptr || account->type_ != MetaAccount_AuthPeers)
+   if (account == nullptr || account->getType() != MetaAccountType::AuthPeers) {
       throw AccountException("invalid metadata account ptr");
+   }
+   auto& accountID = account->getID();
+   unsigned index = account->getNextAssetId();
 
-   auto& accountID = account->ID_;
-   unsigned index = account->assets_.size();
-
-   auto metaObject = make_shared<PeerRootKey>(accountID, index);
+   auto metaObject = std::make_shared<PeerRootKey>(accountID, index);
    metaObject->set(desc, key);
-
    metaObject->flagForCommit();
-   account->assets_.emplace(make_pair(index, metaObject));
+   account->addAsset(metaObject);
    account->updateOnDisk(txPtr);
-
    return index;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AuthPeerAssetConversion::addMasterKey(MetaDataAccount* account,
+   const SecureBinaryData& key, std::shared_ptr<IO::DBIfaceTransaction> txPtr)
+{
+   ReentrantLock lock(account);
+
+   if (account == nullptr || account->getType() != MetaAccountType::AuthPeers) {
+      throw AccountException("invalid metadata account ptr");
+   }
+   clearMasterKeyAssets(account);
+
+   const auto& accountID = account->getID();
+   uint32_t index = account->getNextAssetId();
+
+   auto metaObject = std::make_shared<PeerMasterKey>(accountID, index);
+   metaObject->set(key);
+   metaObject->flagForCommit();
+   account->addAsset(metaObject);
+   account->updateOnDisk(txPtr);
+}
+
+////////
+void AuthPeerAssetConversion::clearMasterKeyAssets(MetaDataAccount* account)
+{
+   ReentrantLock lock(account);
+
+   if (account == nullptr || account->getType() != MetaAccountType::AuthPeers) {
+      throw AccountException("invalid metadata account ptr");
+   }
+
+   auto assets = account->getAssetMap();
+   for (const auto& assetPair : assets) {
+      if (assetPair.second->type() == MetaType::PeerMasterKey) {
+         assetPair.second->clear();
+      }
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -416,93 +494,89 @@ unsigned AuthPeerAssetConversion::addRootPeer(MetaDataAccount* account,
 //// CommentAssetConversion
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<CommentData> CommentAssetConversion::getByKey(
+std::shared_ptr<CommentData> CommentAssetConversion::getByKey(
    MetaDataAccount* account, const BinaryData& key)
 {
    ReentrantLock lock(account);
 
-   if (account == nullptr || account->type_ != MetaAccount_Comments)
+   if (account == nullptr || account->getType() != MetaAccountType::Comments) {
       throw AccountException("invalid metadata account ptr");
-
-   for (auto& asset : account->assets_)
-   {
-      auto objPtr = dynamic_pointer_cast<CommentData>(asset.second);
-      if (objPtr == nullptr)
-         continue;
-
-      if (objPtr->getKey() == key)
-         return objPtr;
    }
 
+   const auto& assets = account->getAssetMap();
+   for (const auto& asset : assets) {
+      auto objPtr = std::dynamic_pointer_cast<CommentData>(asset.second);
+      if (objPtr == nullptr) {
+         continue;
+      }
+      if (objPtr->getKey() == key) {
+         return objPtr;
+      }
+   }
    return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 int CommentAssetConversion::setAsset(MetaDataAccount* account,
    const BinaryData& key, const std::string& comment,
-   shared_ptr<IO::DBIfaceTransaction> txPtr)
+   std::shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
-   if (comment.size() == 0)
+   if (comment.empty()) {
       return INT32_MIN;
-
+   }
    ReentrantLock lock(account);
 
-   if (account == nullptr || account->type_ != MetaAccount_Comments)
+   if (account == nullptr || account->getType() != MetaAccountType::Comments) {
       throw AccountException("invalid metadata account ptr");
+   }
 
    auto metaObject = getByKey(account, key);
-
-   if (metaObject == nullptr)
-   {
-      auto& accountID = account->ID_;
-      auto index = (uint32_t)account->assets_.size();
-      metaObject = make_shared<CommentData>(accountID, index);
+   if (metaObject == nullptr) {
+      const auto& accountID = account->getID();
+      auto index = account->getNextAssetId();
+      metaObject = std::make_shared<CommentData>(accountID, index);
       metaObject->setKey(key);
-
-      account->assets_.emplace(make_pair(index, metaObject));
+      account->addAsset(metaObject);
    }
 
    metaObject->setValue(comment);
-
    metaObject->flagForCommit();
    account->updateOnDisk(txPtr);
-
    return metaObject->getIndex();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 int CommentAssetConversion::deleteAsset(
    MetaDataAccount* account, const BinaryData& key,
-   shared_ptr<IO::DBIfaceTransaction> txPtr)
+   std::shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    auto metaObject = getByKey(account, key);
-   if (metaObject == nullptr)
+   if (metaObject == nullptr) {
       return -1;
-
+   }
    metaObject->clear();
    account->updateOnDisk(txPtr);
-
    return metaObject->getIndex();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-map<BinaryData, string> CommentAssetConversion::getCommentMap(
+std::map<BinaryData, std::string> CommentAssetConversion::getCommentMap(
    MetaDataAccount* account)
 {
    ReentrantLock lock(account);
 
-   if (account == nullptr || account->type_ != MetaAccount_Comments)
+   if (account == nullptr || account->getType() != MetaAccountType::Comments) {
       throw AccountException("invalid metadata account ptr");
-
-   map<BinaryData, string> result;
-   for (auto& asset : account->assets_)
-   {
-      auto objPtr = dynamic_pointer_cast<CommentData>(asset.second);
-      if (objPtr == nullptr)
-         continue;
-
-      result.emplace(objPtr->getKey(), objPtr->getValue());
    }
 
+   std::map<BinaryData, std::string> result;
+   const auto& assets = account->getAssetMap();
+   for (const auto& asset : assets) {
+      auto objPtr = std::dynamic_pointer_cast<CommentData>(asset.second);
+      if (objPtr == nullptr) {
+         continue;
+      }
+      result.emplace(objPtr->getKey(), objPtr->getValue());
+   }
    return result;
 }

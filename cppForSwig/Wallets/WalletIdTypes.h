@@ -1,18 +1,20 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2021-2021, goatpig                                          //
+//  Copyright (C) 2021-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _H_WALLET_ID_TYPES
-#define _H_WALLET_ID_TYPES
+#pragma once
 
 #include <string>
 #include <stdexcept>
-#include "../BinaryData.h"
-#include "../BtcUtils.h"
+#include "Utils/BinaryData.h"
+
+#define KDF_PREFIX 0xC1
+
+class SecureBinaryData;
 
 namespace Armory
 {
@@ -29,27 +31,33 @@ namespace Armory
 
    namespace Seeds
    {
-      enum class SeedType;
+      enum class SeedType : int;
    }
 
    namespace Wallets
    {
-      ////////////////////////////////////////////////////////////////////////
-      using AssetKeyType = int32_t;
+      using AssetKeyType   = int32_t;
       using AccountKeyType = int32_t;
 
-      static const AccountKeyType rootAccountId = -1;
-      static const AssetKeyType rootAssetId = -1;
-      static const AccountKeyType dummyAccountId = -2;
-
-      static const size_t EncryptionKeyIdLength = 16;
+      static const AccountKeyType rootAccountId    = -1;
+      static const AssetKeyType rootAssetId        = -1;
+      static const AccountKeyType dummyAccountId   = -2;
+      static const size_t EncryptionKeyIdLength    = 16;
 
       ////
       struct IdException : public std::runtime_error
       {
-         IdException(const std::string& err) :
-            std::runtime_error(err)
-         {}
+         IdException(const std::string&);
+      };
+
+      ////////////////////////////////////////////////////////////////////////
+      class WalletId : public std::string
+      {
+      public:
+         WalletId(void);
+         WalletId(const char*, size_t);
+         WalletId(const BinaryDataRef&);
+         WalletId(const std::string_view&);
       };
 
       ////////////////////////////////////////////////////////////////////////
@@ -85,7 +93,6 @@ namespace Armory
          static AddressAccountId deserializeValue(BinaryRefReader&);
          static AddressAccountId deserializeValue(const BinaryData&);
          static AddressAccountId deserializeKey(const BinaryData&, uint8_t);
-         static AccountKeyType getRootKey(void) { return rootAccountId; }
       };
 
       ////////////////////////////////////////////////////////////////////////
@@ -123,7 +130,6 @@ namespace Armory
          static AssetAccountId deserializeValueOld(
             const AddressAccountId&, BinaryRefReader&);
          static AssetAccountId deserializeKey(const BinaryData&, uint8_t);
-         static AccountKeyType getRootKey(void) { return rootAccountId; }
       };
 
       ////////////////////////////////////////////////////////////////////////
@@ -161,7 +167,7 @@ namespace Armory
          static AssetId deserializeValue(BinaryRefReader&);
          static AssetId deserializeKey(const BinaryData&, uint8_t);
          static AssetId deserializeKey(BinaryDataRef, uint8_t);
-         static AssetKeyType getRootKey(void) { return rootAssetId; }
+         static AssetKeyType getRootKey(void);
          static AssetId getRootAssetId(void);
          static AssetId getNextDummyId(void);
       };
@@ -196,13 +202,39 @@ namespace Armory
       };
 
       ////////////////////////////////////////////////////////////////////////
-      std::string generateWalletId(std::shared_ptr<Assets::DerivationScheme>,
-         std::shared_ptr<Assets::AssetEntry>, Seeds::SeedType);
-      std::string generateWalletId(SecureBinaryData, SecureBinaryData,
-         Seeds::SeedType);
-      std::string generateMasterId(const SecureBinaryData&,
-         const SecureBinaryData&);
+      class KdfId
+      {
+      private:
+         BinaryData data_;
 
-   }// namespace Wallets
+      private:
+         KdfId(const std::string&);
+
+      public:
+         KdfId(void);
+         KdfId(const std::string_view&);
+         KdfId(const KdfId&);
+
+         bool operator<(const KdfId&) const;
+         bool operator==(const KdfId&) const;
+         bool operator==(const std::string_view&) const;
+         bool operator!=(const std::string_view&) const;
+         KdfId& operator=(const KdfId&);
+
+         bool isValid(void) const;
+         std::string toHexStr(void) const;
+         const BinaryData& data(void) const;
+
+         BinaryData getSerializedKey(void) const;
+         static KdfId fromBinaryData(BinaryData&);
+      };
+
+      ////////////////////////////////////////////////////////////////////////
+      BinaryData generateWalletIdRaw(SecureBinaryData,
+         SecureBinaryData, Seeds::SeedType);
+      Wallets::WalletId generateWalletId(SecureBinaryData,
+         SecureBinaryData, Seeds::SeedType);
+      Wallets::WalletId generateMasterId(const SecureBinaryData&,
+         const SecureBinaryData&);
+   } // namespace Wallets
 }
-#endif

@@ -6,9 +6,9 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
+#include "Utils/BtcUtils.h"
+#include "Utils/Cryptography.h"
 #include "EncryptedDB.h"
-#include "BtcUtils.h"
-#include "EncryptionUtils.h"
 #include "AssetEncryption.h"
 
 using namespace std;
@@ -21,17 +21,16 @@ using namespace Armory::Wallets::IO;
 ////////////////////////////////////////////////////////////////////////////////
 void IfaceDataMap::update(const std::vector<std::shared_ptr<InsertData>>& vec)
 {
-   for (auto& dataPtr : vec)
-   {
-      if (!dataPtr->write_)
-      {
+   for (auto& dataPtr : vec) {
+      if (!dataPtr->write_) {
          dataMap_.erase(dataPtr->key_);
          continue;
       }
 
-      auto insertIter = dataMap_.insert(make_pair(dataPtr->key_, dataPtr->value_));
-      if (!insertIter.second)
+      auto insertIter = dataMap_.emplace(dataPtr->key_, dataPtr->value_);
+      if (!insertIter.second) {
          insertIter.first->second = dataPtr->value_;
+      }
    }
 }
 
@@ -80,7 +79,7 @@ DBInterface::DBInterface(
    dbEnv_(dbEnv), dbName_(dbName), controlSalt_(controlSalt),
    encrVersion_(encrVersion)
 {
-   auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadWrite);
+   auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::Mode::ReadWrite);
    db_.open(dbEnv_, dbName_);
    dataMapPtr_ = make_shared<IfaceDataMap>();
 }
@@ -98,7 +97,7 @@ void DBInterface::reset(LMDBEnv* envPtr)
       db_.close();
 
    dbEnv_ = envPtr;
-   auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadWrite);
+   auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::Mode::ReadWrite);
    db_.open(dbEnv_, dbName_);
 }
 
@@ -120,11 +119,11 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
 
       //first half is the encryption key, second half is the hmac key
       BinaryRefReader brr(hmacVal.getRef());
-      decrPrivKey = move(brr.get_SecureBinaryData(32));
-      macKey = move(brr.get_SecureBinaryData(32));
+      decrPrivKey = SecureBinaryData{brr.get_BinaryDataRef(32)};
+      macKey = SecureBinaryData{brr.get_BinaryDataRef(32)};
 
       //decryption private key sanity check
-      if (!CryptoECDSA::checkPrivKeyIsValid(decrPrivKey))
+      if (!Cryptography::ECDSA::checkPrivKeyIsValid(decrPrivKey))
          throw EncryptedDBException("invalid decryption private key");
    };
 
@@ -139,7 +138,7 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
       if (packet.getSize() > erasurePlaceHolder_.getSize())
       {
          BinaryRefReader brr(packet.getRef());
-         auto placeHolder = 
+         auto placeHolder =
             brr.get_BinaryDataRef(erasurePlaceHolder_.getSize());
 
          if (placeHolder == erasurePlaceHolder_)
@@ -181,7 +180,7 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
       auto dataMapPtr = make_shared<IfaceDataMap>();
 
       //read all db entries
-      auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadOnly);
+      auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::Mode::ReadOnly);
 
       int prevDbKey = -1;
       auto iter = db_.begin();
@@ -259,17 +258,17 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
       the next wallet load to cycle the key accordingly to decrypt this
       new data correctly.
       */
-      auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadWrite);
+      auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::Mode::ReadWrite);
 
       auto flagKey = dataMapPtr_->getNewDbKey();
       BothBinaryDatas keyFlagBd(keyCycleFlag_);
-      auto&& encrPubKey = CryptoECDSA().ComputePublicKey(decrPrivKey, true);
-      auto flagPacket = createDataPacket(flagKey, BinaryData(), 
+      auto encrPubKey = Cryptography::ECDSA::computePublicKey(
+         decrPrivKey, true);
+      auto flagPacket = createDataPacket(flagKey, BinaryData(),
          keyFlagBd, encrPubKey, macKey, encrVersion_);
 
       CharacterArrayRef carKey(flagKey.getSize(), flagKey.getPtr());
       CharacterArrayRef carVal(flagPacket.getSize(), flagPacket.getPtr());
-
       db_.insert(carKey, carVal);
    }
 
@@ -278,7 +277,7 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
    computeKeyPair(decrKeyCounter);
 
    //set mac key for the current session
-   encrPubKey_ = CryptoECDSA().ComputePublicKey(decrPrivKey, true);
+   encrPubKey_ = Cryptography::ECDSA::computePublicKey(decrPrivKey, true);
    macKey_ = move(macKey);
 }
 
@@ -319,29 +318,30 @@ BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
 
    /* encryption key generation */
       //generate local encryption private key
-      auto&& localPrivKey = CryptoECDSA().createNewPrivateKey();
-      
+      auto localPrivKey = Cryptography::ECDSA::createNewPrivateKey();
+
       //generate compressed pubkey
-      auto&& localPubKey = CryptoECDSA().ComputePublicKey(localPrivKey, true);
+      auto localPubKey = Cryptography::ECDSA::computePublicKey(
+         localPrivKey, true);
 
       //ECDH local private key with encryption public key
-      auto&& ecdhPubKey = 
-         CryptoECDSA::PubKeyScalarMultiply(encrPubKey, localPrivKey);
+      auto ecdhPubKey = Cryptography::ECDSA::pubKeyScalarMultiply(
+         encrPubKey, localPrivKey);
 
       //hash256 the key as stand in for KDF
-      auto&& encrKey = BtcUtils::hash256(ecdhPubKey);
+      auto encrKey = BtcUtils::getHash256(ecdhPubKey);
 
    /* encryption leg */
       //generate IV
-      auto&& iv = BtcUtils::fortuna_.generateRandom(
+      auto iv = Cryptography::PRNG::fortuna.generateRandom(
          Encryption::Cipher::getBlockSize(CipherType_AES));
 
       //AES_CBC (hmac | payload)
-      auto&& cipherText = CryptoAES::EncryptCBC(
-         bwData.getData(), encrKey, iv);
+      auto cipherText = Cryptography::Encryption::AES::encryptCBC(
+         bwData.getDataRef(), {encrKey}, iv);
 
       //build IES packet
-      encrPacket.put_BinaryData(localPubKey); 
+      encrPacket.put_BinaryData(localPubKey);
       encrPacket.put_BinaryData(iv);
       encrPacket.put_BinaryData(cipherText);
 
@@ -373,30 +373,31 @@ pair<BinaryData, BothBinaryDatas> DBInterface::readDataPacket(
       BinaryRefReader brrCipher(dataPacket.getRef());
 
       //public key
-      auto&& localPubKey = brrCipher.get_SecureBinaryData(33);
+      SecureBinaryData localPubKey{brrCipher.get_BinaryDataRef(33)};
 
       //ECDH with decryption private key
-      auto&& ecdhPubKey = 
-         CryptoECDSA::PubKeyScalarMultiply(localPubKey, decrPrivKey);
+      auto ecdhPubKey = Cryptography::ECDSA::pubKeyScalarMultiply(
+         localPubKey, decrPrivKey);
 
       //kdf
-      auto&& decrKey = BtcUtils::getHash256(ecdhPubKey);
+      auto decrKey = BtcUtils::getHash256(ecdhPubKey);
 
    /* decryption leg */
       //get iv
-      auto&& iv = brrCipher.get_SecureBinaryData(
-         Encryption::Cipher::getBlockSize(CipherType_AES));
+      SecureBinaryData iv{brrCipher.get_BinaryDataRef(
+         Encryption::Cipher::getBlockSize(CipherType_AES))};
 
       //get cipher text
-      auto&& cipherText = brrCipher.get_SecureBinaryData(
-         brrCipher.getSizeRemaining());
-      
+      SecureBinaryData cipherText{brrCipher.get_BinaryDataRef(
+         brrCipher.getSizeRemaining())};
+
       //decrypt
-      auto&& plainText = CryptoAES::DecryptCBC(cipherText, decrKey, iv);
+      auto plainText = Cryptography::Encryption::AES::decryptCBC(
+         cipherText, {decrKey}, iv);
 
    /* authentication leg */
       BinaryRefReader brrPlain(plainText.getRef());
-      
+
       //grab hmac
       auto hmac = brrPlain.get_BinaryData(32);
 
@@ -406,7 +407,7 @@ pair<BinaryData, BothBinaryDatas> DBInterface::readDataPacket(
 
       //grab data val
       len = brrPlain.get_var_int();
-      dataVal = move(brrPlain.get_SecureBinaryData(len));
+      dataVal = SecureBinaryData{brrPlain.get_BinaryDataRef(len)};
 
       //mark the position
       auto pos = brrPlain.getPosition() - 32;
@@ -469,7 +470,7 @@ bool RawIfaceIterator::isValid() const
 void RawIfaceIterator::seek(const BinaryDataRef& key)
 {
    CharacterArrayRef carKey(key.getSize(), key.getPtr());
-   iterator_.seek(carKey, LMDB::Iterator::SeekBy::Seek_GE);
+   iterator_.seek(carKey, LMDB::Iterator::SeekBy::GE);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

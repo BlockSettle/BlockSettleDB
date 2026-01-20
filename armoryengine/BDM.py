@@ -1,23 +1,16 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 ################################################################################
 #                                                                              #
-# Copyright (C) 2011-2015, Armory Technologies, Inc.                           #
+# Copyright (C) 2011-2025, Armory Technologies, Inc.                           #
 # Distributed under the GNU Affero General Public License (AGPL v3)            #
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
 ################################################################################
 import os.path
-import random
-import threading
-import traceback
 
+#TODO: import * is too aggressive
 from armoryengine.ArmoryUtils import *
 from armoryengine.Timer import TimeThisFunction
-from armoryengine.BinaryPacker import UINT64
 from armoryengine.CppBridge import ServerPush, TheBridge
-
-DISCONNECTED_CALLBACK_ID = 0xff543ad8
 
 BDMPhase_DBHeaders = 1
 BDMPhase_OrganizingChain = 2
@@ -35,23 +28,23 @@ BDM_UNINITIALIZED = 'Uninitialized'
 BDM_BLOCKCHAIN_READY = 'BlockChainReady'
 BDM_SCANNING = 'Scanning'
 
-FINISH_LOAD_BLOCKCHAIN_ACTION = 'FinishLoadBlockchain'
-NEW_ZC_ACTION = 'newZC'
+SETUP_STEP1 = 'ready'
+NEW_ZC_ACTION = 'zeroConfs'
 NEW_BLOCK_ACTION = 'newBlock'
 REFRESH_ACTION = 'refresh'
 STOPPED_ACTION = 'stopped'
 WARNING_ACTION = 'warning'
 SCAN_ACTION = 'StartedWalletScan'
-NODESTATUS_UPDATE = 'NodeStatusUpdate'
+NODESTATUS_UPDATE = 'nodeStatus'
 BDM_SCAN_PROGRESS = 'BDM_Progress'
-BDV_ERROR = 'BDV_Error'
-BDV_DISCONNECTED = 'BDV_Disconnected'
+BDV_ERROR = 'error'
+BDV_DISCONNECTED = 'disconnected'
 
 CPP_BDM_NOTIF_ID      = "bdm_callback"
 CPP_PROGRESS_NOTIF_ID = "progress"
 
-SETUP_STEP2 = 'setup_step1_done'
-SETUP_STEP3 = 'setup_step2_done'
+SETUP_STEP2 = 'setupDone'
+SETUP_STEP3 = 'registerDone'
 
 def newTheBDM(isOffline=False):
    global TheBDM
@@ -85,10 +78,8 @@ class BDMCallbackWrapper(ServerPush):
 
 ################################################################################
 class BlockDataManager(object):
-
-   #############################################################################
    def __init__(self, isOffline=False):
-      super(BlockDataManager, self).__init__()
+      super().__init__()
 
       #register callbacks
       self.armoryDBDir = ""
@@ -112,7 +103,6 @@ class BlockDataManager(object):
       self.topBlockHeight = 0
       self.cppNotificationListenerList = []
       self.cppPromptListeners = []
-      self.pythonPrompts = {}
 
       self.progressComplete=0
       self.secondsRemaining=0
@@ -145,32 +135,14 @@ class BlockDataManager(object):
 
    #############################################################################
    @ActLikeASingletonBDM
-   def registerUserPrompt(self, prompt):
-      self.cppPromptListeners.append(prompt)
+   def registerPrompt(self, prompt):
+      wrapper = BDMCallbackWrapper(None, prompt)
+      return wrapper.callbackId
 
    #############################################################################
    @ActLikeASingletonBDM
-   def registerCustomPrompt(self, prompt):
-      while True:
-         random.seed()
-         id = bytes(random.getrandbits(8) for _ in range(10))
-
-         if id in self.pythonPrompts:
-            continue
-
-         print ("registering callback id: " + id.hex())
-         self.pythonPrompts[id] = prompt
-         return id
-
-   #############################################################################
-   @ActLikeASingletonBDM
-   def unregisterCustomPrompt(self, id):
-      if id not in self.pythonPrompts:
-         LOGWARN("id missing from pythonPrompts")
-         return
-
-      print ("deleting callback id: " + id.hex())
-      del self.pythonPrompts[id]
+   def unregisterPrompt(self, id):
+      TheBridge.bridgeSocket.unsetCallback(id)
 
    #############################################################################
    @ActLikeASingletonBDM
@@ -236,58 +208,30 @@ class BlockDataManager(object):
 
    #############################################################################
    def pushNotification(self, notifProto):
-      act = ''
-      arglist = []
+      act = notifProto.which()
 
-      # AOTODO replace with constants
-      if notifProto.HasField("ready"):
-         print('BDM is ready!')
-         act = FINISH_LOAD_BLOCKCHAIN_ACTION
-         TheBDM.topBlockHeight = notifProto.ready.height
+      if act == SETUP_STEP1:
+         LOGINFO('BDM is ready!')
+         TheBDM.topBlockHeight = notifProto.ready
          TheBDM.setState(BDM_BLOCKCHAIN_READY)
 
-      elif notifProto.HasField("zero_conf"):
-         act = NEW_ZC_ACTION
-         arglist = notifProto.zero_conf.ledger
+      elif act == NEW_BLOCK_ACTION:
+         TheBDM.topBlockHeight = notifProto.newBlock
 
-      elif notifProto.HasField("new_block"):
-         act = NEW_BLOCK_ACTION
-         arglist.append(notifProto.new_block.height)
-         TheBDM.topBlockHeight = notifProto.new_block.height
-
-      elif notifProto.HasField("refresh"):
-         act = REFRESH_ACTION
-         arglist = notifProto.refresh.id
-
-      elif notifProto.HasField("error"):
-         act = WARNING_ACTION
-         arglist.append(notifProto.error)
-
-      elif notifProto.HasField("node_status"):
-         act = NODESTATUS_UPDATE
-         arglist.append(notifProto.node_status)
-
-      elif notifProto.HasField("disconnected"):
+      elif act == BDV_DISCONNECTED:
          TheBDM.setState(BDM_OFFLINE)
-         act = BDV_DISCONNECTED
-
-      #setup notifs
-      elif notifProto.HasField("setup_done"):
-         act = SETUP_STEP2
-      elif notifProto.HasField("registered"):
-         act = SETUP_STEP3
 
       listenerList = self.getListenerList()
       for cppNotificationListener in listenerList:
-         cppNotificationListener(act, *arglist)
+         cppNotificationListener(act, getattr(notifProto, act))
 
    #############################################################################
    def reportProgress(self, notifProto):
       phase = notifProto.progress.phase
       prog = notifProto.progress.progress
-      seconds = notifProto.progress.eta_sec
-      progressNumeric = notifProto.progress.progress_numeric
-      walletVec = notifProto.progress.id
+      seconds = notifProto.progress.time
+      progressNumeric = notifProto.progress.numericProgress
+      walletVec = notifProto.progress.ids
 
       try:
          if len(walletVec) == 0:
@@ -299,9 +243,9 @@ class BlockDataManager(object):
             self.bdmState = BDM_SCANNING
 
             for cppNotificationListener in self.getListenerList():
-               cppNotificationListener(BDM_SCAN_PROGRESS, [None, None])
+               cppNotificationListener(BDM_SCAN_PROGRESS, (None, None))
          else:
-            progInfo = [walletVec, prog, phase]
+            progInfo = (walletVec, prog, phase)
             for cppNotificationListener in self.getListenerList():
                cppNotificationListener(SCAN_ACTION, progInfo)
 
@@ -310,53 +254,20 @@ class BlockDataManager(object):
          print(sys.exc_info())
 
    #############################################################################
-   def pushFromBridge(self, payloadType, payload, uniqueId, callerId):
-
-      if payloadType == OpaquePayloadType.Value("commandWithCallback"):
-         if len(uniqueId) == 0 or uniqueId not in self.pythonPrompts:
-            LOGWARN("Unknown prompt id")
-            return
-         
-         customCallback = self.pythonPrompts[uniqueId]
-         customCallback(payload, callerId)
-
-      elif payloadType == OpaquePayloadType.Value("prompt"):
-
-         promptProto = UnlockPromptCallback()
-         promptProto.ParseFromString(payload)
-
-         for prompt in self.cppPromptListeners:
-            prompt(\
-               promptProto.promptID, promptProto.promptType, \
-               promptProto.verbose, promptProto.walletID, promptProto.state)
-      else:
-         LOGWARN("Unknown prompt data type")
-
-   #############################################################################
    def startBridge(self, stringArgs, notifyReadyLbd):
-      pushNotifCallback = BDMCallbackWrapper(
-         CPP_BDM_NOTIF_ID, self.pushNotification)
-      reportProgressCallback = BDMCallbackWrapper(
-         CPP_PROGRESS_NOTIF_ID, self.reportProgress)
-
+      BDMCallbackWrapper(CPP_BDM_NOTIF_ID, self.pushNotification)
+      BDMCallbackWrapper(CPP_PROGRESS_NOTIF_ID, self.reportProgress)
       TheBridge.start(stringArgs, notifyReadyLbd)
 
 ################################################################################
-# Make TheBDM reference the asyncrhonous BlockDataManager wrapper if we are 
-# running 
+# Make TheBDM reference the asyncrhonous BlockDataManager wrapper if we are
+# running
 TheBDM = None
 if CLI_OPTIONS.offline:
    LOGINFO('Armory loaded in offline-mode.  Will not attempt to load ')
    LOGINFO('blockchain without explicit command to do so.')
    TheBDM = BlockDataManager(isOffline=True)
-
 else:
-   # NOTE:  "TheBDM" is sometimes used in the C++ code to reference the
-   #        singleton BlockDataManager_LevelDB class object.  Here, 
-   #        "TheBDM" refers to a python BlockDataManagerThead class 
-   #        object that wraps the C++ version.  It implements some of 
-   #        it's own methods, and then passes through anything it 
-   #        doesn't recognize to the C++ object.
    LOGINFO('Using the asynchronous/multi-threaded BlockDataManager.')
    LOGINFO('Blockchain operations will happen in the background.  ')
    LOGINFO('Devs: check TheBDM.getState() before asking for data.')

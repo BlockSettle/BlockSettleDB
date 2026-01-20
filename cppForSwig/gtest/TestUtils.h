@@ -18,62 +18,38 @@
 #include <gtest/gtest.h>
 #include <btc/ecc.h>
 
-#include "../log.h"
-#include "../BinaryData.h"
-#include "../BtcUtils.h"
-#include "../BlockchainDatabase/BlockObj.h"
-#include "../BlockchainDatabase/lmdb_wrapper.h"
-#include "../BlockchainDatabase/BlockUtils.h"
-#include "../BlockchainDatabase/txio.h"
-#include "../BlockchainDatabase/StoredBlockObj.h"
-#include "../PartialMerkle.h"
-#include "../EncryptionUtils.h"
-#include "../ScrAddrObj.h"
-#include "../BtcWallet.h"
-#include "../BlockDataViewer.h"
+#include "Utils/log.h"
+#include "Utils/ArmoryErrors.h"
+#include "Utils/BinaryData.h"
+#include "Utils/BtcUtils.h"
+#include "Utils/Cryptography.h"
+#include "Utils/BitcoinSettings.h"
 
-#include "../ArmoryErrors.h"
-#include "../Progress.h"
-#include "../reorgTest/blkdata.h"
-#include "../BDM_Server.h"
-#include "../TxClasses.h"
-#include "../bdmenums.h"
-#include "../Signer/Script.h"
-#include "../Signer/Signer.h"
-#include "../Signer/ResolverFeed_Wallets.h"
-#include "../Wallets/Wallets.h"
-#include "../AsyncClient.h"
-#include "../Wallets/BIP32_Node.h"
-#include "../BitcoinP2p.h"
-#include "btc/ecc.h"
+#include "Signer/Script.h"
+#include "Signer/Signer.h"
+#include "Signer/ResolverFeed_Wallets.h"
 
-#include "NodeUnitTest.h"
+#include "BlockchainDatabase/BlockObj.h"
+#include "BlockchainDatabase/lmdb_wrapper.h"
+#include "BlockchainDatabase/BlockUtils.h"
+#include "BlockchainDatabase/txio.h"
+#include "BlockchainDatabase/StoredBlockObj.h"
+#include "AsyncClient.h"
+#include "ScrAddrObj.h"
+#include "BtcWallet.h"
+#include "BlockDataViewer.h"
+#include "BitcoinP2P.h"
 
-#ifdef _MSC_VER
-#ifdef mlock
-#undef mlock
-#undef munlock
-#endif
-#include "win32_posix.h"
-#undef close
+#include "Progress.h"
+#include "BDM_Server.h"
+#include "TxClasses.h"
+#include "bdmenums.h"
+#include "Wallets/Wallets.h"
+#include "Wallets/BIP32_Node.h"
 
-#ifdef _DEBUG
-//#define _CRTDBG_MAP_ALLOC
-#include <stdlib.h>
-#include <crtdbg.h>
+#include "MockedNode.h"
 
-#ifndef DBG_NEW
-#define DBG_NEW new ( _NORMAL_BLOCK , __FILE__ , __LINE__ )
-#define new DBG_NEW
-#endif
-#endif
-#endif
-
-#define READHEX BinaryData::CreateFromHex
-
-#if ! defined(_MSC_VER) && ! defined(__MINGW32__)
-   void mkdir(std::string newdir);
-#endif
+#define HASH160PREFIX WRITE_UINT8_LE((uint8_t)Armory::ScriptPrefix::HASH160)
 
 namespace Armory
 {
@@ -83,9 +59,11 @@ namespace Armory
    };
 };
 
+class BlockDataManagerThread;
+
 namespace TestUtils
 {
-   const std::string dataDir("../reorgTest");
+   const std::filesystem::path dataDir("../reorgTest");
 
    // This function assumes src to be a zero terminated sanitized string with
    // an even number of [0-9a-f] characters, and target to be sufficiently large
@@ -93,14 +71,17 @@ namespace TestUtils
 
    int char2int(char input);
 
-   bool searchFile(const std::string& filename, BinaryData& data);
+   bool searchFile(const std::filesystem::path& filename, BinaryData& data);
    uint32_t getTopBlockHeightInDB(BlockDataManager &bdm, DB_SELECT db);
    uint64_t getDBBalanceForHash160(
       BlockDataManager &bdm, BinaryDataRef addr160);
 
-   void concatFile(const std::string &from, const std::string &to);
-   void appendBlocks(const std::vector<std::string> &files, const std::string &to);
-   void setBlocks(const std::vector<std::string> &files, const std::string &to);
+   void concatFile(const std::vector<std::filesystem::path> &from,
+      const std::filesystem::path &to);
+   void appendBlocks(const std::vector<std::string> &files,
+      const std::filesystem::path &to);
+   void setBlocks(const std::vector<std::string> &files,
+      const std::filesystem::path &to);
    void nullProgress(unsigned, double, unsigned, unsigned);
    BinaryData getTx(unsigned height, unsigned id);
 
@@ -119,35 +100,32 @@ namespace DBTestUtils
    unsigned getTopBlockHeight(LMDBBlockDatabase*, DB_SELECT);
    BinaryData getTopBlockHash(LMDBBlockDatabase*, DB_SELECT);
 
-   std::string registerBDV(Clients* clients, const BinaryData& magic_word);
-   void goOnline(Clients* clients, const std::string& id);
-   const std::shared_ptr<BDV_Server_Object> getBDV(Clients* clients, const std::string& id);
+   BdvIdKey registerBDV(Clients*, const BinaryData& magic_word);
+   void goOnline(Clients*, BdvIdKey);
+   const std::shared_ptr<BDV_Server_Object> getBDV(Clients*, BdvIdKey);
    
-   void registerWallet(Clients* clients, const std::string& bdvId,
-      const std::vector<BinaryData>& scrAddrs, const std::string& wltName);
-   void regLockbox(Clients* clients, const std::string& bdvId,
-      const std::vector<BinaryData>& scrAddrs, const std::string& wltName);
+   void registerWallet(Clients*, BdvIdKey,
+      const std::vector<BinaryData>& scrAddrs, const std::string& wltName,
+      bool isLockbox, bool waitOnReg);
 
-   std::vector<uint64_t> getBalanceAndCount(Clients* clients,
-      const std::string& bdvId, const std::string& walletId, unsigned blockheight);
-   std::string getLedgerDelegate(Clients* clients, const std::string& bdvId);
+   std::vector<uint64_t> getBalanceAndCount(Clients*,
+      BdvIdKey, const std::string&, unsigned);
+   std::string getLedgerDelegate(Clients*, BdvIdKey);
    std::vector<DBClientClasses::LedgerEntry> getHistoryPage(
-      Clients* clients, const std::string& bdvId,
-      const std::string& delegateId, uint32_t pageId);
+      Clients*, BdvIdKey, const std::string&, uint32_t);
 
-   std::tuple<std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned> waitOnSignal(
-      Clients* clients, const std::string& bdvId,
-      ::Codec_BDVCommand::NotificationType signal);
-   void waitOnBDMReady(Clients* clients, const std::string& bdvId);
+   std::tuple<BinaryData, unsigned> waitOnSignal(
+      Clients*, BdvIdKey, int signal);
+   void waitOnBDMSignal(std::shared_ptr<BlockDataManager>, BDV_Action);
+   void waitOnBDMReady(Clients*, BdvIdKey);
+   void waitOnBDMError(std::shared_ptr<BlockDataManager>);
 
-   std::tuple<std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned> 
-      waitOnNewBlockSignal(Clients* clients, const std::string& bdvId);
+   std::tuple<BinaryData, unsigned> waitOnNewBlockSignal(Clients*, BdvIdKey);
    std::pair<std::vector<DBClientClasses::LedgerEntry>, std::set<BinaryData>>
-      waitOnNewZcSignal(Clients* clients, const std::string& bdvId);
-   void waitOnWalletRefresh(Clients* clients, const std::string& bdvId,
-      const BinaryData& wltId);
-   void triggerNewBlockNotification(BlockDataManagerThread* bdmt);
-   void mineNewBlock(BlockDataManagerThread* bdmt, const BinaryData& h160,
+      waitOnNewZcSignal(Clients*, BdvIdKey);
+   void waitOnWalletRefresh(Clients*, BdvIdKey, const std::string&);
+   void triggerNewBlockNotification(BlockDataManagerThread*);
+   void mineNewBlock(BlockDataManagerThread*, const BinaryData& h160,
       unsigned count);
 
    struct ZcVector
@@ -165,27 +143,23 @@ namespace DBTestUtils
       void clear(void) { zcVec_.clear(); }
    };
 
-   void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec, bool stage = false);
+   void pushNewZc(BlockDataManagerThread*, const ZcVector&, bool stage = false);
    void setNextZcPushDelay(unsigned);
    std::pair<BinaryData, BinaryData> getAddrAndPubKeyFromPrivKey(
       BinaryData privKey, bool compressed = false);
 
-   Tx getTxByHash(Clients* clients, const std::string bdvId,
-      const BinaryData& txHash);
-   std::vector<UTXO> getUtxoForAddress(Clients* clients, const std::string bdvId, 
-      const BinaryData& addr, bool withZc);
+   Tx getTxByHash(Clients*, BdvIdKey, const BinaryData&);
+   std::vector<UTXO> getUtxoForAddress(Clients*, BdvIdKey, const BinaryData&, bool);
 
-   void addTxioToSsh(StoredScriptHistory&, 
+   void addTxioToSsh(StoredScriptHistory&,
       const std::map<BinaryDataRef, std::shared_ptr<const TxIOPair>>&);
    void prettyPrintSsh(StoredScriptHistory& ssh);
    LedgerEntry getLedgerEntryFromWallet(std::shared_ptr<BtcWallet>, const BinaryData&);
    LedgerEntry getLedgerEntryFromAddr(ScrAddrObj*, const BinaryData&);
-
    void updateWalletsLedgerFilter(
-      Clients*, const std::string&, const std::vector<std::string> &);
+      Clients*, BdvIdKey, const std::vector<std::string> &);
 
-   std::shared_ptr<::google::protobuf::Message> processCommand(
-      Clients* clients, std::shared_ptr<::google::protobuf::Message>);
+   BinaryData processCommand(Clients*, BdvIdKey, BinaryData);
 
    /////////////////////////////////////////////////////////////////////////////
    AsyncClient::LedgerDelegate getLedgerDelegate(
@@ -199,13 +173,13 @@ namespace DBTestUtils
    uint64_t getPageCount(AsyncClient::LedgerDelegate& del);
 
    std::map<BinaryData, std::vector<uint64_t>> getAddrBalancesFromDB(
-      AsyncClient::BtcWallet&);
+      std::shared_ptr<AsyncClient::BlockDataViewer>, const std::string&);
 
    std::vector<uint64_t> getBalancesAndCount(AsyncClient::BtcWallet& wlt,
       uint32_t blockheight);
 
    AsyncClient::TxResult getTxByHash(
-      std::shared_ptr<AsyncClient::BlockDataViewer> bdv, 
+      std::shared_ptr<AsyncClient::BlockDataViewer> bdv,
       const BinaryData& hash);
 
    std::vector<UTXO> getSpendableTxOutListForValue(
@@ -221,12 +195,12 @@ namespace DBTestUtils
    {
       struct BdmNotif
       {
-         BDMAction action_;
-         std::vector<BinaryData> idVec_;
-         std::set<BinaryData> addrSet_;
-         unsigned reorgHeight_ = UINT32_MAX;
-         BDV_Error_Struct error_;
-         std::string requestID_;
+         BDMAction action;
+         std::set<std::string> idSet;
+         std::set<BinaryData> addrSet;
+         unsigned reorgHeight = UINT32_MAX;
+         BDV_Error_Struct error;
+         std::string requestID;
       };
 
    private:
@@ -242,11 +216,9 @@ namespace DBTestUtils
       {
          {
             auto iter = actionDeque_.begin();
-            while (iter != actionDeque_.end())
-            {
-               if ((*iter)->action_ == actionType)
-               {
-                  auto result = move(*iter);
+            while (iter != actionDeque_.end()) {
+               if ((*iter)->action == actionType) {
+                  auto result = std::move(*iter);
                   actionDeque_.erase(iter);
                   return result;
                }
@@ -255,44 +227,37 @@ namespace DBTestUtils
             }
          }
 
-         while (true)
-         {
-            auto&& action = actionStack_.pop_front();
-            if (action->action_ == actionType)
-               return move(action);
+         while (true) {
+            auto action = std::move(actionStack_.pop_front());
+            if (action->action == actionType) {
+               return action;
+            }
 
-            actionDeque_.push_back(move(action));
+            actionDeque_.push_back(std::move(action));
          }
       }
 
       void run(BdmNotification bdmNotif)
       {
-         auto notif = make_unique<BdmNotif>();
-         notif->action_ = bdmNotif.action_;
-         notif->requestID_ = bdmNotif.requestID_;
+         auto notif = std::make_unique<BdmNotif>();
+         notif->action = bdmNotif.action;
+         notif->requestID = bdmNotif.requestID;
 
-         if (bdmNotif.action_ == BDMAction_Refresh)
-         {
-            notif->idVec_ = bdmNotif.ids_;
-         }
-         else if (bdmNotif.action_ == BDMAction_ZC)
-         {
-            for (auto& le : bdmNotif.ledgers_)
-            {
-               notif->idVec_.push_back(le->getTxHash());
+         if (bdmNotif.action == BDMAction_Refresh) {
+            notif->idSet = bdmNotif.ids;
+         } else if (bdmNotif.action == BDMAction_ZC) {
+            for (auto& le : bdmNotif.ledgers) {
+               notif->idSet.emplace(le->getTxHash().toHexStr());
 
                auto addrVec = le->getScrAddrList();
-               for (auto& addrRef : addrVec)
-                  notif->addrSet_.insert(addrRef);
+               for (auto& addrRef : addrVec) {
+                  notif->addrSet.insert(addrRef);
+               }
             }
-         }
-         else if (bdmNotif.action_ == BDMAction_NewBlock)
-         {
-            notif->reorgHeight_ = bdmNotif.branchHeight_;
-         }
-         else if (bdmNotif.action_ == BDMAction_BDV_Error)
-         {
-            notif->error_ = bdmNotif.error_;
+         } else if (bdmNotif.action == BDMAction_NewBlock) {
+            notif->reorgHeight = bdmNotif.branchHeight;
+         } else if (bdmNotif.action == BDMAction_BDV_Error) {
+            notif->error = bdmNotif.error;
          }
 
          actionStack_.push_back(move(notif));
@@ -310,32 +275,26 @@ namespace DBTestUtils
          while (1)
          {
             auto&& action = actionStack_.pop_front();
-            if (action->action_ == BDMAction_NewBlock)
+            if (action->action == BDMAction_NewBlock)
             {
-               if (action->reorgHeight_ != UINT32_MAX)
-                  return action->reorgHeight_;
+               if (action->reorgHeight != UINT32_MAX)
+                  return action->reorgHeight;
             }
          }
       }
 
       void waitOnSignal(BDMAction signal, std::string id = "")
       {
-         BinaryDataRef idRef; idRef.setRef(id);
-         while (1)
-         {
-            auto&& action = actionStack_.pop_front();
-            if (action->action_ == signal)
-            {
-               if (id.size() > 0)
-               {
-                  for (auto& id : action->idVec_)
-                  {
-                     if (id == idRef)
+         while (true) {
+            auto action = std::move(actionStack_.pop_front());
+            if (action->action == signal) {
+               if (!id.empty()) {
+                  for (const auto& notifId : action->idSet) {
+                     if (notifId == id) {
                         return;
+                     }
                   }
-               }
-               else
-               {
+               } else {
                   return;
                }
             }
@@ -344,147 +303,124 @@ namespace DBTestUtils
 
       void waitOnManySignals(BDMAction signal, std::vector<std::string> ids)
       {
-         unsigned count = 0;
-         std::set<BinaryDataRef> bdrVec;
-         for (auto& id : ids)
-         {
-            BinaryDataRef bdr; bdr.setRef(id);
-            bdrVec.insert(bdr);
+         std::set<std::string> idSet;
+         for (auto& id : ids) {
+            idSet.emplace(id);
          }
-
-         while (1)
-         {
-            if (count >= ids.size())
+         unsigned count = 0;
+         while (true) {
+            if (count >= ids.size()) {
                break;
+            }
 
-            auto&& action = actionStack_.pop_front();
-            if (action->action_ == signal)
-            {
-               for (auto& id : action->idVec_)
-               {
-                  if (bdrVec.find(id) != bdrVec.end())
+            auto action = actionStack_.pop_front();
+            if (action->action == signal) {
+               for (auto& id : action->idSet) {
+                  if (idSet.find(id) != idSet.end()) {
                      ++count;
+                  }
                }
-            }         
+            }
          }
       }
 
       void waitOnZc(
-         const std::set<BinaryData>& hashes, 
-         std::set<BinaryData> scrAddrSet,
-         const std::string& broadcastID)
+         const std::set<BinaryData>& hashes,
+         std::set<BinaryData> scrAddrSet)
       {
+         std::set<std::string> strHashes;
+         for (const auto& hash : hashes) {
+            strHashes.emplace(hash.toHexStr());
+         }
+         auto hashesToSee = strHashes;
          std::set<BinaryData> addrSet;
-         while (1)
-         {
-            auto&& action = waitOnNotification(BDMAction_ZC);
-
-            if (!broadcastID.empty())
-            {
-               if (action->requestID_ != broadcastID)
-                  continue;
-            }
+         while (true) {
+            auto action = waitOnNotification(BDMAction_ZC);
 
             bool hasHashes = true;
-            for (auto& txHash : action->idVec_)
-            {
-               if (hashes.find(txHash) == hashes.end())
-               {
+            for (const auto& txHash : action->idSet) {
+               if (strHashes.find(txHash) == strHashes.end()) {
                   hasHashes = false;
                   break;
+               } else {
+                  hashesToSee.erase(txHash);
+               }
+            }
+            if (!hasHashes) {
+               continue;
+            }
+
+            addrSet.insert(action->addrSet.begin(), action->addrSet.end());
+            if (addrSet == scrAddrSet && hashesToSee.empty()) {
+               break;
+            }
+         }
+      }
+
+      void waitOnZc_OutOfOrder(const std::set<BinaryData>& hashes)
+      {
+         std::set<std::string> hashSet;
+         std::set<std::string> strHashes;
+         for (const auto& hash : hashes) {
+            strHashes.emplace(hash.toHexStr());
+         }
+
+         for (auto& pastNotif : zcNotifVec_) {
+            for (auto& txHash : pastNotif.idSet) {
+               if (strHashes.find(txHash) != strHashes.end()) {
+                  hashSet.insert(txHash);
                }
             }
 
-            if (!hasHashes)
-               continue;
-
-            addrSet.insert(action->addrSet_.begin(), action->addrSet_.end());
-            if (addrSet == scrAddrSet)
-               break;
-         }
-      }
-
-      void waitOnZc_OutOfOrder(
-         const std::set<BinaryData>& hashes, 
-         const std::string& broadcastID)
-      {
-         std::set<BinaryData> hashSet;
-
-         for (auto& pastNotif : zcNotifVec_)
-         {
-            for (auto& txHash : pastNotif.idVec_)
-            {
-               if (hashes.find(txHash) != hashes.end())
-                  hashSet.insert(txHash);
-            }
-
-            if (hashSet == hashes)
+            if (hashSet == strHashes) {
                return;
+            }
          }
 
-         while (1)
-         {
-            auto&& action = waitOnNotification(BDMAction_ZC);
+         while (true) {
+            auto action = waitOnNotification(BDMAction_ZC);
             zcNotifVec_.push_back(*action);
 
-            if (!broadcastID.empty())
-            {
-               if (action->requestID_ != broadcastID)
-                  continue;
-            }
-
-            for (auto& txHash : action->idVec_)
-            {
-               if (hashes.find(txHash) != hashes.end())
+            for (auto& txHash : action->idSet) {
+               if (strHashes.find(txHash) != strHashes.end()) {
                   hashSet.insert(txHash);
+               }
             }
 
-            if (hashSet == hashes)
+            if (hashSet == strHashes) {
                break;
+            }
          }
       }
 
-      void waitOnError(const BinaryData& hash, ArmoryErrorCodes errorCode,
-         const std::string& requestID)
+      void waitOnError(const BinaryData& hash, ArmoryErrorCodes errorCode)
       {
-         if (requestID.empty())
-            throw std::runtime_error("empty request id");
+         while (true) {
+            auto action = waitOnNotification(BDMAction_BDV_Error);
 
-         while (true)
-         {
-            auto&& action = waitOnNotification(BDMAction_BDV_Error);
-
-            if (action->requestID_ != requestID)
-               continue;
-
-            if (action->error_.errData_ == hash && 
-               action->error_.errCode_ == (int)errorCode)
+            if (action->error.errData_ == hash &&
+               action->error.errCode_ == (int)errorCode) {
                break;
-         }         
+            }
+         }
       }
 
-      void waitOnErrors(const std::map<BinaryData, ArmoryErrorCodes>& errorMap,
-         const std::string& requestID)
+      void waitOnErrors(const std::map<BinaryData, ArmoryErrorCodes>& errorMap)
       {
-         if (requestID.empty())
-            throw std::runtime_error("empty request id");
-
          auto mapCopy = errorMap;
-         while (true)
-         {
-            if (mapCopy.empty())
+         while (true) {
+            if (mapCopy.empty()) {
                return;
+            }
 
-            auto&& action = waitOnNotification(BDMAction_BDV_Error);
-            if (action->requestID_ != requestID)
+            auto action = waitOnNotification(BDMAction_BDV_Error);
+            auto iter = mapCopy.find(action->error.errData_);
+            if (iter == mapCopy.end()) {
                continue;
-
-            auto iter = mapCopy.find(action->error_.errData_);
-            if (iter == mapCopy.end())
-               continue;
-            
-            if ((int)iter->second == action->error_.errCode_)
+            }
+            if ((int)iter->second == action->error.errCode_) {
                mapCopy.erase(iter);
+            }
          }
       }
    };
@@ -493,13 +429,13 @@ namespace DBTestUtils
 namespace ResolverUtils
 {
    ////////////////////////////////////////////////////////////////////////////////
-   struct TestResolverFeed : public Armory::Signer::ResolverFeed
+   struct TestResolverFeed : public Armory::Signing::ResolverFeed
    {
    private:
       std::map<BinaryData, BinaryData> hashToPreimage_;
       std::map<BinaryData, SecureBinaryData> pubKeyToPrivKey_;
 
-      std::map<BinaryData, Armory::Signer::BIP32_AssetPath> bip32Paths_;
+      std::map<BinaryData, Armory::Signing::BIP32_AssetPath> bip32Paths_;
 
    public:
       BinaryData getByVal(const BinaryData& val) override
@@ -532,7 +468,7 @@ namespace ResolverUtils
          hashToPreimage_.emplace(key, val);
       }
 
-      Armory::Signer::BIP32_AssetPath resolveBip32PathForPubkey(
+      Armory::Signing::BIP32_AssetPath resolveBip32PathForPubkey(
          const BinaryData& pubkey) override
       {
          auto iter = bip32Paths_.find(pubkey);
@@ -543,17 +479,17 @@ namespace ResolverUtils
       }
 
       void setBip32PathForPubkey(
-         const BinaryData& pubkey, const Armory::Signer::BIP32_AssetPath& path)
+         const BinaryData& pubkey, const Armory::Signing::BIP32_AssetPath& path)
       {
          bip32Paths_.emplace(pubkey, path);
       }
    };
 
    ////////////////////////////////////////////////////////////////////////////////
-   class HybridFeed : public Armory::Signer::ResolverFeed
+   class HybridFeed : public Armory::Signing::ResolverFeed
    {
    private:
-      std::shared_ptr<Armory::Signer::ResolverFeed_AssetWalletSingle> feedPtr_;
+      std::shared_ptr<Armory::Signing::ResolverFeed_AssetWalletSingle> feedPtr_;
 
    public:
       TestResolverFeed testFeed_;
@@ -562,7 +498,7 @@ namespace ResolverUtils
       HybridFeed(std::shared_ptr<Armory::Wallets::AssetWallet_Single> wltPtr)
       {
          feedPtr_ = std::make_shared<
-            Armory::Signer::ResolverFeed_AssetWalletSingle>(wltPtr);
+            Armory::Signing::ResolverFeed_AssetWalletSingle>(wltPtr);
       }
 
       BinaryData getByVal(const BinaryData& val) override
@@ -589,18 +525,18 @@ namespace ResolverUtils
          return feedPtr_->getPrivKeyForPubkey(pubkey);
       }
 
-      Armory::Signer::BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override
+      Armory::Signing::BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override
       {
          throw std::runtime_error("invalid pubkey");
       }
 
-      void setBip32PathForPubkey(
-         const BinaryData&, const Armory::Signer::BIP32_AssetPath&) override
+      void setBip32PathForPubkey(const BinaryData&,
+         const Armory::Signing::BIP32_AssetPath&) override
       {}
    };
 
    /////////////////////////////////////////////////////////////////////////////
-   struct CustomFeed : public Armory::Signer::ResolverFeed
+   struct CustomFeed : public Armory::Signing::ResolverFeed
    {
       std::map<BinaryDataRef, BinaryDataRef> hash_to_preimage_;
       std::shared_ptr<ResolverFeed> wltFeed_;
@@ -628,13 +564,13 @@ namespace ResolverUtils
       CustomFeed(std::shared_ptr<AddressEntry> addrPtr,
          std::shared_ptr<Armory::Wallets::AssetWallet_Single> wlt) :
          wltFeed_(std::make_shared<
-            Armory::Signer::ResolverFeed_AssetWalletSingle>(wlt))
+            Armory::Signing::ResolverFeed_AssetWalletSingle>(wlt))
       {
          addAddressEntry(addrPtr);
       }
 
       CustomFeed(std::shared_ptr<AddressEntry> addrPtr,
-         std::shared_ptr<Armory::Signer::ResolverFeed> feed) :
+         std::shared_ptr<Armory::Signing::ResolverFeed> feed) :
          wltFeed_(feed)
       {
          addAddressEntry(addrPtr);
@@ -656,14 +592,14 @@ namespace ResolverUtils
          return wltFeed_->getPrivKeyForPubkey(pubkey);
       }
 
-      Armory::Signer::BIP32_AssetPath resolveBip32PathForPubkey(
+      Armory::Signing::BIP32_AssetPath resolveBip32PathForPubkey(
          const BinaryData&) override
       {
          throw std::runtime_error("invalid pubkey");
       }
 
       void setBip32PathForPubkey(
-         const BinaryData&, const Armory::Signer::BIP32_AssetPath&) override
+         const BinaryData&, const Armory::Signing::BIP32_AssetPath&) override
       {}
    };
 }

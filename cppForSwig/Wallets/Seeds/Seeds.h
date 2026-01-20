@@ -1,23 +1,32 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2023, goatpig                                               //
+//  Copyright (C) 2023-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
+
 #include "../AssetEncryption.h"
+#include "../WalletIdTypes.h"
 
 class BIP32_Node;
 namespace Armory
 {
    namespace Wallets
    {
+      class WalletId;
+
       namespace Encryption
       {
          class DecryptedDataContainer;
       }
+   }
+
+   namespace Assets
+   {
+      struct Asset_PublicKey;
    }
 
    /*** Wallet creation diagram ***
@@ -37,31 +46,39 @@ namespace Armory
       enum class SeedType : int
       {
          /*
-         Armory135:
+         ArmoryLegacy:
             For wallets using the legacy Armory derivation scheme.
          */
-         Armory135         = 0,
+         ArmoryLegacy         = 0,
+
+         /*
+         ArmoryLegacyPublic:
+            Public root + chaincode for watching only wallet forking and
+            restoration.
+         */
+         ArmoryLegacyPublic   = 32,
 
          /*
          BIP32_Structured:
             For wallets carrying BIP44/49/84 accounts. Restores to a bip32 wallet
             with all these accounts.
          */
-         BIP32_Structured  = 1,
+         BIP32_Structured     = 1,
 
          /*
          BIP32_Virgin:
             No info is provided about the wallet's structure, restores to an empty
             bip32 wallet.
          */
-         BIP32_Virgin      = 15,
+         BIP32_Virgin         = 15,
 
          /*
          BIP32_base58Root
             From a base58 of the wallet root. No info about the wallet structure.
-            Cannot be extract as easy16. Mostly used to import HW roots.
+            Cannot be extracted as easy16. Mostly used to import hardware wallet
+            roots.
          */
-         BIP32_base58Root  = 16,
+         BIP32_base58Root     = 16,
 
          /*
          BIP39:
@@ -70,28 +87,52 @@ namespace Armory
             BIP39 mnemonic then passed through PBKDF2 to generate the seed.
             Yield a wallet with BIP44, 49 and 84 accounts.
          */
-         BIP39             = 8,
+         BIP39                = 8,
 
          /*
          Raw:
             Raw entropy. Used for wallet public data encryption and v1 seeds
          */
-         Raw               = INT32_MAX - 1,
+         Raw                  = INT32_MAX - 1,
       };
-      enum class BackupType;
+
+      ////////
+      enum class LegacyType : int
+      {
+         /*
+         Legacy type defines what kind of backup can be created from this
+         seed. By default, legacy wallets would be created with a Armory200
+         backup type, which would set the hash index to 3.
+
+         A wallet restored from an older backup would then yield backups that
+         differ from the old paper. To avoid this, we track which legacy type
+         this seed is from.
+
+         - seed type of LegacyType::Armory135 will generate
+            BackupType::Armory135a/c backups
+         - seed type of LegacyType::Armory200 will generate
+            BackupType::Armory200a backups
+         */
+         Undefined = 00,
+         Armory135 = 12,
+         Armory200 = 34
+      };
+
+      enum class BackupType : int;
 
       //////////////////////////////////////////////////////////////////////////
       class ClearTextSeed
       {
       private:
          const SeedType type_;
-         mutable std::string walletId_;
-         mutable std::string masterId_;
+         mutable Wallets::WalletId walletId_;
+         mutable Wallets::WalletId masterId_;
 
       protected:
          enum class Prefix : int
          {
             Root        = 0x11,
+            PublicRoot  = 0x12,
             Chaincode   = 0x22,
             PublicKey   = 0x33,
             RawEntropy  = 0x44,
@@ -100,8 +141,8 @@ namespace Armory
             Base58Root  = 0x77
          };
 
-         virtual std::string computeWalletId(void) const = 0;
-         virtual std::string computeMasterId(void) const = 0;
+         virtual Wallets::WalletId computeWalletId(void) const = 0;
+         virtual Wallets::WalletId computeMasterId(void) const = 0;
 
       public:
          ClearTextSeed(SeedType);
@@ -111,61 +152,36 @@ namespace Armory
          virtual bool isBackupTypeEligible(BackupType) const = 0;
          virtual BackupType getPreferedBackupType(void) const = 0;
 
-         const std::string& getWalletId(void) const;
-         const std::string& getMasterId(void) const;
+         const Wallets::WalletId& getWalletId(void) const;
+         const Wallets::WalletId& getMasterId(void) const;
 
          virtual void serialize(BinaryWriter&) const = 0;
          static std::unique_ptr<ClearTextSeed> deserialize(
             const SecureBinaryData&);
       };
 
-      ////////
-      class ClearTextSeed_Armory135 : public ClearTextSeed
+      class ClearTextSeed_Armory : public ClearTextSeed
       {
-      public:
-         enum class LegacyType : int
-         {
-            /*
-            Legacy type defines what kinda of backup can be created from this
-            seed. By default, legacy wallets would be created with a Armory200a
-            backup type, which would set the hash index to 3.
-
-            A wallet restored from an older backup would then yield backups that
-            differ from the old paper. To avoid this, we track which legacy type
-            this seed is from.
-
-            - seed type of LegacyType::Armory135 will generate
-              BackupType::Armory135 backups
-            - seed type of LegacyType::Armory200 will generate
-              BackupType::Armory200a backups
-            */
-            Armory135 = 12,
-            Armory200 = 34
-         };
-
       private:
          const SecureBinaryData root_;
          const SecureBinaryData chaincode_;
          const LegacyType legacyType_;
 
       protected:
-         std::string computeWalletId(void) const override;
-         std::string computeMasterId(void) const override;
+         Wallets::WalletId computeWalletId(void) const override;
+         Wallets::WalletId computeMasterId(void) const override;
 
       public:
          //will generate random root
-         ClearTextSeed_Armory135(LegacyType lType = LegacyType::Armory200);
-
-         //root
-         ClearTextSeed_Armory135(const SecureBinaryData&,
-            LegacyType lType = LegacyType::Armory200);
+         ClearTextSeed_Armory(
+            LegacyType=LegacyType::Armory200);
 
          //root + chaincode
-         ClearTextSeed_Armory135(const SecureBinaryData&, const SecureBinaryData&,
-            LegacyType lType = LegacyType::Armory135);
+         ClearTextSeed_Armory(const SecureBinaryData&,
+            SecureBinaryData, LegacyType);
 
          //overrides
-         ~ClearTextSeed_Armory135(void) override;
+         ~ClearTextSeed_Armory(void);
          void serialize(BinaryWriter&) const override;
          bool isBackupTypeEligible(BackupType) const override;
          BackupType getPreferedBackupType(void) const override;
@@ -173,6 +189,37 @@ namespace Armory
          //local
          const SecureBinaryData& getRoot(void) const;
          const SecureBinaryData& getChaincode(void) const;
+         LegacyType getLegacyType(void) const;
+      };
+
+      class ClearTextSeed_ArmoryPublic : public ClearTextSeed
+      {
+      private:
+         const SecureBinaryData pubRoot_;
+         const SecureBinaryData chaincode_;
+         const LegacyType legacyType_;
+
+      protected:
+         Wallets::WalletId computeWalletId(void) const override;
+         Wallets::WalletId computeMasterId(void) const override;
+
+      public:
+         //pub root asset + chaincode
+         ClearTextSeed_ArmoryPublic(BinaryDataRef, BinaryDataRef, LegacyType);
+         ClearTextSeed_ArmoryPublic(std::shared_ptr<Assets::Asset_PublicKey>,
+            const SecureBinaryData&, LegacyType);
+
+         //overrides
+         ~ClearTextSeed_ArmoryPublic(void);
+         void serialize(BinaryWriter&) const override;
+         bool isBackupTypeEligible(BackupType) const override;
+         BackupType getPreferedBackupType(void) const override;
+
+         //local
+         const SecureBinaryData& getPublicRoot(void) const;
+         const SecureBinaryData& getChaincode(void) const;
+         BinaryData getRawId(void) const;
+         LegacyType getLegacyType(void) const;
       };
 
       ////////
@@ -183,8 +230,8 @@ namespace Armory
          mutable std::shared_ptr<BIP32_Node> rootNode_;
 
       protected:
-         std::string computeWalletId(void) const override;
-         std::string computeMasterId(void) const override;
+         Wallets::WalletId computeWalletId(void) const override;
+         Wallets::WalletId computeMasterId(void) const override;
 
       public:
          //seed
@@ -195,7 +242,7 @@ namespace Armory
             const BinaryDataRef&);
 
          //overrides
-         ~ClearTextSeed_BIP32(void) override;
+         ~ClearTextSeed_BIP32(void);
          virtual void serialize(BinaryWriter&) const override;
          virtual bool isBackupTypeEligible(BackupType) const override;
 
@@ -254,7 +301,7 @@ namespace Armory
       public:
          //tors
          EncryptedSeed(CipherText, SeedType);
-         ~EncryptedSeed(void) override;
+         ~EncryptedSeed(void);
 
          //utils
          SeedType type(void) const;

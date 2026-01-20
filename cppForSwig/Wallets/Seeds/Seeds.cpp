@@ -6,20 +6,22 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "../AssetEncryption.h"
-#include "../DecryptedDataContainer.h"
-#include "../DerivationScheme.h"
-#include "../Assets.h"
-#include "../WalletIdTypes.h"
-#include "../BIP32_Node.h"
+#include "Utils/BtcUtils.h"
+#include "Utils/Cryptography.h"
+
+#include "AssetEncryption.h"
+#include "DecryptedDataContainer.h"
+#include "DerivationScheme.h"
+#include "Assets.h"
+#include "WalletIdTypes.h"
+#include "BIP32_Node.h"
 #include "Seeds.h"
 #include "Backups.h"
-#include "BtcUtils.h"
+
 extern "C" {
 #include <trezor-crypto/bip39.h>
 }
 
-using namespace std;
 using namespace Armory;
 using namespace Armory::Seeds;
 using namespace Armory::Wallets;
@@ -29,12 +31,52 @@ using namespace Armory::Assets;
 #define ENCRYPTED_SEED_VERSION_2 0x00000002
 #define WALLET_SEED_BYTE         0x84
 
+namespace
+{
+   bool isEligible(LegacyType lType, BackupType bType)
+   {
+      switch (lType)
+      {
+         case LegacyType::Armory135:
+            return bType == BackupType::Armory135a ||
+               bType==BackupType::Armory135c;
+
+         case LegacyType::Armory200:
+            return bType == BackupType::Armory200a;
+
+         default:
+            break;
+      }
+      return false;
+   }
+
+   BackupType getPreferedBackupType(LegacyType lType,
+      const SecureBinaryData& chaincode)
+   {
+      switch (lType)
+      {
+         case LegacyType::Armory135:
+         {
+            if (chaincode.empty()) {
+               return BackupType::Armory135c;
+            } else {
+               return BackupType::Armory135a;
+            }
+         }
+
+         case LegacyType::Armory200:
+            return BackupType::Armory200a;
+
+         default:
+            break;
+      }
+      return BackupType::Invalid;
+   }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-//
-//// EncryptedSeed
-//
-////////////////////////////////////////////////////////////////////////////////
-const Wallets::AssetId EncryptedSeed::seedAssetId_(0x5EED, 0xDEE5, 0x5EED);
+// EncryptedSeed
+const AssetId EncryptedSeed::seedAssetId_(0x5EED, 0xDEE5, 0x5EED);
 
 EncryptedSeed::EncryptedSeed(CipherText cipher, SeedType sType) :
    Encryption::EncryptedAssetData(move(cipher)), type_(sType)
@@ -48,7 +90,7 @@ SeedType EncryptedSeed::type() const
    return type_;
 }
 
-//////////////////////////////-- overrides --///////////////////////////////////
+//// overrides
 BinaryData EncryptedSeed::serialize() const
 {
    BinaryWriter bw;
@@ -70,26 +112,26 @@ BinaryData EncryptedSeed::serialize() const
 bool EncryptedSeed::isSame(Encryption::EncryptedAssetData* const seed) const
 {
    auto asset_ed = dynamic_cast<EncryptedSeed*>(seed);
-   if (asset_ed == nullptr)
+   if (asset_ed == nullptr) {
       return false;
-
+   }
    return Encryption::EncryptedAssetData::isSame(seed);
 }
 
-//////////////////////////////-- statics --/////////////////////////////////////
+//// statics
 const AssetId& EncryptedSeed::getAssetId() const
 {
    return seedAssetId_;
 }
 
 ////
-unique_ptr<EncryptedSeed> EncryptedSeed::deserialize(
+std::unique_ptr<EncryptedSeed> EncryptedSeed::deserialize(
    const BinaryDataRef& data)
 {
    BinaryRefReader brr(data);
 
    //return ptr
-   unique_ptr<EncryptedSeed> assetPtr = nullptr;
+   std::unique_ptr<EncryptedSeed> assetPtr = nullptr;
 
    //version
    auto version = brr.get_uint32_t();
@@ -103,60 +145,62 @@ unique_ptr<EncryptedSeed> EncryptedSeed::deserialize(
    {
       switch (version)
       {
-      case 0x00000001:
-      {
-         //cipher data
-         auto len = brr.get_var_int();
-         if (len > brr.getSizeRemaining())
-            throw runtime_error("[EncryptedSeed::deserialize]"
-               " invalid serialized encrypted data len");
+         case 0x00000001:
+         {
+            //cipher data
+            auto len = brr.get_var_int();
+            if (len > brr.getSizeRemaining()) {
+               throw std::runtime_error("[EncryptedSeed::deserialize]"
+                  " invalid serialized encrypted data len");
+               }
 
-         auto cipherBdr = brr.get_BinaryDataRef(len);
-         BinaryRefReader cipherBrr(cipherBdr);
-         auto cipherData = Encryption::CipherData::deserialize(cipherBrr);
+            auto cipherBdr = brr.get_BinaryDataRef(len);
+            BinaryRefReader cipherBrr(cipherBdr);
+            auto cipherData = Encryption::CipherData::deserialize(cipherBrr);
 
-         //seed object
-         assetPtr = make_unique<EncryptedSeed>(move(cipherData), SeedType::Raw);
-         break;
-      }
+            //seed object
+            assetPtr = std::make_unique<EncryptedSeed>(
+               std::move(cipherData), SeedType::Raw);
+            break;
+         }
 
-      case 0x00000002:
-      {
-         //seed type
-         auto sType = (SeedType)brr.get_int32_t();
+         case 0x00000002:
+         {
+            //seed type
+            auto sType = (SeedType)brr.get_int32_t();
 
-         //cipher data
-         auto len = brr.get_var_int();
-         if (len > brr.getSizeRemaining())
-            throw runtime_error("[EncryptedSeed::deserialize]"
-               " invalid serialized encrypted data len");
+            //cipher data
+            auto len = brr.get_var_int();
+            if (len > brr.getSizeRemaining()) {
+               throw std::runtime_error("[EncryptedSeed::deserialize]"
+                  " invalid serialized encrypted data len");
+               }
 
-         auto cipherBdr = brr.get_BinaryDataRef(len);
-         BinaryRefReader cipherBrr(cipherBdr);
-         auto cipherData = Encryption::CipherData::deserialize(cipherBrr);
-         assetPtr = make_unique<EncryptedSeed>(move(cipherData), sType);
-         break;
-      }
+            auto cipherBdr = brr.get_BinaryDataRef(len);
+            BinaryRefReader cipherBrr(cipherBdr);
+            auto cipherData = Encryption::CipherData::deserialize(cipherBrr);
+            assetPtr = std::make_unique<EncryptedSeed>(
+               std::move(cipherData), sType);
+            break;
+         }
 
-      default:
-         throw runtime_error("[EncryptedSeed::deserialize]"
-            " unsupported seed version");
+         default:
+            throw std::runtime_error("[EncryptedSeed::deserialize]"
+               " unsupported seed version");
       }
 
       break;
    }
 
    default:
-      throw runtime_error("[EncryptedSeed::deserialize]"
+      throw std::runtime_error("[EncryptedSeed::deserialize]"
          " unexpected encrypted data prefix");
    }
 
-   if (assetPtr == nullptr)
-   {
-      throw runtime_error("[EncryptedSeed::deserialize]"
+   if (assetPtr == nullptr) {
+      throw std::runtime_error("[EncryptedSeed::deserialize]"
          " failed to deserialize encrypted asset");
    }
-
    return assetPtr;
 }
 
@@ -167,14 +211,15 @@ std::unique_ptr<EncryptedSeed> EncryptedSeed::fromClearTextSeed(
    std::shared_ptr<Wallets::Encryption::DecryptedDataContainer> decrCont)
 {
    //sanity checks
-   if (seed == nullptr)
-      throw runtime_error("[fromClearTextSeed] null seed");
-
-   if (cipher == nullptr)
-      throw runtime_error("[fromClearTextSeed] null cipher");
-
-   if (decrCont == nullptr)
-      throw runtime_error("[fromClearTextSeed] null decrypted data container");
+   if (seed == nullptr) {
+      throw std::runtime_error("[fromClearTextSeed] null seed");
+   }
+   if (cipher == nullptr) {
+      throw std::runtime_error("[fromClearTextSeed] null cipher");
+   }
+   if (decrCont == nullptr) {
+      throw std::runtime_error("[fromClearTextSeed] null decrypted data container");
+   }
 
    //copy the cipher to cycle the IV
    auto cipherCopy = cipher->getCopy();
@@ -184,19 +229,16 @@ std::unique_ptr<EncryptedSeed> EncryptedSeed::fromClearTextSeed(
    seed->serialize(bw);
 
    //encrypt it
-   auto cipherText = decrCont->encryptData(cipherCopy.get(), bw.getData());
-   auto cipherData = make_unique<Encryption::CipherData>(
-      cipherText, move(cipherCopy));
+   auto cipherText = decrCont->encryptData(cipherCopy.get(), bw.getDataRef());
+   auto cipherData = std::make_unique<Encryption::CipherData>(
+      cipherText, std::move(cipherCopy));
 
    //instantiate encrypted seed object
-   return make_unique<EncryptedSeed>(move(cipherData), seed->type());
+   return std::make_unique<EncryptedSeed>(std::move(cipherData), seed->type());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-//
-//// ClearTextSeed
-//
-////////////////////////////////////////////////////////////////////////////////
+// ClearTextSeed
 ClearTextSeed::ClearTextSeed(SeedType sType) :
    type_(sType)
 {}
@@ -210,21 +252,23 @@ SeedType ClearTextSeed::type() const
 }
 
 ////
-const string& ClearTextSeed::getWalletId() const
+const WalletId& ClearTextSeed::getWalletId() const
 {
-   if (walletId_.empty())
+   if (walletId_.empty()) {
       walletId_ = computeWalletId();
+   }
    return walletId_;
 }
 
-const string& ClearTextSeed::getMasterId() const
+const WalletId& ClearTextSeed::getMasterId() const
 {
-   if (masterId_.empty())
+   if (masterId_.empty()) {
       masterId_ = computeMasterId();
+   }
    return masterId_;
 }
 
-unique_ptr<ClearTextSeed> ClearTextSeed::deserialize(
+std::unique_ptr<ClearTextSeed> ClearTextSeed::deserialize(
    const SecureBinaryData& serializedData)
 {
    BinaryRefReader brr(serializedData);
@@ -232,29 +276,25 @@ unique_ptr<ClearTextSeed> ClearTextSeed::deserialize(
 
    //sanity check
    auto len = brr.get_var_int();
-   if (len != brr.getSizeRemaining())
-   {
-      throw runtime_error("[ClearTextSeed::deserialize]"
+   if (len != brr.getSizeRemaining()) {
+      throw std::runtime_error("[ClearTextSeed::deserialize]"
          " size mismatch in serialized seed");
    }
 
    switch (type)
    {
-      case SeedType::Armory135:
+      case SeedType::ArmoryLegacy:
       {
-         ClearTextSeed_Armory135::LegacyType lType =
-            ClearTextSeed_Armory135::LegacyType::Armory200;
+         auto lType = LegacyType::Armory200;
          BinaryDataRef root;
          BinaryDataRef chaincode;
-         while (!brr.isEndOfStream())
-         {
+         while (!brr.isEndOfStream()) {
             auto prefix = (Prefix)brr.get_uint8_t();
             switch (prefix)
             {
                case Prefix::LegacyType:
                {
-                  lType =
-                     (ClearTextSeed_Armory135::LegacyType)brr.get_uint8_t();
+                  lType = (LegacyType)brr.get_uint8_t();
                   break;
                }
 
@@ -273,11 +313,16 @@ unique_ptr<ClearTextSeed> ClearTextSeed::deserialize(
                }
 
                default:
-                  throw runtime_error("[ClearTextSeed::deserialize]"
-                     " invalid prefix for Armory135 seed");
+                  throw std::runtime_error("[ClearTextSeed::deserialize]"
+                     " invalid prefix for ArmoryLegacy seed");
             }
          }
-         return make_unique<ClearTextSeed_Armory135>(root, chaincode, lType);
+         return std::make_unique<ClearTextSeed_Armory>(root, chaincode, lType);
+      }
+
+      case SeedType::ArmoryLegacyPublic:
+      {
+         throw std::runtime_error("implement me!");
       }
 
       case SeedType::BIP32_Structured:
@@ -297,18 +342,17 @@ unique_ptr<ClearTextSeed> ClearTextSeed::deserialize(
                }
 
                default:
-                  throw runtime_error("[ClearTextSeed::deserialize]"
+                  throw std::runtime_error("[ClearTextSeed::deserialize]"
                      " invalid prefix for BIP32 seed");
             }
          }
-         return make_unique<ClearTextSeed_BIP32>(rawEntropy, type);
+         return std::make_unique<ClearTextSeed_BIP32>(rawEntropy, type);
       }
 
       case SeedType::BIP32_base58Root:
       {
          BinaryDataRef b58root;
-         while (!brr.isEndOfStream())
-         {
+         while (!brr.isEndOfStream()) {
             auto prefix = (Prefix)brr.get_uint8_t();
             switch (prefix)
             {
@@ -320,7 +364,7 @@ unique_ptr<ClearTextSeed> ClearTextSeed::deserialize(
                }
 
                default:
-                  throw runtime_error("[ClearTextSeed::deserialize]"
+                  throw std::runtime_error("[ClearTextSeed::deserialize]"
                      " invalid prefix for BIP32 seed");
             }
          }
@@ -331,8 +375,7 @@ unique_ptr<ClearTextSeed> ClearTextSeed::deserialize(
       {
          BinaryDataRef rawEntropy;
          ClearTextSeed_BIP39::Dictionnary dictionnary;
-         while (!brr.isEndOfStream())
-         {
+         while (!brr.isEndOfStream()) {
             auto prefix = (Prefix)brr.get_uint8_t();
             switch (prefix)
             {
@@ -345,78 +388,74 @@ unique_ptr<ClearTextSeed> ClearTextSeed::deserialize(
 
                case Prefix::Dictionnary:
                {
-                  dictionnary =
-                     (ClearTextSeed_BIP39::Dictionnary)brr.get_uint32_t();
+                  dictionnary =(ClearTextSeed_BIP39::Dictionnary)
+                     brr.get_uint32_t();
                   break;
                }
 
                default:
-                  throw runtime_error("[ClearTextSeed::deserialize]"
+                  throw std::runtime_error("[ClearTextSeed::deserialize]"
                      " invalid prefix for BIP39 seed");
             }
          }
-         return make_unique<ClearTextSeed_BIP39>(rawEntropy, dictionnary);
+         return std::make_unique<ClearTextSeed_BIP39>(rawEntropy, dictionnary);
       }
 
       default:
-         throw runtime_error("[ClearTextSeed::deserialize]"
+         throw std::runtime_error("[ClearTextSeed::deserialize]"
             " unexpected seed type");
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-ClearTextSeed_Armory135::ClearTextSeed_Armory135(LegacyType lType) :
-   ClearTextSeed_Armory135(CryptoPRNG::generateRandom(32), lType)
+// ClearTextSeed_Armory
+ClearTextSeed_Armory::ClearTextSeed_Armory(LegacyType lType) :
+   ClearTextSeed{SeedType::ArmoryLegacy},
+   root_{Cryptography::PRNG::generateRandomStrong(32)},
+   chaincode_{}, legacyType_{lType}
 {}
 
-ClearTextSeed_Armory135::ClearTextSeed_Armory135(
-   const SecureBinaryData& root, LegacyType lType) :
-   ClearTextSeed(SeedType::Armory135),
-   root_(root), chaincode_({}),
-   legacyType_(lType)
+ClearTextSeed_Armory::ClearTextSeed_Armory(const SecureBinaryData& root,
+   SecureBinaryData chaincode, LegacyType lType) :
+   ClearTextSeed{SeedType::ArmoryLegacy},
+   root_{root}, chaincode_{std::move(chaincode)},
+   legacyType_{lType}
 {}
 
-ClearTextSeed_Armory135::ClearTextSeed_Armory135(const SecureBinaryData& root,
-   const SecureBinaryData& chaincode, LegacyType lType) :
-   ClearTextSeed(SeedType::Armory135),
-   root_(root), chaincode_(chaincode),
-   legacyType_(lType)
-{}
-
-ClearTextSeed_Armory135::~ClearTextSeed_Armory135()
+ClearTextSeed_Armory::~ClearTextSeed_Armory()
 {}
 
 ////
-const SecureBinaryData& ClearTextSeed_Armory135::getRoot() const
+const SecureBinaryData& ClearTextSeed_Armory::getRoot() const
 {
    return root_;
 }
 
-const SecureBinaryData& ClearTextSeed_Armory135::getChaincode() const
+const SecureBinaryData& ClearTextSeed_Armory::getChaincode() const
 {
    return chaincode_;
 }
 
 ////
-string ClearTextSeed_Armory135::computeWalletId() const
+WalletId ClearTextSeed_Armory::computeWalletId() const
 {
    auto chaincodeCopy = chaincode_;
-   if (chaincode_.empty())
-      chaincodeCopy = BtcUtils::computeChainCode_Armory135(root_);
-
-   auto pubkey = CryptoECDSA().ComputePublicKey(root_);
+   if (chaincode_.empty()) {
+      chaincodeCopy = BtcUtils::computeChainCode_ArmoryLegacy(root_);
+   }
+   auto pubkey = Cryptography::ECDSA::computePublicKey(root_);
    return Armory::Wallets::generateWalletId(pubkey, chaincodeCopy, type());
 }
 
-string ClearTextSeed_Armory135::computeMasterId() const
+WalletId ClearTextSeed_Armory::computeMasterId() const
 {
    //uncompressed pubkey
-   auto pubkey = CryptoECDSA().ComputePublicKey(root_);
+   auto pubkey = Cryptography::ECDSA::computePublicKey(root_);
    return generateMasterId(pubkey, chaincode_);
 }
 
 ////
-void ClearTextSeed_Armory135::serialize(BinaryWriter& bw) const
+void ClearTextSeed_Armory::serialize(BinaryWriter& bw) const
 {
    /* serialize the seed */
    BinaryWriter inner;
@@ -433,8 +472,9 @@ void ClearTextSeed_Armory135::serialize(BinaryWriter& bw) const
    //chaincode
    inner.put_uint8_t((uint8_t)Prefix::Chaincode);
    inner.put_var_int(chaincode_.getSize());
-   if (!chaincode_.empty())
+   if (!chaincode_.empty()) {
       inner.put_BinaryData(chaincode_);
+   }
 
    /* append to writer */
 
@@ -449,46 +489,140 @@ void ClearTextSeed_Armory135::serialize(BinaryWriter& bw) const
 }
 
 ////
-bool ClearTextSeed_Armory135::isBackupTypeEligible(BackupType bType) const
+bool ClearTextSeed_Armory::isBackupTypeEligible(BackupType bType) const
 {
-   switch (legacyType_)
-   {
-      case LegacyType::Armory135:
-         return bType == BackupType::Armory135;
-
-      case LegacyType::Armory200:
-         return bType == BackupType::Armory200a;
-
-      default:
-         break;
-   }
-   return false;
+   return isEligible(legacyType_, bType);
 }
 
-BackupType ClearTextSeed_Armory135::getPreferedBackupType() const
+BackupType ClearTextSeed_Armory::getPreferedBackupType() const
 {
-   switch (legacyType_)
-   {
-      case LegacyType::Armory135:
-         return BackupType::Armory135;
+   return ::getPreferedBackupType(legacyType_, chaincode_);
+}
 
-      case LegacyType::Armory200:
-         return BackupType::Armory200a;
-
-      default:
-         break;
-   }
-   return BackupType::Invalid;
+LegacyType ClearTextSeed_Armory::getLegacyType() const
+{
+   return legacyType_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// ClearTextSeed_ArmoryPublic
+ClearTextSeed_ArmoryPublic::ClearTextSeed_ArmoryPublic(
+   BinaryDataRef pubkey, BinaryDataRef chaincode, LegacyType lType) :
+   ClearTextSeed{SeedType::ArmoryLegacyPublic},
+   pubRoot_{pubkey}, chaincode_{chaincode},
+   legacyType_{lType}
+{}
+
+ClearTextSeed_ArmoryPublic::ClearTextSeed_ArmoryPublic(
+   std::shared_ptr<Assets::Asset_PublicKey> pubkey,
+   const SecureBinaryData& chaincode, LegacyType lType) :
+   ClearTextSeed{SeedType::ArmoryLegacyPublic},
+   pubRoot_{pubkey->getCompressedKey()}, chaincode_{chaincode},
+   legacyType_{lType}
+{}
+
+ClearTextSeed_ArmoryPublic::~ClearTextSeed_ArmoryPublic()
+{}
+
+////
+const SecureBinaryData& ClearTextSeed_ArmoryPublic::getPublicRoot() const
+{
+   return pubRoot_;
+}
+
+const SecureBinaryData& ClearTextSeed_ArmoryPublic::getChaincode() const
+{
+   return chaincode_;
+}
+
+LegacyType ClearTextSeed_ArmoryPublic::getLegacyType() const
+{
+   return legacyType_;
+}
+
+////
+WalletId ClearTextSeed_ArmoryPublic::computeWalletId() const
+{
+   return Armory::Wallets::generateWalletId(pubRoot_, chaincode_, type());
+}
+
+WalletId ClearTextSeed_ArmoryPublic::computeMasterId() const
+{
+   //uncompressed pubkey
+   if (pubRoot_.getSize() != 65) {
+      auto rootUnc = Cryptography::ECDSA::uncompressPoint(pubRoot_);
+      return generateMasterId(rootUnc, chaincode_);
+   } else {
+      return generateMasterId(pubRoot_, chaincode_);
+   }
+}
+
+BinaryData ClearTextSeed_ArmoryPublic::getRawId() const
+{
+   //uncompressed pubkey
+   if (pubRoot_.getSize() != 65) {
+      auto rootUnc = Cryptography::ECDSA::uncompressPoint(pubRoot_);
+      return Wallets::generateWalletIdRaw(
+         rootUnc, chaincode_, SeedType::ArmoryLegacyPublic);
+   } else {
+      return Wallets::generateWalletIdRaw(
+         pubRoot_, chaincode_, SeedType::ArmoryLegacyPublic);
+   }
+}
+
+bool ClearTextSeed_ArmoryPublic::isBackupTypeEligible(BackupType bType) const
+{
+   return isEligible(legacyType_, bType);
+}
+
+BackupType ClearTextSeed_ArmoryPublic::getPreferedBackupType() const
+{
+   return ::getPreferedBackupType(legacyType_, chaincode_);
+}
+
+////
+void ClearTextSeed_ArmoryPublic::serialize(BinaryWriter& bw) const
+{
+   /* serialize the seed */
+   BinaryWriter inner;
+
+   //legacy type
+   inner.put_uint8_t((uint8_t)Prefix::LegacyType);
+   inner.put_uint8_t((uint8_t)legacyType_);
+
+   //root
+   inner.put_uint8_t((uint8_t)Prefix::PublicRoot);
+   inner.put_var_int(pubRoot_.getSize());
+   inner.put_BinaryData(pubRoot_);
+
+   //chaincode
+   inner.put_uint8_t((uint8_t)Prefix::Chaincode);
+   inner.put_var_int(chaincode_.getSize());
+   if (!chaincode_.empty()) {
+      inner.put_BinaryData(chaincode_);
+   }
+
+   /* append to writer */
+
+   //seed type
+   bw.put_uint8_t((uint8_t)type());
+
+   //packet size
+   bw.put_var_int(inner.getSize());
+
+   //packet
+   bw.put_BinaryData(inner.getData());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// ClearTextSeed_BIP32
 ClearTextSeed_BIP32::ClearTextSeed_BIP32(SeedType sType) :
-   ClearTextSeed_BIP32(CryptoPRNG::generateRandom(32), sType)
+   ClearTextSeed_BIP32(Cryptography::PRNG::generateRandomStrong(32), sType)
 {}
 
 ClearTextSeed_BIP32::ClearTextSeed_BIP32(const SecureBinaryData& raw,
    SeedType sType) :
-   ClearTextSeed(sType), rawEntropy_(raw)
+   ClearTextSeed{sType}, rawEntropy_{raw}
 {
    switch (sType)
    {
@@ -499,31 +633,32 @@ ClearTextSeed_BIP32::ClearTextSeed_BIP32(const SecureBinaryData& raw,
          break;
 
       default:
-         throw runtime_error("invalid bip32 seed type");
+         throw std::runtime_error("invalid bip32 seed type");
    }
 }
 
 ClearTextSeed_BIP32::~ClearTextSeed_BIP32()
 {}
 
-unique_ptr<ClearTextSeed_BIP32> ClearTextSeed_BIP32::fromBase58(
+std::unique_ptr<ClearTextSeed_BIP32> ClearTextSeed_BIP32::fromBase58(
    const BinaryDataRef& b58)
 {
-   auto result = make_unique<ClearTextSeed_BIP32>(SeedType::BIP32_base58Root);
-   result->rootNode_ = make_shared<BIP32_Node>();
+   auto result = std::make_unique<ClearTextSeed_BIP32>(
+      SeedType::BIP32_base58Root);
+   result->rootNode_ = std::make_shared<BIP32_Node>();
    result->rootNode_->initFromBase58(b58);
    return move(result);
 }
 
 ////
-string ClearTextSeed_BIP32::computeWalletId() const
+WalletId ClearTextSeed_BIP32::computeWalletId() const
 {
    const auto& rootNode = getRootNode();
    return Armory::Wallets::generateWalletId(rootNode->getPublicKey(),
       rootNode->getChaincode(), type());
 }
 
-string ClearTextSeed_BIP32::computeMasterId() const
+WalletId ClearTextSeed_BIP32::computeMasterId() const
 {
    //uncompressed pubkey
    const auto& rootNode = getRootNode();
@@ -533,9 +668,8 @@ string ClearTextSeed_BIP32::computeMasterId() const
 ////
 std::shared_ptr<BIP32_Node> ClearTextSeed_BIP32::getRootNode() const
 {
-   if (rootNode_ == nullptr)
-   {
-      rootNode_ = make_shared<BIP32_Node>();
+   if (rootNode_ == nullptr) {
+      rootNode_ = std::make_shared<BIP32_Node>();
       rootNode_->initFromSeed(rawEntropy_);
    }
    return rootNode_;
@@ -574,7 +708,7 @@ void ClearTextSeed_BIP32::serialize(BinaryWriter& bw) const
       }
 
       default:
-         throw runtime_error("[ClearTextSeed_BIP32::serialize]"
+         throw std::runtime_error("[ClearTextSeed_BIP32::serialize]"
             " unexpected seed type");
    }
 
@@ -631,14 +765,17 @@ BackupType ClearTextSeed_BIP32::getPreferedBackupType() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// ClearTextSeed_BIP39
 ClearTextSeed_BIP39::ClearTextSeed_BIP39(const SecureBinaryData& raw,
    Dictionnary dictType) :
-   ClearTextSeed_BIP32(raw, SeedType::BIP39), dictionnary_(dictType)
+   ClearTextSeed_BIP32{raw, SeedType::BIP39}, dictionnary_{dictType}
 {}
 
 ClearTextSeed_BIP39::ClearTextSeed_BIP39(Dictionnary dictType) :
-   ClearTextSeed_BIP32(CryptoPRNG::generateRandom(32), SeedType::BIP39),
-   dictionnary_(dictType)
+   ClearTextSeed_BIP32{
+      Cryptography::PRNG::generateRandomStrong(32),
+      SeedType::BIP39
+   }, dictionnary_{dictType}
 {}
 
 ClearTextSeed_BIP39::~ClearTextSeed_BIP39()
@@ -647,8 +784,9 @@ ClearTextSeed_BIP39::~ClearTextSeed_BIP39()
 ////
 std::shared_ptr<BIP32_Node> ClearTextSeed_BIP39::getRootNode() const
 {
-   if (rootNode_ == nullptr)
+   if (rootNode_ == nullptr) {
       setupRootNode();
+   }
    return rootNode_;
 }
 
@@ -656,15 +794,13 @@ std::shared_ptr<BIP32_Node> ClearTextSeed_BIP39::getRootNode() const
 void ClearTextSeed_BIP39::setupRootNode() const
 {
    //sanity checks
-   if (rawEntropy_.empty())
-   {
-      throw runtime_error("[ClearTextSeed_BIP39::setupRootNode]"
+   if (rawEntropy_.empty()) {
+      throw std::runtime_error("[ClearTextSeed_BIP39::setupRootNode]"
          " missing raw entropy");
    }
 
-   if (rootNode_ != nullptr)
-   {
-      throw runtime_error("[ClearTextSeed_BIP39::setupRootNode]"
+   if (rootNode_ != nullptr) {
+      throw std::runtime_error("[ClearTextSeed_BIP39::setupRootNode]"
          " already have root node");
    }
 
@@ -685,19 +821,20 @@ void ClearTextSeed_BIP39::setupRootNode() const
             mnemonicPtr, //the mnemonic string
             "", //passphrase, null for now
             seed64.getPtr(), //result buffer
-            nullptr); //progress callback, dont care for now
+            nullptr //progress callback, dont care for now
+         );
 
          //clean up libbtc buffer
          mnemonic_clear();
 
          //setup root node
-         rootNode_ = make_shared<BIP32_Node>();
+         rootNode_ = std::make_shared<BIP32_Node>();
          rootNode_->initFromSeed(seed64);
          break;
       }
 
       default:
-         throw runtime_error("[ClearTextSeed_BIP39::setupRootNode]"
+         throw std::runtime_error("[ClearTextSeed_BIP39::setupRootNode]"
             " unexpected dictionnary id");
    }
 }

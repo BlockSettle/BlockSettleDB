@@ -1,33 +1,42 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016-19, goatpig.                                           //
+//  Copyright (C) 2016-2025, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <chrono>
+
+#include <Utils/ArmoryErrors.h>
+#include <Utils/ArmoryConfig.h>
+#include <Utils/Cryptography.h>
+#include <Utils/BIP150_151.h>
+#include <Utils/DBUtils.h>
+#include <BlockchainDatabase/BlockUtils.h>
+#include <Wallets/IOHeader.h>
+#include <Wallets/AuthorizedPeers.h>
+
+#include "BDM_mainthread.h"
+#include "Server.h"
+#include "TerminalPassphrasePrompt.h"
+#include "SocketObject.h"
+
 #include <btc/ecc.h>
 
-#include "ArmoryConfig.h"
-#include "BDM_mainthread.h"
-#include "BDM_Server.h"
-#include "TerminalPassphrasePrompt.h"
-
-using namespace std;
-using namespace Armory::Config;
+using namespace Armory;
+using namespace std::chrono_literals;
 
 #define LOG_FILE_NAME "dbLog"
 
 int main(int argc, char* argv[])
 {
-   CryptoECDSA::setupContext();
+   Cryptography::ECDSA::setupContext();
    startupBIP151CTX();
    startupBIP150CTX(4);
-
-   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
 #ifdef _WIN32
    WSADATA wsaData;
@@ -35,75 +44,92 @@ int main(int argc, char* argv[])
    WSAStartup(wVersion, &wsaData);
 #endif
 
-   try
-   {
-      Armory::Config::parseArgs(argc, argv, Armory::Config::ProcessType::DB);
-   }
-   catch (const DbErrorMsg& e)
-   {
-      cout << "Failed to setup with error:" << endl;
-      cout << "   " << e.what() << endl;
-      cout << "Aborting!" << endl;
-
-      return -1;
+   try {
+      Config::parseArgs(argc, argv, Config::ProcessType::DB);
+   } catch (const DbErrorMsg& e) {
+      std::cout << "Failed to setup with error:" << std::endl;
+      std::cout << "   " << e.what() << std::endl;
+      std::cout << "Aborting!" << std::endl;
+      exit(-1);
    }
 
-   cout << "logging in " << Pathing::logFilePath(LOG_FILE_NAME) << endl;
-   STARTLOGGING(Pathing::logFilePath(LOG_FILE_NAME), LogLvlDebug);
-   if (!NetworkSettings::useCookie())
+   auto logFilePath = Config::Pathing::logFilePath(LOG_FILE_NAME).string();
+   std::cout << "logging in " << logFilePath << std::endl;
+   STARTLOGGING(logFilePath, LogLvlDebug);
+   if (!Config::NetworkSettings::ephemeralPeers()) {
       LOGENABLESTDOUT();
-   else
+   } else {
       LOGDISABLESTDOUT();
+   }
 
-   LOGINFO << "Running on " << DBSettings::threadCount() << " threads";
-   LOGINFO << "Ram usage level: " << DBSettings::ramUsage();
+   LOGINFO << "Running on " << Config::DBSettings::threadCount() << " threads";
+   LOGINFO << "Ram usage level: " << Config::DBSettings::ramUsage();
 
    //init state
-   DBSettings::setServiceType(SERVICE_WEBSOCKET);
+   Config::DBSettings::setServiceType(SERVICE_WEBSOCKET);
    BlockDataManagerThread bdmThread;
 
-   if (!DBSettings::checkChain())
-   {
+   if (!Config::DBSettings::checkChain()) {
       //check we can listen on this ip:port
-      if (SimpleSocket::checkSocket("127.0.0.1", NetworkSettings::listenPort()))
-      {
-         LOGERR << "There is already a process listening on port " << 
-            NetworkSettings::listenPort();
+      if (SimpleSocket::checkSocket("127.0.0.1", Config::NetworkSettings::dbPort())) {
+         LOGERR << "There is already a process listening on port " <<
+            Config::NetworkSettings::dbPort();
          LOGERR << "ArmoryDB cannot start under these conditions. Shutting down!";
          LOGERR << "Make sure to shutdown the conflicting process" <<
             "before trying again (most likely another ArmoryDB instance)";
+         exit(-2);
+      }
+   }
+   LOGINFO << "datadir: " << Config::getDataDir().string();
 
-         exit(1);
+   if (Config::NetworkSettings::ephemeralPeers()) {
+      if (Config::NetworkSettings::oneWayAuth()) {
+         LOGERR << "--ephemeral and --oneWayAuth are mutually exclusive for db";
+         exit(-3);
+      }
+      //initAuthPeers will setup the ephemeral keys
+      WebSocketServer::initAuthPeers(
+         Wallets::IO::ReadOnlyFileParams{{}, nullptr});
+   } else {
+      //setup remote peers db, this will block the init process until
+      //peers db is unlocked
+      auto serverPeersFile = Config::getDataDir() / SERVER_AUTH_PEER_FILENAME;
+      if (!FileUtils::fileExists(serverPeersFile, 0) &&
+         !Config::NetworkSettings::ephemeralPeers()) {
+         LOGINFO << "no server peers store found, creating one...";
+         auto passWrapper = []()->std::unique_ptr<Passphrase::Params>
+         {
+            auto passLbd = TerminalPassphrasePrompt::getLambda(
+               "new server peers store");
+            auto result = passLbd({});
+            if (!result.success) {
+               throw std::runtime_error("peers store init was rejected");
+            }
+            return std::make_unique<Passphrase::Params>(
+               250ms, 0, std::move(result.passphrase));
+         };
+         auto peers = Wallets::AuthorizedPeers::createWallet(
+            {serverPeersFile, {passWrapper}});
+         WebSocketServer::initAuthPeers(peers);
+      } else {
+         auto passLbd = TerminalPassphrasePrompt::getLambda(
+            "server peers store");
+         WebSocketServer::initAuthPeers({serverPeersFile, passLbd});
       }
    }
 
-   {
-      //setup remote peers db, this will block the init process until 
-      //peers db is unlocked
-      LOGINFO << "datadir: " << Armory::Config::getDataDir();
-      auto&& passLbd = TerminalPassphrasePrompt::getLambda("peers db");
-      WebSocketServer::initAuthPeers(passLbd);
-   }
-
-   //start up blockchain service
-   bdmThread.start(DBSettings::initMode());
-
-   if (!DBSettings::checkChain())
-   {
-      //start websocket server
-      WebSocketServer::start(&bdmThread, false);
-   }
-   else
-   {
+   //start blockchain service
+   bdmThread.start(Config::DBSettings::initMode());
+   if (!Config::DBSettings::checkChain()) {
+      WebSocketServer::start(bdmThread.bdm(), false);
+      LOGINFO << "WS server has shut down" << std::endl;
+   } else {
       bdmThread.join();
    }
 
-   //stop all threads and clean up
-   WebSocketServer::shutdown();
-   google::protobuf::ShutdownProtobufLibrary();
-
+   //shutdown BDM and cleanup crypto contexts
+   bdmThread.shutdown();
    shutdownBIP151CTX();
-   CryptoECDSA::shutdown();
-
+   Cryptography::ECDSA::shutdown();
    return 0;
 }

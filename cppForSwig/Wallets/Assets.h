@@ -14,22 +14,20 @@
 #include <string>
 #include <memory>
 
-#include "make_unique.h"
-#include "BinaryData.h"
-#include "EncryptionUtils.h"
+#include "Utils/BinaryData.h"
 #include "WalletIdTypes.h"
 #include "AssetEncryption.h"
 
+#define ASSETENTRY_PREFIX           0x8A
+#define PUBKEY_UNCOMPRESSED_BYTE    0x80
+#define PUBKEY_COMPRESSED_BYTE      0x81
+#define ECDH_SALT_PREFIX            0x85
 
-#define ASSETENTRY_PREFIX        0x8A
-#define PUBKEY_UNCOMPRESSED_BYTE 0x80
-#define PUBKEY_COMPRESSED_BYTE   0x81
-#define ECDH_SALT_PREFIX         0x85
-
-#define METADATA_COMMENTS_PREFIX 0x90
-#define METADATA_AUTHPEER_PREFIX 0x91
-#define METADATA_PEERROOT_PREFIX 0x92
-#define METADATA_ROOTSIG_PREFIX  0x93
+#define METADATA_COMMENTS_PREFIX    0x90
+#define METADATA_AUTHPEER_PREFIX    0x91
+#define METADATA_PEERROOT_PREFIX    0x92
+#define METADATA_ROOTSIG_PREFIX     0x93
+#define METADATA_PEERMASTER_PREFIX  0x94
 
 class AddressEntry_Multisig;
 
@@ -37,9 +35,6 @@ namespace Armory
 {
    namespace Wallets
    {
-      class AssetWallet;
-      class AssetWallet_Single;
-
       namespace Encryption
       {
          struct CipherData;
@@ -52,13 +47,17 @@ namespace Armory
       class MetaDataAccount;
    };
 
+   namespace Seeds
+   {
+      enum class LegacyType : int;
+   }
+
    namespace Assets
    {
       class AssetException : public std::runtime_error
       {
       public:
-         AssetException(const std::string& err) : std::runtime_error(err)
-         {}
+         AssetException(const std::string&);
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -69,21 +68,22 @@ namespace Armory
          PrivateKey,
       };
 
-      enum MetaType
+      enum class MetaType : int
       {
-         MetaType_Comment,
-         MetaType_AuthorizedPeer,
-         MetaType_PeerRootKey,
-         MetaType_PeerRootSig
+         Comment,
+         AuthorizedPeer,
+         PeerRootKey,
+         PeerRootSig,
+         PeerMasterKey
       };
 
       ////
-      enum AssetEntryType
+      enum class AssetEntryType : int
       {
-         AssetEntryType_Single = 0x01,
-         AssetEntryType_Multisig,
-         AssetEntryType_BIP32Root,
-         AssetEntryType_ArmoryLegacyRoot
+         Single = 0x01,
+         Multisig,
+         BIP32Root,
+         ArmoryLegacyRoot
       };
 
       enum ScriptHashType
@@ -97,13 +97,9 @@ namespace Armory
       //////////////////////////////////////////////////////////////////////////
       struct Asset
       {
-         const AssetType type_;
-
-         Asset(AssetType type) :
-            type_(type)
-         {}
-
          /*TODO: create a mlocked binarywriter class*/
+         const AssetType type;
+         Asset(AssetType);
 
          virtual ~Asset(void) = 0;
          virtual BinaryData serialize(void) const = 0;
@@ -117,48 +113,11 @@ namespace Armory
          SecureBinaryData compressed_;
 
       public:
-         Asset_PublicKey(SecureBinaryData& pubkey) :
-            Asset(AssetType::PublicKey)
-         {
-            switch (pubkey.getSize())
-            {
-            case 33:
-            {
-               uncompressed_ = CryptoECDSA().UncompressPoint(pubkey);
-               compressed_ = std::move(pubkey);
-               break;
-            }
+         Asset_PublicKey(SecureBinaryData&);
+         Asset_PublicKey(SecureBinaryData&, SecureBinaryData&);
 
-            case 65:
-            {
-               uncompressed_ = std::move(pubkey);
-               compressed_ = CryptoECDSA().CompressPoint(pubkey);
-               break;
-            }
-
-            default:
-               throw AssetException(
-                  "cannot compress/decompress pubkey of that size");
-            }
-         }
-
-         Asset_PublicKey(SecureBinaryData& uncompressedKey,
-            SecureBinaryData& compressedKey) :
-            Asset(AssetType::PublicKey),
-            uncompressed_(std::move(uncompressedKey)),
-            compressed_(std::move(compressedKey))
-         {
-            if (uncompressed_.getSize() != 65 ||
-               compressed_.getSize() != 33)
-               throw AssetException("invalid pubkey size");
-         }
-
-         const SecureBinaryData& getUncompressedKey(void) const
-         { return uncompressed_; }
-
-         const SecureBinaryData& getCompressedKey(void) const
-         { return compressed_; }
-
+         const SecureBinaryData& getUncompressedKey(void) const;
+         const SecureBinaryData& getCompressedKey(void) const;
          BinaryData serialize(void) const override;
       };
 
@@ -170,11 +129,8 @@ namespace Armory
          const Wallets::AssetId id_;
 
       public:
-         Asset_PrivateKey(const Wallets::AssetId& id,
-            std::unique_ptr<Wallets::Encryption::CipherData> cipherData) :
-            Wallets::Encryption::EncryptedAssetData(std::move(cipherData)),
-            Asset(AssetType::PrivateKey), id_(id)
-         {}
+         Asset_PrivateKey(const Wallets::AssetId&,
+            std::unique_ptr<Wallets::Encryption::CipherData>);
 
          //virtual
          bool isSame(EncryptedAssetData* const) const override;
@@ -200,21 +156,18 @@ namespace Armory
 
       public:
          //tors
-         AssetEntry(AssetEntryType type, Wallets::AssetId id) :
-            type_(type), ID_(id)
-         {}
-
+         AssetEntry(AssetEntryType, Wallets::AssetId);
          virtual ~AssetEntry(void) = 0;
 
          //local
          Wallets::AssetKeyType getIndex(void) const;
          const Wallets::AssetAccountId getAccountID(void) const;
-         const Wallets::AssetId& getID(void) const { return ID_; }
+         const Wallets::AssetId& getID(void) const;
 
-         virtual AssetEntryType getType(void) const { return type_; }
-         bool needsCommit(void) const { return needsCommit_; }
-         void doNotCommit(void) { needsCommit_ = false; }
-         void flagForCommit(void) { needsCommit_ = true; }
+         virtual AssetEntryType getType(void) const;
+         bool needsCommit(void) const;
+         void doNotCommit(void);
+         void flagForCommit(void);
          BinaryData getDbKey(void) const;
 
          //virtual
@@ -239,47 +192,25 @@ namespace Armory
 
       public:
          //tors
-         AssetEntry_Single(Wallets::AssetId id,
-            SecureBinaryData& pubkey,
-            std::shared_ptr<Asset_PrivateKey> privkey) :
-            AssetEntry(AssetEntryType_Single, id),
-            privkey_(privkey)
-         {
-            pubkey_ = std::make_shared<Asset_PublicKey>(pubkey);
-         }
-
-         AssetEntry_Single(Wallets::AssetId id,
-            SecureBinaryData& pubkeyUncompressed,
-            SecureBinaryData& pubkeyCompressed,
-            std::shared_ptr<Asset_PrivateKey> privkey) :
-            AssetEntry(AssetEntryType_Single, id),
-            privkey_(privkey)
-         {
-            pubkey_ = std::make_shared<Asset_PublicKey>(
-               pubkeyUncompressed, pubkeyCompressed);
-         }
-
-         AssetEntry_Single(Wallets::AssetId id,
-            std::shared_ptr<Asset_PublicKey> pubkey,
-            std::shared_ptr<Asset_PrivateKey> privkey) :
-            AssetEntry(AssetEntryType_Single, id),
-            pubkey_(pubkey), privkey_(privkey)
-         {}
+         AssetEntry_Single(Wallets::AssetId,
+            SecureBinaryData&, std::shared_ptr<Asset_PrivateKey>);
+         AssetEntry_Single(Wallets::AssetId,
+            SecureBinaryData&, SecureBinaryData&,
+            std::shared_ptr<Asset_PrivateKey>);
+         AssetEntry_Single(Wallets::AssetId,
+            std::shared_ptr<Asset_PublicKey>,
+            std::shared_ptr<Asset_PrivateKey>);
 
          //local
-         std::shared_ptr<Asset_PublicKey> getPubKey(void) const
-         { return pubkey_; }
-
-         std::shared_ptr<Asset_PrivateKey> getPrivKey(void) const
-         { return privkey_; }
+         std::shared_ptr<Asset_PublicKey> getPubKey(void) const;
+         std::shared_ptr<Asset_PrivateKey> getPrivKey(void) const;
 
          //virtual
          virtual BinaryData serialize(void) const override;
          bool hasPrivateKey(void) const;
          const Wallets::EncryptionKeyId&
             getPrivateEncryptionKeyId(void) const override;
-         const BinaryData& getKdfId(void) const;
-
+         const Wallets::KdfId& getKdfId(void) const;
          virtual std::shared_ptr<AssetEntry_Single> getPublicCopy(void);
       };
 
@@ -288,26 +219,21 @@ namespace Armory
       {
       private:
          const SecureBinaryData chaincode_;
+         const Seeds::LegacyType seedType_;
 
       public:
          //tors
          AssetEntry_ArmoryLegacyRoot(
-            Wallets::AssetId id,
-            SecureBinaryData& pubkey,
-            std::shared_ptr<Asset_PrivateKey> privkey,
-            const SecureBinaryData& chaincode):
-            AssetEntry_Single(id, pubkey, privkey),
-            chaincode_(chaincode)
-         {}
+            Wallets::AssetId, SecureBinaryData&,
+            std::shared_ptr<Asset_PrivateKey>,
+            const SecureBinaryData&, Seeds::LegacyType);
 
          BinaryData serialize(void) const override;
-         AssetEntryType getType(void) const override
-         { return AssetEntryType_ArmoryLegacyRoot; }
-
-         const SecureBinaryData& getChaincode(void) const
-         { return chaincode_; }
-
+         AssetEntryType getType(void) const override;
          std::shared_ptr<AssetEntry_Single> getPublicCopy(void) override;
+
+         Seeds::LegacyType getSeedType(void) const;
+         const SecureBinaryData& getChaincode(void) const;
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -335,7 +261,7 @@ namespace Armory
          */
          mutable uint32_t thisFingerprint_ = UINT32_MAX;
 
-         const std::vector<uint32_t> derivationPath_ = {};
+         const std::vector<uint32_t> derivationPath_{};
 
       public:
          //tors
@@ -358,28 +284,22 @@ namespace Armory
             const std::vector<uint32_t>&);
 
          //local
-         uint8_t getDepth(void) const { return depth_; }
-         unsigned getLeafID(void) const { return leafID_; }
-         unsigned getParentFingerprint(void) const
-         { return parentFingerprint_; }
+         uint8_t getDepth(void) const;
+         unsigned getLeafID(void) const;
+         unsigned getParentFingerprint(void) const;
 
          unsigned getThisFingerprint(void) const;
          unsigned getSeedFingerprint(bool) const;
          std::string getXPub(void) const;
-         const SecureBinaryData& getChaincode(void) const
-         { return chaincode_; }
-
-         const std::vector<uint32_t>& getDerivationPath(void) const
-         { return derivationPath_; }
+         const SecureBinaryData& getChaincode(void) const;
+         const std::vector<uint32_t>& getDerivationPath(void) const;
 
          //sanity check
          void checkSeedFingerprint(bool) const;
 
          //virtual
          BinaryData serialize(void) const override;
-         AssetEntryType getType(void) const override
-         { return AssetEntryType_BIP32Root; }
-
+         AssetEntryType getType(void) const override;
          std::shared_ptr<AssetEntry_Single> getPublicCopy(void) override;
       };
 
@@ -398,40 +318,25 @@ namespace Armory
          const unsigned n_;
 
       private:
-         const std::map<BinaryData, std::shared_ptr<AssetEntry>> getAssetMap(
-            void) const
-         {
-            return assetMap_;
-         }
+         const std::map<BinaryData, std::shared_ptr<AssetEntry>>
+         getAssetMap(void) const;
 
       public:
          //tors
-         AssetEntry_Multisig(Wallets::AssetId id,
-            const std::map<BinaryData, std::shared_ptr<AssetEntry>>& assetMap,
-            unsigned m, unsigned n) :
-            AssetEntry(AssetEntryType_Multisig, id),
-            assetMap_(assetMap), m_(m), n_(n)
-         {
-            if (assetMap.size() != n)
-               throw AssetException("asset count mismatch in multisig entry");
-
-            if (m > n || m == 0)
-               throw AssetException("invalid m");
-         }
+         AssetEntry_Multisig(Wallets::AssetId,
+            const std::map<BinaryData, std::shared_ptr<AssetEntry>>&,
+            unsigned, unsigned);
 
          //local
-         unsigned getM(void) const { return m_; }
-         unsigned getN(void) const { return n_; }
+         unsigned getM(void) const;
+         unsigned getN(void) const;
 
          //virtual
-         BinaryData serialize(void) const override
-         {
-            throw AssetException("no serialization for MS assets");
-         }
+         BinaryData serialize(void) const override;
 
-         bool hasPrivateKey(void) const;
+         bool hasPrivateKey(void) const override;
          const Wallets::EncryptionKeyId&
-            getPrivateEncryptionKeyId(void) const override;
+         getPrivateEncryptionKeyId(void) const override;
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -446,13 +351,10 @@ namespace Armory
       protected:
          const MetaType type_;
          const BinaryData accountID_;
-         const unsigned index_;
+         const uint32_t index_;
 
       public:
-         MetaData(MetaType type, const BinaryData& accountID,
-            unsigned index) :
-            type_(type), accountID_(accountID), index_(index)
-         {}
+         MetaData(MetaType, const BinaryData&, uint32_t);
 
          //virtuals
          virtual ~MetaData(void) = 0;
@@ -463,16 +365,16 @@ namespace Armory
          virtual std::shared_ptr<MetaData> copy(void) const = 0;
 
          //locals
-         bool needsCommit(void) { return needsCommit_; }
-         void flagForCommit(void) { needsCommit_ = true; }
-         MetaType type(void) const { return type_; }
+         bool needsCommit(void);
+         void flagForCommit(void);
+         MetaType type(void) const;
 
-         const BinaryData& getAccountID(void) const { return accountID_; }
-         unsigned getIndex(void) const { return index_; }
+         const BinaryData& getAccountID(void) const;
+         uint32_t getIndex(void) const;
 
          //static
          static std::shared_ptr<MetaData> deserialize(
-            const BinaryDataRef& key, const BinaryDataRef& data);
+            const BinaryDataRef&, const BinaryDataRef&);
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -483,16 +385,14 @@ namespace Armory
          SecureBinaryData publicKey_;
 
       public:
-         PeerPublicData(const BinaryData& accountID, unsigned index) :
-            MetaData(MetaType_AuthorizedPeer, accountID, index)
-         {}
+         PeerPublicData(const BinaryData&, uint32_t);
 
          //virtuals
          BinaryData serialize(void) const override;
-         BinaryData getDbKey(void) const;
-         void deserializeDBValue(const BinaryDataRef&);
-         void clear(void);
-         std::shared_ptr<MetaData> copy(void) const;
+         BinaryData getDbKey(void) const override;
+         void deserializeDBValue(const BinaryDataRef&) override;
+         void clear(void) override;
+         std::shared_ptr<MetaData> copy(void) const override;
 
          //locals
          void addName(const std::string&);
@@ -500,11 +400,8 @@ namespace Armory
          void setPublicKey(const SecureBinaryData&);
 
          //
-         const std::set<std::string> getNames(void) const
-         { return names_; }
-
-         const SecureBinaryData& getPublicKey(void) const
-         { return publicKey_; }
+         const std::set<std::string>& getNames(void) const;
+         const SecureBinaryData& getPublicKey(void) const;
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -519,21 +416,19 @@ namespace Armory
          std::string description_;
 
       public:
-         PeerRootKey(const BinaryData& accountID, unsigned index) :
-            MetaData(MetaType_PeerRootKey, accountID, index)
-         {}
+         PeerRootKey(const BinaryData&, uint32_t);
 
          //virtuals
          BinaryData serialize(void) const override;
-         BinaryData getDbKey(void) const;
-         void deserializeDBValue(const BinaryDataRef&);
-         void clear(void);
-         std::shared_ptr<MetaData> copy(void) const;
+         BinaryData getDbKey(void) const override;
+         void deserializeDBValue(const BinaryDataRef&) override;
+         void clear(void) override;
+         std::shared_ptr<MetaData> copy(void) const override;
 
          //locals
          void set(const std::string&, const SecureBinaryData&);
-         const SecureBinaryData& getKey(void) const { return publicKey_; }
-         const std::string& getDescription(void) const { return description_; }
+         const SecureBinaryData& getKey(void) const;
+         const std::string& getDescription(void) const;
 
       };
 
@@ -548,21 +443,43 @@ namespace Armory
          SecureBinaryData signature_;
 
       public:
-         PeerRootSignature(const BinaryData& accountID, unsigned index) :
-            MetaData(MetaType_PeerRootSig, accountID, index)
-         {}
+         PeerRootSignature(const BinaryData&, uint32_t);
 
          //virtuals
          BinaryData serialize(void) const override;
-         BinaryData getDbKey(void) const;
-         void deserializeDBValue(const BinaryDataRef&);
-         void clear(void);
-         std::shared_ptr<MetaData> copy(void) const;
+         BinaryData getDbKey(void) const override;
+         void deserializeDBValue(const BinaryDataRef&) override;
+         void clear(void) override;
+         std::shared_ptr<MetaData> copy(void) const override;
 
          //locals
-         void set(const SecureBinaryData& key, const SecureBinaryData& sig);
-         const SecureBinaryData& getKey(void) const { return publicKey_; }
-         const SecureBinaryData& getSig(void) const { return signature_; }
+         void set(const SecureBinaryData&, const SecureBinaryData&);
+         const SecureBinaryData& getKey(void) const;
+         const SecureBinaryData& getSig(void) const;
+      };
+
+      //////////////////////////////////////////////////////////////////////////
+      class PeerMasterKey : public MetaData
+      {
+         // carries the peer wallet's master key
+         // typically only one per peer wallet
+
+      private:
+         SecureBinaryData key_;
+
+      public:
+         PeerMasterKey(const BinaryData&, uint32_t);
+
+         //virtuals
+         BinaryData serialize(void) const override;
+         BinaryData getDbKey(void) const override;
+         void deserializeDBValue(const BinaryDataRef&) override;
+         void clear(void) override;
+         std::shared_ptr<MetaData> copy(void) const override;
+
+         //locals
+         void set(const SecureBinaryData&);
+         const SecureBinaryData& getKey(void) const;
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -573,9 +490,7 @@ namespace Armory
          BinaryData key_;
 
       public:
-         CommentData(const BinaryData& accountID, unsigned index) :
-            MetaData(MetaType_AuthorizedPeer, accountID, index)
-         {}
+         CommentData(const BinaryData&, uint32_t);
 
          //virtuals
          BinaryData serialize(void) const override;
@@ -585,11 +500,11 @@ namespace Armory
          std::shared_ptr<MetaData> copy(void) const;
 
          //locals
-         const std::string& getValue(void) const { return commentStr_; }
-         void setValue(const std::string& val) { commentStr_ = val; }
+         const std::string& getValue(void) const;
+         void setValue(const std::string&);
 
-         const BinaryData& getKey(void) const { return key_; }
-         void setKey(const BinaryData& val) { key_ = val; }
+         const BinaryData& getKey(void) const;
+         void setKey(const BinaryData&);
       };
    }; //namespace Assets
 }; //namespace Armory

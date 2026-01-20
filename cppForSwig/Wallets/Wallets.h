@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016-2019, goatpig                                          //
+//  Copyright (C) 2016-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -15,27 +15,23 @@
 #include <set>
 #include <map>
 #include <string>
+#include <filesystem>
 
-#include "ReentrantLock.h"
-#include "BinaryData.h"
-#include "EncryptionUtils.h"
+#include "Utils/ReentrantLock.h"
+#include "Utils/BinaryData.h"
 #include "WalletIdTypes.h"
-#include "Script.h"
-#include "Signer.h"
+#include "Progress.h"
 
 #include "DecryptedDataContainer.h"
 #include "BIP32_Node.h"
 #include "ResolverFeed.h"
-
 #include "WalletHeader.h"
-#include "Accounts/AccountTypes.h"
-#include "Accounts/AddressAccounts.h"
-#include "Accounts/MetaAccounts.h"
+#include "Addresses.h"
 
 ////
 namespace Armory
 {
-   namespace Signer
+   namespace Signing
    {
       class BIP32_AssetPath;
    }
@@ -44,36 +40,63 @@ namespace Armory
    {
       class EncryptedSeed;
       class ClearTextSeed;
-      class ClearTextSeed_Armory135;
+      class ClearTextSeed_Armory;
+      class ClearTextSeed_ArmoryPublic;
       class ClearTextSeed_BIP32;
+   }
+
+   namespace Assets
+   {
+      class AssetEntry_Single;
+   }
+
+   namespace Accounts
+   {
+      struct AddressAccountPublicData;
+      class AddressAccount;
+      class AccountType_BIP32;
+
+      enum class MetaAccountType : int;
+      class MetaDataAccount;
    }
 
    namespace Wallets
    {
+      using ProgressFunc = std::function<void(int)>;
       namespace IO
       {
          class WalletDBInterface;
+         class WalletIfaceTransaction;
          struct WalletHeader;
+
+         struct ReadOnlyFileParams;
+         struct CreateFileParams;
+         struct CreateWalletParams;
       };
 
       //////////////////////////////////////////////////////////////////////////
       struct WalletPublicData
       {
       public:
-         const std::string dbName_;
-         const std::string masterID_;
-         const std::string walletID_;
-         const AddressAccountId mainAccountID_;
+         const std::filesystem::path path;
+         const std::string dbName;
+         const WalletId masterID;
+         const WalletId walletID;
+         const AddressAccountId mainAccountID;
 
-         std::shared_ptr<Assets::AssetEntry_Single> pubRoot_{};
+         std::shared_ptr<Assets::AssetEntry_Single> pubRoot;
          std::map<AddressAccountId,
-            Accounts::AddressAccountPublicData> accounts_{};
+            Accounts::AddressAccountPublicData> accounts;
          std::map<Accounts::MetaAccountType,
-            std::shared_ptr<Accounts::MetaDataAccount>> metaAccounts_{};
+            std::shared_ptr<Accounts::MetaDataAccount>> metaAccounts;
+
+         std::string label;
+         std::string description;
 
       public:
-         WalletPublicData(const std::string&, const std::string&,
-            const std::string&, const AddressAccountId&);
+         WalletPublicData(const std::filesystem::path&,
+            const std::string&, const WalletId&,
+            const WalletId&, const AddressAccountId&);
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -83,11 +106,11 @@ namespace Armory
          friend class ResolverFeed_AssetWalletSingle_ForMultisig;
 
       private:
-         virtual void initAfterLock(void) {}
-         virtual void cleanUpBeforeUnlock(void) {}
+         virtual void initAfterLock(void) override {}
+         virtual void cleanUpBeforeUnlock(void) override {}
 
-         static std::string getMasterID(std::shared_ptr<IO::WalletDBInterface>);
-         void checkMasterID(const std::string& masterID);
+         static WalletId getMasterID(std::shared_ptr<IO::WalletDBInterface>);
+         void checkMasterID(const WalletId& masterID);
 
       protected:
          std::shared_ptr<IO::WalletDBInterface> iface_;
@@ -99,11 +122,11 @@ namespace Armory
          std::map<Accounts::MetaAccountType, std::shared_ptr<
             Accounts::MetaDataAccount>> metaDataAccounts_;
 
-         AddressAccountId mainAccount_;
+         AddressAccountId mainAccountId_;
 
          ////
-         std::string walletID_;
-         std::string masterID_;
+         WalletId walletID_;
+         WalletId masterID_;
 
          ////
          std::string label_;
@@ -112,16 +135,13 @@ namespace Armory
       protected:
          //tors
          AssetWallet(std::shared_ptr<IO::WalletDBInterface>,
-            std::shared_ptr<IO::WalletHeader>, const std::string&);
+            std::shared_ptr<IO::WalletHeader>, const WalletId&);
 
-         static std::shared_ptr<IO::WalletDBInterface> getIfaceFromFile(
-            const std::string&, bool, const PassphraseLambda&);
+         static std::shared_ptr<IO::WalletDBInterface> createIface(
+            const IO::CreateFileParams&, const Progress::Func& prog=nullptr);
 
          //locals
-
-         //address type methods
          AddressEntryType getAddrTypeForAccount(const AssetId&) const;
-
          void loadMetaAccounts(void);
 
          //virtual
@@ -129,7 +149,7 @@ namespace Armory
 
          //static
          static BinaryDataRef getDataRefForKey(
-            IO::DBIfaceTransaction*, const BinaryData& key);
+            IO::DBIfaceTransaction*, const BinaryData&);
 
       public:
          //tors
@@ -138,55 +158,55 @@ namespace Armory
 
          //local
          std::shared_ptr<AddressEntry> getNewAddress(
-            AddressEntryType aeType = AddressEntryType_Default);
+            AddressEntryType=AddressEntryType::Default);
          std::shared_ptr<AddressEntry> getNewAddress(
             const AddressAccountId&,
-            AddressEntryType aeType = AddressEntryType_Default);
+            AddressEntryType=AddressEntryType::Default);
          std::shared_ptr<AddressEntry> getNewAddress(
             const AssetAccountId&,
-            AddressEntryType aeType = AddressEntryType_Default);
+            AddressEntryType=AddressEntryType::Default);
          std::shared_ptr<AddressEntry> getNewChangeAddress(
-            AddressEntryType aeType = AddressEntryType_Default);
+            AddressEntryType=AddressEntryType::Default);
          std::shared_ptr<AddressEntry> peekNextChangeAddress(
-            AddressEntryType aeType = AddressEntryType_Default);
+            AddressEntryType=AddressEntryType::Default);
          void updateAddressEntryType(const AssetId&,
             AddressEntryType);
 
-         std::string getID(void) const;
+         const WalletId& getID(void) const;
+         const WalletId& getMasterID(void) const;
          virtual ReentrantLock lockDecryptedContainer(void);
+         std::shared_ptr<Encryption::KeyDerivationFunction>
+            getPrimaryKdf(void) const;
+         std::shared_ptr<Encryption::KeyDerivationFunction>
+            getDefaultKdf(void) const;
+
          bool isDecryptedContainerLocked(void) const;
+         void setPassphrasePromptLambda(const Passphrase::UnlockFunc&);
+         void resetPassphrasePromptLambda(void);
+
+         void extendPublicChain(int32_t);
+         void extendPublicChain(const AddressAccountId&, int32_t,
+            const ProgressFunc& progFunc=nullptr);
+         void extendPublicChainToIndex(const AddressAccountId&, int32_t,
+            const ProgressFunc& progFunc=nullptr);
+         void extendPrivateChain(int32_t);
+         void extendPrivateChainToIndex(int32_t);
+         void extendPrivateChainToIndex(const AddressAccountId&, int32_t);
+
+         bool hasScrAddr(const BinaryData&) const;
+         bool hasAddrStr(const std::string&) const;
+         bool isAssetUsed(const AssetId&) const;
 
          std::shared_ptr<Assets::AssetEntry> getAssetForID(
             const AssetId&) const;
-
-         void extendPublicChain(unsigned);
-         void extendPublicChainToIndex(const AddressAccountId&, unsigned,
-            const std::function<void(int)>& = nullptr);
-         void extendPrivateChain(unsigned);
-         void extendPrivateChainToIndex(const AddressAccountId&, unsigned);
-
-         bool hasScrAddr(const BinaryData& scrAddr) const;
-         bool hasAddrStr(const std::string& scrAddr) const;
-         bool isAssetUsed(const AssetId&) const;
-
          const std::pair<AssetId, AddressEntryType>&
-            getAssetIDForAddrStr(const std::string& scrAddr) const;
+            getAssetIDForAddrStr(const std::string&) const;
          const std::pair<AssetId, AddressEntryType>&
-            getAssetIDForScrAddr(const BinaryData& scrAddr) const;
+            getAssetIDForScrAddr(const BinaryData&) const;
 
          AddressEntryType getAddrTypeForID(const AssetId&) const;
          std::shared_ptr<AddressEntry> getAddressEntryForID(
             const AssetId&) const;
-
-         void setPassphrasePromptLambda(PassphraseLambda lambda)
-         {
-            decryptedData_->setPassphrasePromptLambda(lambda);
-         }
-
-         void resetPassphrasePromptLambda(void)
-         {
-            decryptedData_->resetPassphraseLambda();
-         }
 
          void addMetaAccount(Accounts::MetaAccountType);
          std::shared_ptr<Accounts::MetaDataAccount> getMetaAccount(
@@ -194,7 +214,7 @@ namespace Armory
          std::shared_ptr<Accounts::AddressAccount> getAccountForID(
             const AddressAccountId& ID) const;
 
-         const std::string& getDbFilename(void) const;
+         const std::filesystem::path& getDbFilename(void) const;
          const std::string& getDbName(void) const;
 
          std::set<AddressAccountId> getAccountIDs(void) const;
@@ -202,16 +222,18 @@ namespace Armory
             getUsedAddressMap(void) const;
 
          std::shared_ptr<Accounts::AddressAccount> createAccount(
-            std::shared_ptr<Accounts::AccountType>);
+            std::shared_ptr<Accounts::AccountType>,
+            const Progress::Func& prog);
 
-         void addSubDB(const std::string& dbName, const PassphraseLambda&);
+         void addSubDB(const std::string&,
+            const Passphrase::UnlockFunc&);
          std::shared_ptr<IO::WalletIfaceTransaction> beginSubDBTransaction(
             const std::string&, bool);
 
          void changeControlPassphrase(
-            const std::function<SecureBinaryData(void)>&,
-            const PassphraseLambda&);
-         void eraseControlPassphrase(const PassphraseLambda&);
+            Passphrase::SetNew&,
+            const Passphrase::UnlockFunc&);
+         void eraseControlPassphrase(const Passphrase::UnlockFunc&);
 
          void setComment(const BinaryData&, const std::string&);
          const std::string& getComment(const BinaryData&) const;
@@ -220,8 +242,6 @@ namespace Armory
 
          const AddressAccountId& getMainAccountID(void) const;
          const EncryptionKeyId& getDefaultEncryptionKeyId(void) const;
-         std::shared_ptr<Encryption::KeyDerivationFunction>
-            getDefaultKdf(void) const;
 
          void setLabel(const std::string&);
          void setDescription(const std::string&);
@@ -230,9 +250,10 @@ namespace Armory
          const std::string& getDescription(void) const;
 
          std::shared_ptr<IO::WalletDBInterface> getIface(void) const;
+         bool isMasterRecordEncrypted(void) const;
 
          //virtual
-         virtual std::set<BinaryData> getAddrHashSet();
+         virtual std::set<BinaryData> getAddrHashSet(void) const;
          virtual const SecureBinaryData& getDecryptedValue(
             std::shared_ptr<Encryption::EncryptedAssetData>) = 0;
          virtual std::shared_ptr<Assets::AssetEntry> getRoot(void) const = 0;
@@ -243,11 +264,10 @@ namespace Armory
          static std::string getMainWalletID(
             std::shared_ptr<IO::WalletDBInterface>);
 
-         static std::string forkWatchingOnly(
-            const std::string&, const PassphraseLambda& = nullptr);
+         static std::filesystem::path forkWatchingOnly(
+            const IO::ReadOnlyFileParams&, const Passphrase::SetNew&);
          static std::shared_ptr<AssetWallet> loadMainWalletFromFile(
-            const std::string& path, const PassphraseLambda&);
-
+            const IO::ReadOnlyFileParams&);
          static void eraseFromDisk(AssetWallet*);
       };
 
@@ -267,84 +287,74 @@ namespace Armory
 
          //static
          static std::shared_ptr<AssetWallet_Single> initWalletDb(
-            std::shared_ptr<IO::WalletDBInterface> iface,
-            const std::string& masterID, const std::string& walletID,
-            const SecureBinaryData& passphrase,
-            const SecureBinaryData& controlPassphrase,
-            const SecureBinaryData& privateRoot,
-            const SecureBinaryData& chaincode,
-            uint32_t seedFingerprint);
+            std::shared_ptr<IO::WalletDBInterface>,
+            Armory::Seeds::ClearTextSeed*,
+            const IO::CreateWalletParams&);
 
          static std::shared_ptr<AssetWallet_Single> initWalletDbWithPubRoot(
-            std::shared_ptr<IO::WalletDBInterface> iface,
-            const SecureBinaryData& controlPassphrase,
-            const std::string& masterID, const std::string& walletID,
-            std::shared_ptr<Assets::AssetEntry_Single> pubRoot);
+            std::shared_ptr<IO::WalletDBInterface>,
+            const WalletId&, const WalletId&,
+            std::shared_ptr<Assets::AssetEntry_Single>,
+            const IO::CreateWalletParams&);
 
       private:
-         static WalletPublicData exportPublicData(
-            std::shared_ptr<AssetWallet_Single>);
          static void importPublicData(const WalletPublicData&,
-            std::shared_ptr<IO::WalletDBInterface>);
-
-         void setSeed(std::unique_ptr<Armory::Seeds::ClearTextSeed>,
-            const SecureBinaryData&);
+            std::shared_ptr<IO::WalletDBInterface>,
+            Progress::Func=nullptr
+         );
 
          //wallet creation private statics
          static std::shared_ptr<AssetWallet_Single> createFromSeed(
-            const std::string&, //folder
-            Seeds::ClearTextSeed_Armory135*,
-            const SecureBinaryData&, //pass
-            const SecureBinaryData&, //control pass
-            unsigned); //lookup
+            Seeds::ClearTextSeed_Armory*,
+            const IO::CreateWalletParams&);
 
          static std::shared_ptr<AssetWallet_Single> createFromSeed(
-            const std::string&, //folder
             Seeds::ClearTextSeed_BIP32*,
-            const SecureBinaryData&, //pass
-            const SecureBinaryData&, //control pass
-            unsigned); //lookup
+            const IO::CreateWalletParams&);
 
       public:
          //tors
          AssetWallet_Single(std::shared_ptr<IO::WalletDBInterface>,
-            std::shared_ptr<IO::WalletHeader>, const std::string&);
+            std::shared_ptr<IO::WalletHeader>, const WalletId&);
 
          //locals
-         void addPrivateKeyPassphrase(
-            const std::function<SecureBinaryData(void)>&);
-         void changePrivateKeyPassphrase(
-            const std::function<SecureBinaryData(void)>&);
+         void addPrivateKeyPassphrase(Passphrase::SetNew&);
+         void changePrivateKeyPassphrase(Passphrase::SetNew&);
          void erasePrivateKeyPassphrase(void);
 
-         std::shared_ptr<Assets::AssetEntry> getRoot(void) const override
-         { return root_; }
-
+         std::shared_ptr<Assets::AssetEntry> getRoot(void) const override;
          const SecureBinaryData& getPublicRoot(void) const;
          const SecureBinaryData& getArmory135Chaincode(void) const;
 
          const AddressAccountId& createBIP32Account(
-            std::shared_ptr<Accounts::AccountType_BIP32>);
-
-         bool isWatchingOnly(void) const;
+            std::shared_ptr<Accounts::AccountType_BIP32>,
+            const Progress::Func& = nullptr);
 
          const SecureBinaryData& getDecryptedPrivateKeyForAsset(
             std::shared_ptr<Assets::AssetEntry_Single>);
          const AssetId& derivePrivKeyFromPath(
-            const Signer::BIP32_AssetPath&);
+            const Signing::BIP32_AssetPath&);
          const SecureBinaryData& getDecryptedPrivateKeyForId(
             const AssetId&) const;
 
+         bool isWatchingOnly(void) const;
          std::shared_ptr<Seeds::EncryptedSeed> getEncryptedSeed(void) const;
 
-         Signer::BIP32_AssetPath getBip32PathForAsset(
+         //bip32 primitives
+         Signing::BIP32_AssetPath getBip32PathForAsset(
             std::shared_ptr<Assets::AssetEntry>) const;
-         Signer::BIP32_AssetPath getBip32PathForAssetID(
+         Signing::BIP32_AssetPath getBip32PathForAssetID(
             const AssetId&) const;
 
          std::string getXpubForAssetID(const AssetId&) const;
          std::shared_ptr<Accounts::AccountType_BIP32>
             makeNewBip32AccTypeObject(const std::vector<uint32_t>&) const;
+
+         //imports
+         const AddressAccountId& setupImportAccount(void);
+         AssetId importPublicKey(SecureBinaryData&, AddressEntryType);
+         AssetId importPrivateKey(SecureBinaryData&);
+         AssetId importAddressHash(SecureBinaryData&);
 
          //virtual
          const SecureBinaryData& getDecryptedValue(
@@ -352,23 +362,23 @@ namespace Armory
 
          //static
          static std::shared_ptr<AssetWallet_Single> createFromSeed(
-            std::unique_ptr<Armory::Seeds::ClearTextSeed>,
-            const SecureBinaryData&,
-            const SecureBinaryData&,
-            const std::string&, unsigned lookup = 1000);
+            std::unique_ptr<Seeds::ClearTextSeed>,
+            const IO::CreateWalletParams&);
 
          static std::shared_ptr<AssetWallet_Single>
-         createFromPublicRoot_Armory135(
-            const std::string& folder,
-            SecureBinaryData& privateRoot,
-            SecureBinaryData& chainCode,
-            const SecureBinaryData& controlPassphrase,
-            unsigned lookup);
+         createFromPublicSeed(
+            Seeds::ClearTextSeed_ArmoryPublic*,
+            const IO::CreateWalletParams&);
 
          static std::shared_ptr<AssetWallet_Single> createBlank(
-            const std::string& folder,
-            const std::string& walletID,
-            const SecureBinaryData& controlPassphrase);
+            const WalletId&, const IO::CreateWalletParams&);
+
+         static WalletPublicData exportPublicData(
+            std::shared_ptr<AssetWallet_Single>);
+         static void mergePublicData(const IO::ReadOnlyFileParams&,
+            const WalletPublicData&, Progress::Func);
+         static std::filesystem::path forkWatchingOnly(
+            const WalletPublicData&, const Passphrase::SetNew&);
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -380,7 +390,6 @@ namespace Armory
          std::atomic<unsigned> chainLength_;
 
       protected:
-
          //virtual
          void readFromFile(void);
          const SecureBinaryData& getDecryptedValue(
@@ -389,19 +398,18 @@ namespace Armory
       public:
          //tors
          AssetWallet_Multisig(std::shared_ptr<IO::WalletDBInterface>,
-            std::shared_ptr<IO::WalletHeader>, const std::string&);
+            std::shared_ptr<IO::WalletHeader>, const WalletId&);
 
          //virtual
-         bool setImport(int importID, const SecureBinaryData& pubkey);
          std::shared_ptr<Assets::AssetEntry> getRoot(void) const override
          { return nullptr; }
 
+         //static
          static std::shared_ptr<AssetWallet> createFromWallets(
             std::vector<std::shared_ptr<AssetWallet>> wallets,
             unsigned M,
             unsigned lookup = UINT32_MAX);
 
-         //local
       };
    }; //namespace Wallets
 }; //namespace Armory

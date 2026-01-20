@@ -17,21 +17,21 @@ class DlgQRCodeDisplay(ArmoryDialog):
    def __init__(self, parent, main, dataToQR, descrUp='', descrDown=''):
       super(DlgQRCodeDisplay, self).__init__(parent, main)
 
-      btnDone = QPushButton('Close')
-      self.connect(btnDone, SIGNAL(CLICKED), self.accept)
+      btnDone = QtWidgets.QPushButton('Close')
+      btnDone.clicked.connect(self.accept)
       frmBtn = makeHorizFrame([STRETCH, btnDone, STRETCH])
 
       qrDisp = QRCodeWidget(dataToQR, parent=self)
       frmQR = makeHorizFrame([STRETCH, qrDisp, STRETCH])
 
       lblUp = QRichLabel(descrUp)
-      lblUp.setAlignment(Qt.AlignVCenter | Qt.AlignHCenter)
+      lblUp.setAlignment(QtCore.Qt.AlignVCenter | QtCore.Qt.AlignHCenter)
       lblDn = QRichLabel(descrDown)
-      lblDn.setAlignment(Qt.AlignVCenter | Qt.AlignHCenter)
+      lblDn.setAlignment(QtCore.Qt.AlignVCenter | QtCore.Qt.AlignHCenter)
 
 
 
-      layout = QVBoxLayout()
+      layout = QtWidgets.QVBoxLayout()
       layout.addWidget(lblUp)
       layout.addWidget(frmQR)
       layout.addWidget(lblDn)
@@ -42,4 +42,4 @@ class DlgQRCodeDisplay(ArmoryDialog):
 
       w1, h1 = relaxedSizeStr(lblUp, descrUp)
       w2, h2 = relaxedSizeStr(lblDn, descrDown)
-      self.setMinimumWidth(1.2 * max(w1, w2))
+      self.setMinimumWidth(int(1.2 * max(w1, w2)))

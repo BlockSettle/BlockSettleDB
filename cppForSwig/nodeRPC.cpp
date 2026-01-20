@@ -1,26 +1,21 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2017, goatpig                                               //
+//  Copyright (C) 2017-2024, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "ArmoryErrors.h"
 #include "nodeRPC.h"
-#include "DBUtils.h"
-#include "ArmoryConfig.h"
+#include "Utils/ArmoryErrors.h"
+#include "Utils/BtcUtils.h"
+#include "Utils/DBUtils.h"
+#include "Utils/ArmoryConfig.h"
 #include "SocketWritePayload.h"
-
-#ifdef _WIN32
-#include "leveldb_windows_port\win32_posix\dirent_win32.h"
-#else
-#include "dirent.h"
-#endif
 
 using namespace std;
 using namespace CoreRPC;
-using namespace Armory::Config;
+using namespace Armory;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -34,7 +29,6 @@ NodeRPCInterface::~NodeRPCInterface()
 const NodeChainStatus& NodeRPCInterface::getChainStatus(void) const
 {
    ReentrantLock lock(this);
-   
    return nodeChainStatus_;
 }
 
@@ -79,19 +73,19 @@ bool NodeRPC::setupConnection(HttpSocket& sock)
    ReentrantLock lock(this);
 
    //test the socket
-   if(!sock.connectToRemote())
+   if(!sock.connectToRemote()) {
       return false;
-
-   if (basicAuthString64_.size() == 0)
-   {
-      auto&& authString = getAuthString();
-      if (authString.size() == 0)
-         return false;
-
-      basicAuthString64_ = move(BtcUtils::base64_encode(authString));
    }
 
-   stringstream auth_header;
+   if (basicAuthString64_.empty()) {
+      auto authString = getAuthString();
+      if (authString.empty()) {
+         return false;
+      }
+      basicAuthString64_ = std::move(BtcUtils::base64_encode(authString));
+   }
+
+   std::stringstream auth_header;
    auth_header << "Authorization: Basic " << basicAuthString64_;
    auto header_str = auth_header.str();
    sock.precacheHttpHeader(header_str);
@@ -115,55 +109,41 @@ RpcState NodeRPC::testConnection()
    JSON_object json_obj;
    json_obj.add_pair("method", "getblockcount");
 
-   try
-   {
-      auto&& response = queryRPC(json_obj);
-      auto&& response_obj = JSON_decode(response);
+   try {
+      auto response = queryRPC(json_obj);
+      auto response_obj = JSON_decode(response);
 
-      if (response_obj.isResponseValid(json_obj.id_))
-      {
+      if (response_obj.isResponseValid(json_obj.id_)) {
          state = RpcState_Online;
-      }
-      else
-      {
+      } else {
          auto error_ptr = response_obj.getValForKey("error");
          auto error_obj = dynamic_pointer_cast<JSON_object>(error_ptr);
-         if (error_obj != nullptr)
-         {
+         if (error_obj != nullptr) {
             auto error_code_ptr = error_obj->getValForKey("code");
             auto error_code = dynamic_pointer_cast<JSON_number>(error_code_ptr);
 
-            if (error_code == nullptr)
+            if (error_code == nullptr) {
                throw JSON_Exception("failed to get error code");
+            }
 
-            if ((int)error_code->val_ == -28)
-            {
+            if ((int)error_code->val_ == -28) {
                state = RpcState_Error_28;
             }
-         }
-         else
-         {
+         } else {
             state = RpcState_Disabled;
 
             auto error_val = dynamic_pointer_cast<JSON_string>(error_ptr);
-            if (error_val != nullptr)
-            {
+            if (error_val != nullptr) {
                LOGWARN << "Rpc connection test failed with error: " <<
                   error_val->val_;
             }
          }
       }
-   }
-   catch (RpcError&)
-   {
+   } catch (const RpcError&) {
       state = RpcState_Disabled;
-   }
-   catch (SocketError&)
-   {
+   } catch (const SocketError&) {
       state = RpcState_Disabled;
-   }
-   catch (JSON_Exception& e)
-   {
+   } catch (const JSON_Exception& e) {
       LOGERR << "RPC connection test error: " << e.what();
       state = RpcState_BadAuth;
    }
@@ -172,74 +152,61 @@ RpcState NodeRPC::testConnection()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-string NodeRPC::getDatadir()
+std::filesystem::path NodeRPC::getDatadir()
 {
-   string datadir = Pathing::blkFilePath();
-   auto len = datadir.size();
-
-   if (len >= 6)
-   {
-      auto&& term = datadir.substr(len - 6, 6);
-      if (term == "blocks")
-         datadir = datadir.substr(0, len - 6);
+   auto datadir = Config::Pathing::blkFilePath();
+   if (datadir.filename() == "blocks") {
+      datadir = datadir.parent_path();
    }
-
    return datadir;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 string NodeRPC::getAuthString()
 {
-   auto&& datadir = getDatadir();
-
-   auto confPath = datadir;
-   DBUtils::appendPath(confPath, "bitcoin.conf");
+   auto datadir = getDatadir();
+   auto confPath = datadir / "bitcoin.conf";
 
    auto getAuthStringFromCookieFile = [&datadir](void)->string
    {
-      DBUtils::appendPath(datadir, ".cookie");
-      auto&& lines = SettingsUtils::getLines(datadir);
-      if (lines.size() != 1)
-      {
-         throw runtime_error("unexpected cookie file content");
+      auto cookiePath = datadir / ".cookie";
+      auto lines = Config::SettingsUtils::getLines(cookiePath);
+      if (lines.size() != 1) {
+         throw std::runtime_error("unexpected cookie file content");
       }
 
-      auto&& keyVals = SettingsUtils::getKeyValsFromLines(lines, ':');
+      auto keyVals = Config::SettingsUtils::getKeyValsFromLines(lines, ':');
       auto keyIter = keyVals.find("__cookie__");
-      if (keyIter == keyVals.end())
-      {
-         throw runtime_error("unexpected cookie file content");
+      if (keyIter == keyVals.end()) {
+         throw std::runtime_error("unexpected cookie file content");
       }
 
       return lines[0];
    };
 
    //open and parse .conf file
-   try
-   {
-      auto&& lines = SettingsUtils::getLines(confPath);
-      auto&& keyVals = SettingsUtils::getKeyValsFromLines(lines, '=');
-      
+   try {
+      auto lines = Config::SettingsUtils::getLines(confPath);
+      auto keyVals = Config::SettingsUtils::getKeyValsFromLines(lines, '=');
+
       //get rpcuser
       auto userIter = keyVals.find("rpcuser");
-      if (userIter == keyVals.end())
+      if (userIter == keyVals.end()) {
          return getAuthStringFromCookieFile();
-
+      }
       string authStr = userIter->second;
 
       //get rpcpassword
       auto passIter = keyVals.find("rpcpassword");
-      if (passIter == keyVals.end())
+      if (passIter == keyVals.end()) {
          return getAuthStringFromCookieFile();
-
+      }
       authStr.append(":");
       authStr.append(passIter->second);
 
       return authStr;
-   }
-   catch (...)
-   {
-      return string();
+   } catch (...) {
+      return {};
    }
 }
 
@@ -381,7 +348,7 @@ void NodeRPC::aggregateFeeEstimates()
    static vector<string> strategies = { 
       FEE_STRAT_CONSERVATIVE, FEE_STRAT_ECONOMICAL };
 
-   HttpSocket sock("127.0.0.1", NetworkSettings::rpcPort());
+   HttpSocket sock("127.0.0.1", Config::NetworkSettings::rpcPort());
    if (!setupConnection(sock))
       throw RpcError("aggregateFeeEstimates: failed to setup RPC socket");
 
@@ -610,7 +577,7 @@ void NodeRPC::shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 string NodeRPC::queryRPC(JSON_object& request)
 {
-   HttpSocket sock("127.0.0.1", NetworkSettings::rpcPort());
+   HttpSocket sock("127.0.0.1", Config::NetworkSettings::rpcPort());
    if (!setupConnection(sock))
       throw RpcError("node_down");
 

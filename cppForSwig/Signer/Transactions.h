@@ -1,45 +1,49 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016-2021, goatpig                                          //
+//  Copyright (C) 2016-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _H_TRANSACTIONS_
-#define _H_TRANSACTIONS_
+#pragma once
 
 #include <map>
 #include <vector>
+#include <string>
 
-#include "BinaryData.h"
-#include "EncryptionUtils.h"
-#include "BtcUtils.h"
-#include "BlockchainDatabase/BlockDataMap.h"
-#include "Script.h"
+#include "Utils/BinaryData.h"
+#include "Utils/BCTX.h"
+#include "TxEvalState.h"
 #include "SigHashEnum.h"
+
+struct UTXO;
+class UnspentTxOut;
 
 namespace Armory
 {
-   namespace Signer
+   namespace Signing
    {
+      class StackInterpreter;
+      using UtxoMap = std::map<BinaryData, std::map<unsigned, UTXO>>;
+
       class UnsupportedSigHashTypeException : public std::runtime_error
       {
       public:
-         UnsupportedSigHashTypeException(const std::string& what) :
-            std::runtime_error(what)
-         {}
+         UnsupportedSigHashTypeException(const std::string&);
       };
 
       //////////////////////////////////////////////////////////////////////////
       struct TxInData
       {
-         BinaryDataRef outputHash_;
-         uint32_t outputIndex_;
-         uint32_t sequence_;
+         BinaryDataRef outputHash;
+         uint32_t outputIndex;
+         uint32_t sequence;
       };
-      
+
       //////////////////////////////////////////////////////////////////////////
+      class SigHashDataSegWit;
+
       class TransactionStub
       {
       protected:
@@ -50,19 +54,14 @@ namespace Armory
          mutable std::map<unsigned, size_t> lastCodeSeparatorMap_;
 
       public:
-         TransactionStub(void)
-         {}
-
-         TransactionStub(unsigned flags) :
-            flags_(flags)
-         {}
-
+         TransactionStub(void);
+         TransactionStub(unsigned);
          virtual ~TransactionStub(void) = 0;
 
          virtual BinaryDataRef getSerializedOutputScripts(void) const = 0;
          virtual std::vector<TxInData> getTxInsData(void) const = 0;
-         virtual BinaryData getSubScript(unsigned index) const = 0;
-         virtual BinaryDataRef getWitnessData(unsigned inputId) const = 0;
+         virtual BinaryData getSubScript(unsigned) const = 0;
+         virtual BinaryDataRef getWitnessData(unsigned) const = 0;
 
          virtual uint32_t getVersion(void) const = 0;
          virtual uint32_t getTxOutCount(void) const = 0;
@@ -76,24 +75,12 @@ namespace Armory
          virtual unsigned getTxInSequence(unsigned) const = 0;
 
          //flags
-         unsigned getFlags(void) const { return flags_; }
-         void setFlags(unsigned flags) { flags_ = flags; }
-         void resetFlags (void) { flags_ = 0; }
+         unsigned getFlags(void) const;
+         void setFlags(unsigned);
 
          //op_cs
-         void setLastOpCodeSeparator(unsigned index, size_t offset) const
-         {
-            lastCodeSeparatorMap_[index] = offset;
-         }
-
-         unsigned getLastCodeSeparatorOffset(unsigned index) const
-         {
-            auto csIter = lastCodeSeparatorMap_.find(index);
-            if (csIter == lastCodeSeparatorMap_.end())
-               return 0;
-
-            return csIter->second;
-         }
+         void setLastOpCodeSeparator(unsigned, size_t) const;
+         unsigned getLastCodeSeparatorOffset(unsigned) const;
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -106,9 +93,9 @@ namespace Armory
             BinaryDataRef, unsigned) = 0;
 
       public:
-         BinaryData getDataForSigHash(SIGHASH_TYPE, const TransactionStub&,
-            BinaryDataRef outputScript, unsigned inputIndex);
-         
+         BinaryData getDataForSigHash(
+            SIGHASH_TYPE, const TransactionStub&,
+            BinaryDataRef, unsigned);
          std::vector<BinaryDataRef> tokenize(const BinaryData&, uint8_t);
       };
 
@@ -116,7 +103,8 @@ namespace Armory
       class SigHashDataLegacy : public SigHashData
       {
       private:
-         BinaryData getDataForSigHashAll(const TransactionStub&,
+         BinaryData getDataForSigHashAll(
+            const TransactionStub&,
             BinaryDataRef, unsigned);
       };
 
@@ -130,90 +118,47 @@ namespace Armory
          BinaryData hashOutputs_;
 
       private:
-         virtual uint32_t getSigHashAll_4Bytes(void) const
-         {
-            return 1;
-         }
+         virtual uint32_t getSigHashAll_4Bytes(void) const;
 
       private:
          BinaryData getDataForSigHashAll(const TransactionStub&,
             BinaryDataRef, unsigned);
-
          void computePreState(const TransactionStub&);
       };
 
       //////////////////////////////////////////////////////////////////////////
       class TransactionVerifier : public TransactionStub
       {
-      public:
-         typedef std::map<BinaryData, std::map<unsigned, UTXO>> utxoMap;
-
       private:
-         utxoMap utxos_;
+         UtxoMap utxos_;
          const BCTX theTx_;
+         mutable TxEvalState txEvalState_;
 
          uint64_t checkOutputs(void) const;
          void checkSigs(void) const;
          void checkSigs_NoCatch(void) const;
-         TxInEvalState checkSig(unsigned, StackInterpreter* ptr=nullptr) const;
-
-         mutable TxEvalState txEvalState_;
+         TxInEvalState checkSig(unsigned, StackInterpreter* = nullptr) const;
 
       protected:
          virtual std::unique_ptr<StackInterpreter>
             getStackInterpreter(unsigned) const;
 
       public:
-         TransactionVerifier(const BCTX& theTx, const utxoMap& utxos) :
-            utxos_(utxos), theTx_(theTx)
-         {
-            if (theTx.usesWitness_)
-               setFlags(SCRIPT_VERIFY_SEGWIT);
-         }
+         TransactionVerifier(const BCTX&, const UtxoMap&);
+         TransactionVerifier(const BCTX&, const std::vector<UnspentTxOut>&);
+         TransactionVerifier(const BCTX&, const std::vector<UTXO>&);
 
-         TransactionVerifier(
-            const BCTX& theTx, const std::vector<UnspentTxOut>& utxoVec) :
-            theTx_(theTx)
-         {
-            for (auto& utxo : utxoVec)
-            {
-               UTXO new_obj(utxo.getValue(),
-                  utxo.getTxHeight(), utxo.getTxtIndex(), utxo.getTxOutIndex(),
-                  utxo.getTxHash(), utxo.getScript());
-               auto& inner_map = utxos_[utxo.getTxHash()];
-               inner_map.insert(
-                  std::make_pair(utxo.getTxOutIndex(), std::move(new_obj)));
-            }
-
-            if (theTx.usesWitness_)
-               setFlags(SCRIPT_VERIFY_SEGWIT);
-         }
-
-         TransactionVerifier(
-            const BCTX& theTx, const std::vector<UTXO>& utxoVec) :
-            theTx_(theTx)
-         {
-            for (auto& utxo : utxoVec)
-            {
-               auto& inner_map = utxos_[utxo.getTxHash()];
-               inner_map.insert(std::make_pair(utxo.getTxOutIndex(), utxo));
-            }
-
-            if (theTx.usesWitness_)
-               setFlags(SCRIPT_VERIFY_SEGWIT);
-         }
-
-         bool verify(bool noCatch = true, bool strict = true) const;
-         TxEvalState evaluateState(bool strict = true) const;
+         bool verify(bool=true, bool=true) const;
+         TxEvalState evaluateState(bool=true) const;
 
          BinaryDataRef getSerializedOutputScripts(void) const;
          std::vector<TxInData> getTxInsData(void) const;
-         BinaryData getSubScript(unsigned index) const;
-         BinaryDataRef getWitnessData(unsigned inputId) const;
+         BinaryData getSubScript(unsigned) const;
+         BinaryDataRef getWitnessData(unsigned) const;
 
-         uint32_t getVersion(void) const { return theTx_.version_; }
-         uint32_t getTxOutCount(void) const { return theTx_.txouts_.size(); }
-         uint32_t getLockTime(void) const { return theTx_.lockTime_; }
+         uint32_t getVersion(void) const;
+         uint32_t getTxOutCount(void) const;
+         uint32_t getLockTime(void) const;
 
          //sw
          BinaryData serializeAllOutpoints(void) const;
@@ -222,7 +167,5 @@ namespace Armory
          uint64_t getOutpointValue(unsigned) const;
          unsigned getTxInSequence(unsigned) const;
       };
-   }; //namespace Signer
-}; //namespace Armory
-
-#endif
+   } //namespace Signing
+} //namespace Armory

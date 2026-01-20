@@ -1,155 +1,253 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016, goatpig.                                              //
+//  Copyright (C) 2016-2025, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <thread>
 #include <chrono>
-#include <ctime>
 #include <string.h>
-#include "BitcoinP2p.h"
+
+#include "BitcoinP2P.h"
+#include <Utils/BtcUtils.h>
+#include <Utils/varint.h>
+#include <Utils/Cryptography.h>
+#include <Utils/BitcoinSettings.h>
 #include "SocketWritePayload.h"
+#include "bdmenums.h"
 
-using namespace std;
 using namespace Armory::Threading;
+using namespace Armory::Node;
 
-bool PEER_USES_WITNESS;
+using namespace std::chrono_literals;
+using namespace std::string_view_literals;
 
-template <typename T> uint32_t put_integer_be(uint8_t* ptr, const T& integer)
-{
-   uint32_t size = sizeof(T);
-   auto len = size - 1;
-   auto intptr = (uint8_t*)&integer;
+//message header
+#define MESSAGE_HEADER_LEN    24
+#define MAGIC_WORD_OFFSET     0
+#define MESSAGE_TYPE_OFFSET   4
+#define MESSAGE_TYPE_LEN      12
+#define PAYLOAD_LENGTH_OFFSET 16
+#define CHECKSUM_OFFSET       20
 
-   for (uint32_t i = 0; i < size; i++)
+//netaddr
+#define NETADDR_WITHTIME   30
+#define NETADDR_NOTIME     26
+
+#define VERSION_MINLENGTH  85
+#define USERAGENT_OFFSET   80
+
+//inv
+#define INV_MAX 50000
+#define INV_ENTRY_LEN 36
+
+// Node witness
+#define NODE_WITNESS 1 << 3
+
+namespace {
+   auto RECONNECT_DELAY = 500ms;
+
+   template <typename T> uint32_t put_integer_be(uint8_t* ptr, const T& integer)
    {
-      ptr[i] = intptr[len - i];
+      uint32_t size = sizeof(T);
+      auto len = size - 1;
+      auto intptr = (uint8_t*)&integer;
+
+      for (uint32_t i = 0; i < size; i++) {
+         ptr[i] = intptr[len - i];
+      }
+      return size;
+   };
+
+   ////
+   int make_varint(const uint64_t& value, std::vector<uint8_t>& varint)
+   {
+      if (value < 0xFD) {
+         varint.push_back((uint8_t)value);
+         return 1;
+      } else if (value <= 0xFFFF) {
+         varint.resize(3);
+         auto ptr = (uint16_t*)&varint[1];
+         *ptr = (uint16_t)value;
+         varint[0] = 0xFD;
+         return 3;
+      } else if (value <= 0xFFFFFFFF) {
+         varint.resize(5);
+         auto ptr = (uint32_t*)&varint[1];
+         *ptr = (uint32_t)value;
+         varint[0] = 0xFE;
+         return 5;
+      }
+
+      varint.resize(9);
+      auto ptr = (uint64_t*)&varint[1];
+      *ptr = (uint64_t)value;
+      varint[0] = 0xFF;
+      return 9;
    }
 
-   return size;
-};
+   ////
+   int get_varint(uint64_t& val, const uint8_t* ptr, uint32_t size)
+   {
+      if (size == 0) {
+         throw std::runtime_error("invalid varint size");
+      }
 
-////////////////////////////////////////////////////////////////////////////////
-int make_varint(const uint64_t& value, vector<uint8_t>& varint)
-{
-   if (value < 0xFD)
-   {
-      varint.push_back((uint8_t)value);
-      return 1;
-   }
-   else if (value <= 0xFFFF)
-   {
-      varint.resize(3);
-      auto ptr = (uint16_t*)&varint[1];
-      *ptr = (uint16_t)value;
-      varint[0] = 0xFD;
-      return 3;
-   }
-   else if (value <= 0xFFFFFFFF)
-   {
-      varint.resize(5);
-      auto ptr = (uint32_t*)&varint[1];
-      *ptr = (uint32_t)value;
-      varint[0] = 0xFE;
-      return 5;
-   }
+      if (ptr[0] < 0xFD) {
+         val = *(uint8_t*)(ptr);
+         return 1;
+      } else if (ptr[0] == 0xFD) {
+         if (size < 3) {
+            throw std::runtime_error("invalid varint size");
+         }
+         val = *(uint16_t*)(ptr + 1);
+         return 3;
+      } else if (ptr[0] == 0xFE) {
+         if (size < 5) {
+            throw std::runtime_error("invalid varint size");
+         }
+         val = *(uint32_t*)(ptr + 1);
+         return 5;
+      }
 
-   varint.resize(9);
-   auto ptr = (uint64_t*)&varint[1];
-   *ptr = (uint64_t)value;
-   varint[0] = 0xFF;
-   return 9;
+      if (size < 9) {
+         throw std::runtime_error("invalid varint size");
+      }
+      val = *(uint64_t*)(ptr + 1);
+      return 9;
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-int get_varint(uint64_t& val, uint8_t* ptr, uint32_t size)
-{
-   if (size == 0)
-      throw runtime_error("invalid varint size");
-
-   if (ptr[0] < 0xFD)
-   {
-      val = *(uint8_t*)(ptr);
-      return 1;
-   }
-   else if (ptr[0] == 0xFD)
-   {
-      if (size < 3)
-         throw runtime_error("invalid varint size");
-
-      val = *(uint16_t*)(ptr + 1);
-      return 3;
-   }
-   else if (ptr[0] == 0xFE)
-   {
-      if (size < 5)
-         throw runtime_error("invalid varint size");
-
-      val = *(uint32_t*)(ptr + 1);
-      return 5;
-   }
-
-   if (size < 9)
-      throw runtime_error("invalid varint size");
-
-   val = *(uint64_t*)(ptr + 1);
-   return 9;
-}
+const std::map<std::string_view, PayloadType> Armory::Node::typeToPayload{
+   { "version"sv, PayloadType::Version },
+   { "verack"sv, PayloadType::VerAck },
+   { "inv"sv, PayloadType::Inv },
+   { "ping"sv, PayloadType::Ping },
+   { "pong"sv, PayloadType::Pong },
+   { "getdata"sv, PayloadType::GetData },
+   { "tx"sv, PayloadType::Tx },
+   { "reject"sv, PayloadType::Reject }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
-const map<string, PayloadType> BitcoinP2P::strToPayload_ = {
-   make_pair("version", Payload_version),
-   make_pair("verack", Payload_verack),
-   make_pair("inv", Payload_inv),
-   make_pair("ping", Payload_ping),
-   make_pair("pong", Payload_pong),
-   make_pair("getdata", Payload_getdata),
-   make_pair("tx", Payload_tx),
-   make_pair("reject", Payload_reject)
-};
+////
+//// Exceptions
+////
+////////////////////////////////////////////////////////////////////////////////
+NodeException::NodeException(const std::string& err) :
+   error_(err)
+{}
+
+const std::string& NodeException::what() const
+{
+   return error_;
+}
+
+////
+BitcoinMessageDeserError::BitcoinMessageDeserError(
+   const std::string& err, size_t off) :
+   NodeException(err), offset(off)
+{}
+
+////
+BitcoinMessageUnknown::BitcoinMessageUnknown(const std::string& err) :
+   NodeException(err)
+{}
+
+////
+PayloadDeserError::PayloadDeserError(const std::string& err) :
+   NodeException(err)
+{}
+
+////
+GetDataException::GetDataException(const std::string& err) :
+   NodeException(err)
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+////
+//// BitcoinNetAddr
+////
+////////////////////////////////////////////////////////////////////////////////
+void BitcoinNetAddr::setIPv4(uint64_t srvice, const sockaddr& nodeaddr)
+{
+   services = srvice;
+   memset(ipV6, 0, 16);
+   ipV6[10] = (char)255;
+   ipV6[11] = (char)255;
+
+   memcpy(ipV6 + 12, nodeaddr.sa_data + 2, 4);
+   auto ptr = (uint8_t*)nodeaddr.sa_data;
+   port = (unsigned)ptr[0] * 256 + (unsigned)ptr[1];
+}
+
+////
+void BitcoinNetAddr::deserialize(BinaryRefReader brr)
+{
+   if (brr.getSize() != NETADDR_NOTIME) {
+      throw PayloadDeserError("invalid netaddr size");
+   }
+   services = brr.get_uint64_t();
+   auto ipv6bdr = brr.get_BinaryDataRef(16);
+   memcpy(&ipV6, ipv6bdr.getPtr(), 16);
+   port = brr.get_uint16_t();
+}
+
+////
+void BitcoinNetAddr::serialize(uint8_t* ptr) const
+{
+   memcpy(ptr, &services, 8);
+   memcpy(ptr + 8, ipV6, 16);
+   put_integer_be(ptr + 24, port);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////
 //// Payload classes
 ////
 ////////////////////////////////////////////////////////////////////////////////
-vector<uint8_t> Payload::serialize(uint32_t magic_word) const
+Payload::~Payload()
+{}
+
+////
+std::vector<uint8_t> Payload::serialize(MagicWordType magicWord) const
 {
    //serialize payload
-   auto payload_size = serialize_inner(nullptr);
-   
-   vector<uint8_t> msg;
-   msg.resize(MESSAGE_HEADER_LEN + payload_size);
-   if (serialize(magic_word, &msg[0], msg.size()) == SIZE_MAX)
-      throw BitcoinP2P_Exception("failed to serialize payload");
+   auto payload_size = serializeInner(nullptr);
 
+   std::vector<uint8_t> msg;
+   msg.resize(MESSAGE_HEADER_LEN + payload_size);
+   if (serialize(magicWord, &msg[0], msg.size()) == SIZE_MAX) {
+      throw PayloadDeserError("failed to serialize payload");
+   }
    return msg;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-size_t Payload::serialize(
-   uint32_t magic_word, void* ptr, size_t buffer_len) const
+size_t Payload::serialize(MagicWordType magicWord,
+   void* ptr, size_t buffer_len) const
 {
-   auto payload_size = serialize_inner(nullptr);
-   if (buffer_len < payload_size + MESSAGE_HEADER_LEN)
+   auto payload_size = serializeInner(nullptr);
+   if (buffer_len < payload_size + MESSAGE_HEADER_LEN) {
       return SIZE_MAX;
+   }
 
    //message
-   if (payload_size > 0)
-      serialize_inner((uint8_t*)ptr + MESSAGE_HEADER_LEN);
+   if (payload_size > 0) {
+      serializeInner((uint8_t*)ptr + MESSAGE_HEADER_LEN);
+   }
 
    //magic word
-   uint32_t* magicword = (uint32_t*)((uint8_t*)ptr + MAGIC_WORD_OFFSET);
-   *magicword = magic_word;
+   memcpy((uint8_t*)ptr + MAGIC_WORD_OFFSET, &magicWord, sizeof(MagicWordType));
 
    //message type
-   auto&& type = typeStr();
+   auto type = typeStr();
    auto msgtype = (char*)ptr + MESSAGE_TYPE_OFFSET;
    memset(msgtype, 0, MESSAGE_TYPE_LEN);
-   memcpy(msgtype, type.c_str(), type.size());
+   memcpy(msgtype, type.data(), type.size());
 
    //length
    uint32_t msglen = payload_size;
@@ -158,10 +256,11 @@ size_t Payload::serialize(
 
    //checksum
    uint8_t* payloadptr = nullptr;
-   if (payload_size > 0)
+   if (payload_size > 0) {
       payloadptr = (uint8_t*)ptr + MESSAGE_HEADER_LEN;
+   }
    BinaryDataRef bdr(payloadptr, payload_size);
-   auto&& hash = BtcUtils::getHash256(bdr);
+   auto hash = BtcUtils::getHash256(bdr);
    uint32_t* checksum = (uint32_t*)hash.getPtr();
    uint32_t* checksumptr = (uint32_t*)((uint8_t*)ptr + CHECKSUM_OFFSET);
    *checksumptr = *checksum;
@@ -172,375 +271,371 @@ size_t Payload::serialize(
 ////////////////////////////////////////////////////////////////////////////////
 size_t Payload::getSerializedSize() const
 {
-   auto payload_size = serialize_inner(nullptr);
+   auto payload_size = serializeInner(nullptr);
    return MESSAGE_HEADER_LEN + payload_size;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<size_t> Payload::processPacket(
-   vector<uint8_t>& data, uint32_t magic_word)
+std::vector<size_t> Payload::processPacket(
+   std::vector<uint8_t>& data, MagicWordType magicWord)
 {
-   vector<size_t> retvec;   
-   if (data.size() < MESSAGE_HEADER_LEN)
+   std::vector<size_t> retvec;
+   if (data.size() < MESSAGE_HEADER_LEN) {
       return retvec;
+   }
 
    size_t offset = 0, totalsize = data.size();
-   while (offset < totalsize)
-   {
-      uint8_t* ptr = &data[offset];
+   while (offset < totalsize - sizeof(MagicWordType)) {
+      const uint8_t* ptr = &data[offset];
 
       //check magic word
-      uint32_t* magicword = (uint32_t*)(ptr + MAGIC_WORD_OFFSET);
-      if (*magicword != magic_word)
-      {
+      MagicWordType mw;
+      memcpy(&mw, ptr + MAGIC_WORD_OFFSET, sizeof(MagicWordType));
+      if (mw != magicWord) {
          //invalid magic word, search remainder of the packet for another one
-         auto sizeRemaining = totalsize - offset;
-         auto mwFirstByte = *(uint8_t*)(&magic_word);
-         unsigned i;
-         for (i = 4; i < sizeRemaining; i++)
-         {
-            if (ptr[i] == mwFirstByte)
-            {
-               auto mwPtr = (uint32_t*)(ptr + i);
-               if (*mwPtr == magic_word)
-                  break;
-            }
+         if (offset + sizeof(MagicWordType) >= totalsize) {
+            //not data left to read one magic word
+            offset = SIZE_MAX;
+            break;
          }
 
+         auto sizeRemaining = totalsize - offset - sizeof(MagicWordType);
+         unsigned i;
+         for (i = 1; i < sizeRemaining; i++) {
+            memcpy(&mw, ptr + i, sizeof(MagicWordType));
+            if (mw == magicWord) {
+               break;
+            }
+         }
          offset += i;
          continue;
       }
 
       //get message type
-      char* messagetype = (char*)(ptr + MESSAGE_TYPE_OFFSET);
+      auto messagetype = ptr + MESSAGE_TYPE_OFFSET;
 
       //messagetype should be null terminated and no longer than 12 bytes
       int i;
-      for (i = 0; i < MESSAGE_TYPE_LEN; i++)
-      {
-         if (messagetype[i] == 0)
+      for (i = 0; i < MESSAGE_TYPE_LEN; i++) {
+         if (messagetype[i] == 0) {
             break;
+         }
       }
 
-      if (i == MESSAGE_TYPE_LEN)
-      {
+      if (i == MESSAGE_TYPE_LEN) {
          offset += 4; //skip the current mw before reentering the loop
          continue;
       }
 
       //get and verify length
-      uint32_t* length = (uint32_t*)(ptr + PAYLOAD_LENGTH_OFFSET);
+      uint32_t length;
+      memcpy(&length, ptr + PAYLOAD_LENGTH_OFFSET, 4);
       auto localOffset = offset;
 
       //at this point we don't want to reparse this message if the
       //deser operation fails
       offset += 4;
-
-      if (*length + MESSAGE_HEADER_LEN > totalsize - localOffset)
+      if (length + MESSAGE_HEADER_LEN > totalsize - localOffset) {
          return retvec;
-
-
-      //get checksum
-      uint32_t* checksum = (uint32_t*)(ptr + CHECKSUM_OFFSET);
+      }
 
       //grab payload
-      BinaryDataRef payloadRef(ptr + MESSAGE_HEADER_LEN, *length);
+      BinaryDataRef payloadRef(ptr + MESSAGE_HEADER_LEN, length);
 
       //verify checksum
-      auto&& payloadHash = BtcUtils::getHash256(payloadRef);
-      uint32_t* hashChecksum = (uint32_t*)payloadHash.getPtr();
+      auto payloadHash = BtcUtils::getHash256(payloadRef);
+      if (memcmp(ptr + CHECKSUM_OFFSET, payloadHash.getPtr(), 4) == 0) {
+         //checksum matches, track packet offset
+         retvec.emplace_back(localOffset);
+      }
 
-      if (*hashChecksum != *checksum)
-         continue;
-
-      retvec.push_back(localOffset);
-      offset += MESSAGE_HEADER_LEN + *length - 4;
+      //set offset to end of current packet
+      offset += MESSAGE_HEADER_LEN + length - 4;
    }
-
    return retvec;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<Payload::DeserializedPayloads> Payload::deserialize(
-   vector<uint8_t>& data, uint32_t magic_word,
-   shared_ptr<DeserializedPayloads> prevPacket)
+std::shared_ptr<Payload::DeserializedPayloads> Payload::deserialize(
+   std::vector<uint8_t>& data, MagicWordType magicWord,
+   std::shared_ptr<DeserializedPayloads> prevPacket)
 {
    size_t bytesConsumed = 0;
-
-   auto parsepayloads = [&bytesConsumed](vector<uint8_t>& data, vector<size_t>& offsetVec)->
-      shared_ptr<DeserializedPayloads>
+   auto parsepayloads = [&bytesConsumed]
+   (const std::vector<uint8_t>& data, const std::vector<size_t>& offsetVec)
+   ->std::shared_ptr<DeserializedPayloads>
    {
-      auto result = make_shared<DeserializedPayloads>();
-
+      auto result = std::make_shared<DeserializedPayloads>();
       auto& payloadVec = result->payloads_;
 
-      for (unsigned y = 0; y < offsetVec.size(); y++)
-      {
-         auto offset = offsetVec[y];         
+      for (const auto& offset : offsetVec) {
          bytesConsumed = offset;
 
-         auto length = (uint32_t*)(&data[offset] + PAYLOAD_LENGTH_OFFSET);
-
-         size_t localBytesConsumed = *length + MESSAGE_HEADER_LEN;
-         if (localBytesConsumed + offset > data.size())
+         uint32_t length;
+         memcpy(&length, &data[offset] + PAYLOAD_LENGTH_OFFSET, 4);
+         size_t localBytesConsumed = length + MESSAGE_HEADER_LEN;
+         if (localBytesConsumed + offset > data.size()) {
             break;
+         }
+         std::string_view messagetype{(const char*)&data[offset] + MESSAGE_TYPE_OFFSET};
 
-         auto messagetype = (char*)(&data[offset] + MESSAGE_TYPE_OFFSET);
-
-         try
-         {
-            uint8_t* payloadptr = nullptr;
-            if (*length > 0)
+         try {
+            const uint8_t* payloadptr = nullptr;
+            if (length > 0) {
                payloadptr = &data[offset] + MESSAGE_HEADER_LEN;
+            }
 
             //instantiate relevant Payload child class and return it
-            auto payloadIter = BitcoinP2P::strToPayload_.find(messagetype);
-            if (payloadIter != BitcoinP2P::strToPayload_.end())
-            {
+            auto payloadIter = typeToPayload.find(messagetype);
+            if (payloadIter != typeToPayload.end()) {
                switch (payloadIter->second)
                {
-               case Payload_version:
-                  payloadVec.push_back(move(make_unique<Payload_Version>(
-                     payloadptr, *length)));
-                  break;
+                  case PayloadType::Version:
+                     payloadVec.emplace_back(std::make_unique<Payload_Version>(
+                        payloadptr, length));
+                     break;
 
-               case Payload_verack:
-                  payloadVec.push_back(move(make_unique<Payload_Verack>()));
-                  break;
+                  case PayloadType::VerAck:
+                     payloadVec.emplace_back(std::make_unique<Payload_Verack>());
+                     break;
 
-               case Payload_ping:
-                  payloadVec.push_back(move(make_unique<Payload_Ping>(
-                     payloadptr, *length)));
-                  break;
+                  case PayloadType::Ping:
+                     payloadVec.emplace_back(std::make_unique<Payload_Ping>(
+                        payloadptr, length));
+                     break;
 
-               case Payload_pong:
-                  payloadVec.push_back(move(make_unique<Payload_Pong>(
-                     payloadptr, *length)));
-                  break;
+                  case PayloadType::Pong:
+                     payloadVec.emplace_back(std::make_unique<Payload_Pong>(
+                        payloadptr, length));
+                     break;
 
-               case Payload_inv:
-                  payloadVec.push_back(move(make_unique<Payload_Inv>(
-                     payloadptr, *length)));
-                  break;
+                  case PayloadType::Inv:
+                     payloadVec.emplace_back(std::make_unique<Payload_Inv>(
+                        payloadptr, length));
+                     break;
 
-               case Payload_tx:
-                  payloadVec.push_back(move(make_unique<Payload_Tx>(
-                     payloadptr, *length)));
-                  break;
+                  case PayloadType::Tx:
+                     payloadVec.emplace_back(std::make_unique<Payload_Tx>(
+                        payloadptr, length));
+                     break;
 
-               case Payload_getdata:
-                  payloadVec.push_back(move(make_unique<Payload_GetData>(
-                     payloadptr, *length)));
-                  break;
+                  case PayloadType::GetData:
+                     payloadVec.emplace_back(std::make_unique<Payload_GetData>(
+                        payloadptr, length));
+                     break;
 
-               case Payload_reject:
-                  payloadVec.push_back(move(make_unique<Payload_Reject>(
-                     payloadptr, *length)));
-                  break;
+                  case PayloadType::Reject:
+                     payloadVec.emplace_back(std::make_unique<Payload_Reject>(
+                        payloadptr, length));
+                     break;
 
-               default:
-                  payloadVec.push_back(move(make_unique<Payload_Unknown>(
-                     payloadptr, *length)));
+                  default:
+                     payloadVec.emplace_back(std::make_unique<Payload_Unknown>(
+                        payloadptr, length));
                }
+            } else {
+               payloadVec.emplace_back(std::make_unique<Payload_Unknown>(
+                  payloadptr, length));
             }
-            else
-            {
-               payloadVec.push_back(move(make_unique<Payload_Unknown>(
-                  payloadptr, *length)));
-            }
-
             bytesConsumed += localBytesConsumed;
-         }
-         catch (PayloadDeserError&)
-         {
+         } catch (const PayloadDeserError&) {
             continue;
          }
       }
 
-      if (bytesConsumed < data.size())
-      {
+      if (bytesConsumed < data.size()) {
          result->spillOffset_ = bytesConsumed;
-         result->data_ = move(data);
+         result->data_ = std::move(data);
       }
-
       return result;
    };
 
    auto patchspill = [&parsepayloads, &bytesConsumed](
-                     shared_ptr<DeserializedPayloads> prevpacket, 
-                     const vector<uint8_t>& data,
-                     const vector<size_t> offsets) -> shared_ptr<DeserializedPayloads>
+      std::shared_ptr<DeserializedPayloads> prevpacket,
+      const std::vector<uint8_t>& data,
+      const std::vector<size_t>& offsets)
+      ->std::shared_ptr<DeserializedPayloads>
    {
-      if (prevpacket == nullptr)
+      if (prevpacket == nullptr) {
          return nullptr;
+      }
 
       size_t spillSize = 0;
-      if (offsets.size() == 0)
+      if (offsets.empty()) {
          spillSize = data.size();
-      else
+      } else {
          spillSize = offsets[0];
-
-      if (spillSize == 0)
-      {
+      }
+      if (spillSize == 0) {
          return nullptr;
       }
 
       prevpacket->data_.insert(prevpacket->data_.end(),
          data.begin(), data.begin() + spillSize);
 
-      vector<size_t> offvec;
+      std::vector<size_t> offvec;
       offvec.push_back(prevpacket->spillOffset_);
 
       auto spillResult = parsepayloads(prevpacket->data_, offvec);
-      if (spillResult->spillOffset_ != SIZE_MAX)
-      {
+      if (spillResult->spillOffset_ != SIZE_MAX) {
          spillResult->iterCount_ = prevpacket->iterCount_;
-      }
-      else
-      {
-         if (prevpacket->iterCount_ > 0)
+      } else {
+         if (prevpacket->iterCount_ > 0) {
             LOGWARN << "[[[ succesfully completed spill packet after " <<
                spillResult->iterCount_ << " iterations";
+         }
       }
 
       bytesConsumed += spillSize;
       return spillResult;
    };
 
-   auto&& offsetVec = processPacket(data, magic_word);
-   auto&& extraPacket = patchspill(prevPacket, data, offsetVec);
-
+   auto offsetVec = processPacket(data, magicWord);
+   auto extraPacket = patchspill(prevPacket, data, offsetVec);
    auto result = parsepayloads(data, offsetVec);
-   if (extraPacket != nullptr)
-   {
-      if (result->payloads_.size() == 0 && result->spillOffset_ == SIZE_MAX)
-      {
-         //LOGWARN << "returning extraPacket with iter: " << extraPacket->iterCount_;
+   if (extraPacket != nullptr) {
+      if (result->payloads_.empty() && result->spillOffset_ == SIZE_MAX) {
          return extraPacket;
       }
 
-      typedef vector<unique_ptr<Payload>>::iterator vecUP;
+      std::vector<std::unique_ptr<Payload>> newvec;
+      newvec.reserve(extraPacket->payloads_.size() + result->payloads_.size());
+      for (auto&& packet : extraPacket->payloads_) {
+         newvec.emplace_back(std::move(packet));
+      }
+      for (auto&& packet : result->payloads_) {
+         newvec.emplace_back(std::move(packet));
+      }
 
-      vector<unique_ptr<Payload>> newvec;
-      newvec.insert(newvec.end(), 
-         move_iterator<vecUP>(extraPacket->payloads_.begin()),
-         move_iterator<vecUP>(extraPacket->payloads_.end()));
-
-      newvec.insert(newvec.end(),
-         move_iterator<vecUP>(result->payloads_.begin()),
-         move_iterator<vecUP>(result->payloads_.end()));
-
-      result->payloads_ = move(newvec);
+      result->payloads_ = std::move(newvec);
       result->iterCount_ = extraPacket->iterCount_;
 
-      if (extraPacket->spillOffset_ != SIZE_MAX)
-      {
+      if (extraPacket->spillOffset_ != SIZE_MAX) {
          LOGWARN << "*** got valid payloads without completing spill packet";
          LOGWARN << "*** dumping " << extraPacket->data_.size() << " bytes of spill data";
       }
    }
-
    return result;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinNetAddr::deserialize(BinaryRefReader brr)
+// Payload_Unknown
+Payload_Unknown::Payload_Unknown()
+{}
+
+Payload_Unknown::Payload_Unknown(const uint8_t* dataptr, size_t len)
 {
-   if (brr.getSize() != NETADDR_NOTIME)
-      throw PayloadDeserError("invalid netaddr size");
-
-   services_ = brr.get_uint64_t(); 
-   auto ipv6bdr = brr.get_BinaryDataRef(16);
-   memcpy(&ipV6_, ipv6bdr.getPtr(), 16);
-
-   port_ = brr.get_uint16_t();
+   deserialize(dataptr, len);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void BitcoinNetAddr::serialize(uint8_t* ptr) const
+////
+PayloadType Payload_Unknown::type() const
 {
-   memcpy(ptr, &services_, 8);
-   memcpy(ptr + 8, ipV6_, 16);
-   put_integer_be(ptr + 24, port_);
+   return PayloadType::Unknown;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void Payload_Unknown::deserialize(uint8_t* data, size_t len)
+////
+std::string_view Payload_Unknown::typeStr() const
+{
+   return "unknown"sv;
+}
+
+////////
+void Payload_Unknown::deserialize(const uint8_t* data, size_t len)
 {
    data_.clear();
-   if (len == 0)
+   if (len == 0) {
       return;
-
+   }
    data_.resize(len);
    memcpy(&data_[0], data, len);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-size_t Payload_Unknown::serialize_inner(uint8_t* ptr) const
+////////
+size_t Payload_Unknown::serializeInner(uint8_t* ptr) const
 {
-   if (ptr != nullptr && data_.size() > 0)
+   if (ptr != nullptr && !data_.empty()) {
       memcpy(ptr, &data_[0], data_.size());
-
-   return data_.size();   
+   }
+   return data_.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void Payload_Version::deserialize(uint8_t* data, size_t len)
+// Payload_Version
+Payload_Version::Payload_Version()
+{}
+
+Payload_Version::Payload_Version(const uint8_t* dataptr, size_t len)
 {
-   uint8_t* dataptr = data;
+   deserialize(dataptr, len);
+}
 
-   vheader_.version_ = *(uint32_t*)dataptr;
+////
+PayloadType Payload_Version::type() const
+{
+   return PayloadType::Version;
+}
+
+////
+std::string_view Payload_Version::typeStr() const
+{
+   return "version"sv;
+}
+
+////////
+void Payload_Version::deserialize(const uint8_t* data, size_t len)
+{
+   const uint8_t* dataptr = data;
+
+   memcpy(&vheader_.version_, dataptr, 4);
    dataptr += 4;
-   vheader_.services_ = *(uint64_t*)dataptr;
+   memcpy(&vheader_.services_, dataptr, 8);
    dataptr += 8;
-   vheader_.timestamp_ = *(int64_t*)dataptr;
+   memcpy(&vheader_.timestamp_, dataptr, 8);
    dataptr += 8;
 
-   vheader_.addr_recv_.services_ = *(uint64_t*)dataptr;
+   memcpy(&vheader_.addr_recv_.services, dataptr, 8);
    dataptr += 8;
-   memcpy(vheader_.addr_recv_.ipV6_, dataptr, 16);
+   memcpy(vheader_.addr_recv_.ipV6, dataptr, 16);
    dataptr += 16;
-   vheader_.addr_recv_.port_ = *(uint16_t*)dataptr;
+   memcpy(&vheader_.addr_recv_.port, dataptr, 2);
    dataptr += 2;
 
-   vheader_.addr_from_.services_ = *(uint64_t*)dataptr;
+   memcpy(&vheader_.addr_from_.services, dataptr, 8);
    dataptr += 8;
-   memcpy(vheader_.addr_from_.ipV6_, dataptr, 16);
+   memcpy(vheader_.addr_from_.ipV6, dataptr, 16);
    dataptr += 16;
-   vheader_.addr_from_.port_ = *(uint16_t*)dataptr;
+   memcpy(&vheader_.addr_from_.port, dataptr, 2);
    dataptr += 2;
 
-   vheader_.nonce_ = *(uint64_t*)dataptr;
+   memcpy(&vheader_.nonce_, dataptr, 8);
    dataptr += 8;
 
    size_t remaining = len - USERAGENT_OFFSET;
    uint64_t uaLen;
    auto varintlen = get_varint(uaLen, dataptr, remaining);
    dataptr += varintlen;
-   char* userAgentPtr = (char*)(dataptr);
-   userAgent_ = string(userAgentPtr, uaLen);
+   auto userAgentPtr = (const char*)dataptr;
+   userAgent_ = std::string(userAgentPtr, uaLen);
    dataptr += uaLen;
 
-   startHeight_ = *(uint32_t*)dataptr;
+   memcpy(&startHeight_, dataptr, 4);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-size_t Payload_Version::serialize_inner(uint8_t* dataptr) const
+////////
+size_t Payload_Version::serializeInner(uint8_t* dataptr) const
 {
-   if (dataptr == nullptr)
-   {
-      return BtcUtils::get_varint_len(userAgent_.size()) +
+   if (dataptr == nullptr) {
+      return BtcUtils::calcVarIntSize(userAgent_.size()) +
          userAgent_.size() +
          VERSION_MINLENGTH;
    }
 
-   vector<uint8_t> varint;
+   std::vector<uint8_t> varint;
    auto varintlen = make_varint(userAgent_.size(), varint);
    size_t serlen = varintlen + userAgent_.length() + VERSION_MINLENGTH;
 
    uint8_t* vhptr = dataptr;
-   
    memcpy(vhptr, &vheader_.version_, 4);
    memcpy(vhptr +4, &vheader_.services_, 8);
    memcpy(vhptr + 12, &vheader_.timestamp_, 8);
@@ -562,15 +657,14 @@ size_t Payload_Version::serialize_inner(uint8_t* dataptr) const
    memcpy(ptr, &startHeight_, 4);
    ptr += 4;
    *ptr = 1;
-   
+
    return serlen;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void Payload_Version::setVersionHeaderIPv4(uint32_t version, uint64_t services,
-   int64_t timestamp,
-   const sockaddr& recvaddr,
-   const sockaddr& fromaddr)
+////////
+void Payload_Version::setVersionHeaderIPv4(uint32_t version,
+   uint64_t services, int64_t timestamp,
+   const sockaddr& recvaddr, const sockaddr& fromaddr)
 {
    vheader_.version_ = version;
    vheader_.services_ = services;
@@ -579,84 +673,179 @@ void Payload_Version::setVersionHeaderIPv4(uint32_t version, uint64_t services,
    vheader_.addr_recv_.setIPv4(services, recvaddr);
    vheader_.addr_from_.setIPv4(services, fromaddr);
 
-   auto&& randombytes = BtcUtils::fortuna_.generateRandom(8);
-   vheader_.nonce_ = *(uint64_t*)randombytes.getPtr();
+   auto randombytes = Cryptography::PRNG::fortuna.generateRandom(8);
+   memcpy(&vheader_.nonce_, randombytes.getPtr(), 8);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void Payload_Ping::deserialize(uint8_t* dataptr, size_t len)
+// Payload_Verack
+Payload_Verack::Payload_Verack()
+{}
+
+Payload_Verack::Payload_Verack(std::vector<uint8_t>*)
+{}
+
+////
+PayloadType Payload_Verack::type() const
 {
-   if (len == 0)
+   return PayloadType::VerAck;
+}
+
+////
+std::string_view Payload_Verack::typeStr() const
+{
+   return "verack"sv;
+}
+
+////////
+void Payload_Verack::deserialize(const uint8_t*, size_t)
+{
+   throw PayloadDeserError("verack cannot be deserialized");
+}
+
+////////
+size_t Payload_Verack::serializeInner(uint8_t*) const
+{
+   return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Payload_Ping
+Payload_Ping::Payload_Ping()
+{}
+
+Payload_Ping::Payload_Ping(const uint8_t* dataptr, size_t len)
+{
+   deserialize(dataptr, len);
+}
+
+////
+PayloadType Payload_Ping::type() const
+{
+   return PayloadType::Ping;
+}
+
+////
+std::string_view Payload_Ping::typeStr() const
+{
+   return "ping"sv;
+}
+
+////////
+void Payload_Ping::deserialize(const uint8_t* dataptr, size_t len)
+{
+   if (len == 0) {
       nonce_ = UINT64_MAX;
-   else if (len != 8)
+   } else if (len != 8) {
       throw PayloadDeserError("invalid ping payload len");
-   else
-      nonce_ = *(uint64_t*)dataptr;
+   } else {
+      memcpy(&nonce_, dataptr, 8);
+   }
 }
-
 ////////////////////////////////////////////////////////////////////////////////
-size_t Payload_Ping::serialize_inner(uint8_t* dataptr) const
+size_t Payload_Ping::serializeInner(uint8_t* dataptr) const
 {
-   if (nonce_ == UINT64_MAX)
+   if (nonce_ == UINT64_MAX) {
       return 0;
-   
-   if (dataptr == nullptr)
-      return 8;
-
-   uint64_t* ptr = (uint64_t*)dataptr;
-   *ptr = nonce_;
-
+   }
+   if (dataptr != nullptr) {
+      memcpy(dataptr, &nonce_, 8);
+   }
    return 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void Payload_Pong::deserialize(uint8_t* dataptr, size_t len)
+// Payload_Pong
+Payload_Pong::Payload_Pong()
+{}
+
+Payload_Pong::Payload_Pong(const uint8_t* dataptr, size_t len)
 {
-   if (len != 8)
+   deserialize(dataptr, len);
+}
+
+////////
+PayloadType Payload_Pong::type() const
+{
+   return PayloadType::Pong;
+}
+
+std::string_view Payload_Pong::typeStr() const
+{
+   return "pong"sv;
+}
+
+////////
+void Payload_Pong::deserialize(const uint8_t* dataptr, size_t len)
+{
+   if (len != 8) {
       throw PayloadDeserError("invalid pong payload len");
-
-   nonce_ = *(uint64_t*)dataptr;
+   }
+   memcpy(&nonce_, dataptr, 8);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-size_t Payload_Pong::serialize_inner(uint8_t* dataptr) const
+////////
+size_t Payload_Pong::serializeInner(uint8_t* dataptr) const
 {
-   if (nonce_ == UINT64_MAX)
+   if (nonce_ == UINT64_MAX) {
       return 0;
-
-   if (dataptr == nullptr)
-      return 8;
-
-   uint64_t* ptr = (uint64_t*)dataptr;
-   *ptr = nonce_;
-
+   }
+   if (dataptr != nullptr) {
+      memcpy(dataptr, &nonce_, 8);
+   }
    return 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void Payload_Inv::deserialize(uint8_t* dataptr, size_t len)
+// Payload_Inv
+Payload_Inv::Payload_Inv()
+{}
+
+Payload_Inv::Payload_Inv(const uint8_t* dataptr, size_t len)
+{
+   deserialize(dataptr, len);
+}
+
+////////
+PayloadType Payload_Inv::type() const
+{
+   return PayloadType::Inv;
+}
+
+std::string_view Payload_Inv::typeStr() const
+{
+   return "inv"sv;
+}
+
+////////
+void Payload_Inv::setInvVector(InvVector invvec)
+{
+   invVector_ = std::move(invvec);
+}
+
+////////
+void Payload_Inv::deserialize(const uint8_t* dataptr, size_t len)
 {
    uint64_t invCount;
    auto varintlen = get_varint(invCount, dataptr, len);
 
-   if (invCount > INV_MAX)
+   if (invCount > INV_MAX) {
       throw PayloadDeserError("inv count > INV_MAX");
-
+   }
    invVector_.resize(invCount);
 
    auto ptr = dataptr + varintlen;
    auto remaining = len - varintlen;
 
-   for (auto& entry : invVector_)
-   {
-      if (remaining < INV_ENTRY_LEN)
+   for (auto& entry : invVector_) {
+      if (remaining < INV_ENTRY_LEN) {
          throw PayloadDeserError("inv deser size mismatch");
-
-      auto entrytype = *(uint32_t*)(ptr);
-      if (entrytype > 3)
+      }
+      auto entrytype = (uint32_t*)ptr;
+      memcpy(&entry.invtype, ptr, 4);
+      if (entry.invtype > Inv_Msg_Filtered_Block) {
          throw PayloadDeserError("invalid inv entry type");
-
-      entry.invtype_ = (InvType)entrytype;
+      }
       memcpy(entry.hash, ptr + 4, 32);
 
       remaining -= INV_ENTRY_LEN;
@@ -664,77 +853,163 @@ void Payload_Inv::deserialize(uint8_t* dataptr, size_t len)
    }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-size_t Payload_Tx::serialize_inner(uint8_t* dataptr) const
+////////
+size_t Payload_Inv::serializeInner(uint8_t* dataptr) const
 {
-   if (dataptr == nullptr)
-      return rawTx_.size();
+   if (dataptr == nullptr) {
+      auto invcount = invVector_.size();
+      auto varintlen = BtcUtils::calcVarIntSize(invcount);
+      return invcount * INV_ENTRY_LEN + varintlen;
+   }
 
-   memcpy(dataptr, &rawTx_[0], rawTx_.size());
-   return rawTx_.size();
+   auto invcount = invVector_.size();
+   std::vector<uint8_t> varint;
+   auto varintlen = make_varint(invcount, varint);
+
+   memcpy(dataptr, &varint[0], varintlen);
+   dataptr += varintlen;
+
+   for (auto& entry : invVector_) {
+      auto intptr = (uint32_t*)dataptr;
+      *intptr = (uint32_t)entry.invtype;
+      memcpy(dataptr + 4, entry.hash, 32);
+      dataptr += 36;
+   }
+   return varintlen + invcount * INV_ENTRY_LEN;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void Payload_Tx::deserialize(uint8_t* dataptr, size_t len)
+// Payload_Tx
+Payload_Tx::Payload_Tx()
+{}
+
+Payload_Tx::Payload_Tx(const uint8_t* dataptr, size_t len)
+{
+   deserialize(dataptr, len);
+}
+
+////////
+PayloadType Payload_Tx::type() const
+{
+   return PayloadType::Tx;
+}
+
+std::string_view Payload_Tx::typeStr() const
+{
+   return "tx"sv;
+}
+
+////////
+const BinaryData& Payload_Tx::getHash256() const
+{
+   if (txHash_.empty()) {
+      Tx thisTx(&rawTx_[0], rawTx_.size());
+      txHash_ =  thisTx.getThisHash();
+   }
+   return txHash_;
+}
+
+////////
+const std::vector<uint8_t>& Payload_Tx::getRawTx() const
+{
+   return rawTx_;
+}
+
+void Payload_Tx::moveFrom(Payload_Tx& ptx)
+{
+   rawTx_ = std::move(ptx.rawTx_);
+}
+
+void Payload_Tx::setRawTx(std::vector<uint8_t> rawtx)
+{
+   rawTx_ = std::move(rawtx);
+}
+
+size_t Payload_Tx::getSize() const
+{
+   return rawTx_.size();
+}
+
+bool Payload_Tx::empty() const
+{
+   return rawTx_.size() == 0;
+}
+
+////////
+size_t Payload_Tx::serializeInner(uint8_t* dataptr) const
+{
+   if (dataptr != nullptr) {
+      memcpy(dataptr, &rawTx_[0], rawTx_.size());
+   }
+   return rawTx_.size();
+}
+
+////////
+void Payload_Tx::deserialize(const uint8_t* dataptr, size_t len)
 {
    rawTx_.resize(len);
    memcpy(&rawTx_[0], dataptr, len);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-size_t Payload_Inv::serialize_inner(uint8_t* dataptr) const
+// Payload_GetData
+Payload_GetData::Payload_GetData()
+{}
+
+Payload_GetData::Payload_GetData(const uint8_t* dataptr, size_t len)
 {
-   if (dataptr == nullptr)
-   {
-      auto invcount = invVector_.size();
-      auto varintlen = BtcUtils::get_varint_len(invcount);
-
-      return invcount * INV_ENTRY_LEN + varintlen;
-   }
-
-   auto invcount = invVector_.size();
-   vector<uint8_t> varint;
-   auto varintlen = make_varint(invcount, varint);
-
-   memcpy(dataptr, &varint[0], varintlen);
-   dataptr += varintlen;
-
-   for (auto& entry : invVector_)
-   {
-      auto intptr = (uint32_t*)dataptr;
-      *intptr = (uint32_t)entry.invtype_;
-      memcpy(dataptr + 4, entry.hash, 32);
-
-      dataptr += 36;
-   }
-
-   return varintlen + invcount * INV_ENTRY_LEN;
+   deserialize(dataptr, len);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void Payload_GetData::deserialize(uint8_t* dataptr, size_t len)
+Payload_GetData::Payload_GetData(const InvEntry& inventry)
+{
+   invVector_.emplace_back(inventry);
+}
+
+Payload_GetData::Payload_GetData(InvVector&& invVec)
+{
+   invVector_ = invVec;
+}
+
+////////
+PayloadType Payload_GetData::type() const
+{
+   return PayloadType::GetData;
+}
+
+std::string_view Payload_GetData::typeStr() const
+{
+   return "getdata"sv;
+}
+
+////////
+const InvVector& Payload_GetData::getInvVector() const
+{
+   return invVector_;
+}
+
+////////
+void Payload_GetData::deserialize(const uint8_t* dataptr, size_t len)
 {
    uint64_t invCount;
    auto varintlen = get_varint(invCount, dataptr, len);
 
-   if (invCount > INV_MAX)
+   if (invCount > INV_MAX) {
       throw PayloadDeserError("inv count > INV_MAX");
-
+   }
    invVector_.resize(invCount);
 
    auto ptr = dataptr + varintlen;
    auto remaining = len - varintlen;
 
-   for (auto& entry : invVector_)
-   {
-      if (remaining < INV_ENTRY_LEN)
+   for (auto& entry : invVector_) {
+      if (remaining < INV_ENTRY_LEN) {
          throw PayloadDeserError("inv deser size mismatch");
-
-      auto entrytype = *(uint32_t*)(ptr);
-      if ((entrytype & ~Inv_Witness) > 3)
+      }
+      memcpy(&entry.invtype, ptr, 4);
+      if ((entry.invtype & ~Inv_Witness) > Inv_Msg_Filtered_Block) {
          throw PayloadDeserError("invalid inv entry type");
-
-      entry.invtype_ = (InvType)entrytype;
+      }
       memcpy(entry.hash, ptr + 4, 32);
 
       remaining -= INV_ENTRY_LEN;
@@ -743,37 +1018,76 @@ void Payload_GetData::deserialize(uint8_t* dataptr, size_t len)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-size_t Payload_GetData::serialize_inner(uint8_t* dataptr) const
+size_t Payload_GetData::serializeInner(uint8_t* dataptr) const
 {
-   if (dataptr == nullptr)
-   {
+   if (dataptr == nullptr) {
       auto invcount = invVector_.size();
-      auto varintlen = BtcUtils::get_varint_len(invcount);
-
+      auto varintlen = BtcUtils::calcVarIntSize(invcount);
       return invcount * INV_ENTRY_LEN + varintlen;
    }
 
    auto invcount = invVector_.size();
-   vector<uint8_t> varint;
+   std::vector<uint8_t> varint;
    auto varintlen = make_varint(invcount, varint);
 
    memcpy(dataptr, &varint[0], varintlen);
    dataptr += varintlen;
 
-   for (auto& entry : invVector_)
-   {
-      auto intptr = (uint32_t*)dataptr;
-      *intptr = (uint32_t)entry.invtype_;
+   for (auto& entry : invVector_) {
+      memcpy(dataptr, &entry.invtype, 4);
       memcpy(dataptr + 4, entry.hash, 32);
-
       dataptr += 36;
    }
-
    return varintlen + invcount * INV_ENTRY_LEN;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void Payload_Reject::deserialize(uint8_t* dataptr, size_t len)
+// Payload_Reject
+Payload_Reject::Payload_Reject()
+{}
+
+Payload_Reject::Payload_Reject(const uint8_t* dataptr, size_t len)
+{
+   deserialize(dataptr, len);
+}
+
+////////
+PayloadType Payload_Reject::type() const
+{
+   return PayloadType::Reject;
+}
+
+std::string_view Payload_Reject::typeStr() const
+{
+   return "reject"sv;
+}
+
+////////
+PayloadType Payload_Reject::rejectType() const
+{
+   return rejectType_;
+}
+
+////
+const std::vector<uint8_t>& Payload_Reject::getExtra() const
+{
+   return extra_;
+}
+
+////
+const std::string& Payload_Reject::getReasonStr() const
+{
+   return reasonStr_;
+}
+
+////
+int8_t Payload_Reject::code() const
+{
+   return code_;
+}
+
+////////
+void Payload_Reject::deserialize(const uint8_t* dataptr, size_t len)
 {
    uint64_t typeLen;
 
@@ -782,16 +1096,16 @@ void Payload_Reject::deserialize(uint8_t* dataptr, size_t len)
    auto ptr = dataptr + varintlen;
 
    //message type
-   string msgtype((char*)ptr, typeLen);
-   auto typeIter = BitcoinP2P::strToPayload_.find(msgtype);
-   if (typeIter == BitcoinP2P::strToPayload_.end())
+   std::string_view msgtype{(const char*)ptr, typeLen};
+   auto typeIter = typeToPayload.find(msgtype);
+   if (typeIter == typeToPayload.end()) {
       throw PayloadDeserError("unknown reject type");
-
+   }
    rejectType_ = typeIter->second;
    ptr += typeLen;
 
    //reject code as integer
-   code_ = (char)*ptr;
+   code_ = (const char)*ptr;
    ptr++;
 
    auto reasonOffset = typeLen + varintlen + 1;
@@ -800,19 +1114,66 @@ void Payload_Reject::deserialize(uint8_t* dataptr, size_t len)
    uint64_t reasonLen;
    varintlen = get_varint(reasonLen, ptr, len);
    ptr += varintlen;
-   
+
    //reason str
-   reasonStr_ = move(string((char*)ptr, reasonLen));
+   reasonStr_ = std::string{(const char*)ptr, reasonLen};
    ptr += reasonLen;
 
    //extra data, final field. size and processing depends on reject code
    //just copy the data, handle when processing the payload
    auto remaining = len - (reasonLen + varintlen + reasonOffset);
-   if (remaining == 0)
+   if (remaining == 0) {
       return;
-
+   }
    extra_.resize(remaining);
    memcpy(&extra_[0], ptr, remaining);
+}
+
+////////
+size_t Payload_Reject::serializeInner(uint8_t*) const
+{
+   throw std::runtime_error("invalid for reject");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GetDataStatus
+GetDataStatus::GetDataStatus()
+{
+   prom_ = std::make_shared<std::promise<PayloadPtr>>();
+   fut_ = prom_->get_future();
+}
+
+////////
+std::shared_future<PayloadPtr> GetDataStatus::getFuture() const
+{
+   return fut_;
+}
+
+std::shared_ptr<std::promise<PayloadPtr>> GetDataStatus::getPromise() const
+{
+   return prom_;
+}
+
+////////
+void GetDataStatus::setMessage(const std::string& message)
+{
+   msg_ = message;
+}
+
+const std::string& GetDataStatus::getMessage() const
+{
+   return msg_;
+}
+
+////////
+bool GetDataStatus::status() const
+{
+   return received_;
+}
+
+void GetDataStatus::setStatus(bool st)
+{
+   received_ = st;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -820,11 +1181,13 @@ void Payload_Reject::deserialize(uint8_t* dataptr, size_t len)
 //// BitcoinNodeInterface
 ////
 ////////////////////////////////////////////////////////////////////////////////
-BitcoinNodeInterface::BitcoinNodeInterface(uint32_t magic_word, bool watcher) :
-   magic_word_(magic_word)
+BitcoinNodeInterface::BitcoinNodeInterface(
+   MagicWordType magicWord, bool watcher) :
+   magicWord_(magicWord)
 {
-   if (!watcher)
-      invBlockStack_ = make_shared<BlockingQueue<vector<InvEntry>>>();
+   if (!watcher) {
+      invBlockStack_ = std::make_shared<BlockingQueue<InvVector>>();
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -836,32 +1199,52 @@ BitcoinNodeInterface::~BitcoinNodeInterface()
 ////////////////////////////////////////////////////////////////////////////////
 void BitcoinNodeInterface::shutdown()
 {
-   if (!run_.load(memory_order_relaxed))
-      return;
-
    //clean up remaining lambdas
-   if (invBlockStack_ != nullptr)
+   if (invBlockStack_ != nullptr) {
       invBlockStack_->terminate();
+      invBlockStack_ = nullptr;
+   }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void BitcoinNodeInterface::processInvBlock(vector<InvEntry> invVec)
+////////
+bool BitcoinNodeInterface::isSegWit() const
 {
-   if (invBlockStack_ != nullptr)
-      invBlockStack_->push_back(move(invVec));
+   return isSegWit_;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void BitcoinNodeInterface::registerInvTxLambda(
-   function<void(vector<InvEntry>)> func)
+////
+MagicWordType BitcoinNodeInterface::getMagicWord() const
 {
-   invTxLambda_ = move(func);
+   return magicWord_;
+}
+
+////
+std::shared_ptr<BlockingQueue<InvVector>>
+BitcoinNodeInterface::getInvBlockStack() const
+{
+   return invBlockStack_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinNodeInterface::registerNodeStatusLambda(function<void(void)> lbd)
-{ 
-   nodeStatusLambda_ = lbd; 
+void BitcoinNodeInterface::processInvBlock(InvVector invVec)
+{
+   if (invBlockStack_ != nullptr) {
+      invBlockStack_->push_back(std::move(invVec));
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void BitcoinNodeInterface::registerInvTxCallback(
+   const std::function<void(InvVector)>& func)
+{
+   invTxLambda_ = func;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void BitcoinNodeInterface::registerNodeStatusCallback(
+   const std::function<void(void)>& lbd)
+{
+   nodeStatusLambda_ = lbd;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -872,35 +1255,36 @@ void BitcoinNodeInterface::registerGetTxCallback(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinNodeInterface::processInvTx(vector<InvEntry> invVec)
+void BitcoinNodeInterface::processInvTx(InvVector invVec)
 {
-   if (invTxLambda_)
+   if (invTxLambda_) {
       invTxLambda_(invVec);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinNodeInterface::processGetTx(unique_ptr<Payload> payload)
+void BitcoinNodeInterface::processGetTx(std::unique_ptr<Payload> payload)
 {
-   if (getTxDataLambda_)
-      getTxDataLambda_(move(payload));
+   if (getTxDataLambda_) {
+      getTxDataLambda_(std::move(payload));
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinNodeInterface::requestTx(vector<InvEntry> invVec)
+void BitcoinNodeInterface::requestTx(InvVector invVec)
 {
    /*
    Send getdata payload to bitcoin node to request transactions. Node
    reply will be processed in processGetTx
    */
 
-   for (auto& entry : invVec)
-   {
-      if (entry.invtype_ != Inv_Msg_Tx && entry.invtype_ != Inv_Msg_Witness_Tx)
+   for (const auto& entry : invVec) {
+      if (entry.invtype != Inv_Msg_Tx && entry.invtype!= Inv_Msg_Witness_Tx) {
         throw GetDataException("entry type isnt Inv_Msg_Tx");
+      }
    }
-
-   auto payload = make_unique<Payload_GetData>(move(invVec));
-   sendMessage(move(payload));
+   auto payload = std::make_unique<Payload_GetData>(std::move(invVec));
+   sendMessage(std::move(payload));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -909,7 +1293,7 @@ void BitcoinNodeInterface::requestTx(vector<InvEntry> invVec)
 ////
 ////////////////////////////////////////////////////////////////////////////////
 BitcoinP2P::BitcoinP2P(
-   const string& addrV4, const string& port,
+   const std::string& addrV4, const std::string& port,
    uint32_t magicword, bool watcher) :
    BitcoinNodeInterface(magicword, watcher), addr_(addrV4), port_(port)
 {
@@ -919,119 +1303,108 @@ BitcoinP2P::BitcoinP2P(
 ////////////////////////////////////////////////////////////////////////////////
 BitcoinP2P::~BitcoinP2P()
 {
-   if (invBlockStack_ != nullptr)
+   if (invBlockStack_ != nullptr) {
       invBlockStack_->terminate();
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void BitcoinP2P::init()
 {
-   nodeConnected_.store(false, memory_order_relaxed);
-   run_.store(true, memory_order_relaxed);
+   nodeConnected_.store(false, std::memory_order_relaxed);
+   run_.store(true, std::memory_order_relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void BitcoinP2P::connectToNode(bool async)
 {
-   unique_lock<mutex> lock(connectMutex_, defer_lock);
-
-   if (!lock.try_lock()) //return if another thread is already here
+   std::unique_lock<std::mutex> lock(connectMutex_, std::defer_lock);
+   if (!lock.try_lock() || connectedPromise_ != nullptr) {
+      //return if another thread is already here
       throw SocketError("another connect attempt is underway");
+   }
 
-   connectedPromise_ = unique_ptr<promise<bool>>(new promise<bool>());
+   connectedPromise_ = std::unique_ptr<std::promise<bool>>(new std::promise<bool>());
    auto connectedFuture = connectedPromise_->get_future();
 
-   auto connectLambda = [this](void)->void
-   {
-      this->connectLoop();
-   };
-
-   thread connectthread(connectLambda);
-   if (connectthread.joinable())
+   std::thread connectthread([this]{ connectLoop(); });
+   if (connectthread.joinable()) {
       connectthread.detach();
+   }
 
-   if (async)
+   if (async) {
       return;
+   }
 
    connectedFuture.get();
-
-   if (select_except_ != nullptr)
-      rethrow_exception(select_except_);
-
-   if (process_except_ != nullptr)
-      rethrow_exception(process_except_);
+   if (process_except_ != nullptr) {
+      std::rethrow_exception(process_except_);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void BitcoinP2P::connectLoop(void)
 {
-   size_t waitBeforeReconnect = 0;
-   promise<bool> shutdownPromise;
+   auto waitBeforeReconnect = 0ms;
+   std::promise<bool> shutdownPromise;
    shutdownFuture_ = shutdownPromise.get_future();
 
-   if (!invTxLambda_)
+   if (!invTxLambda_) {
       throw SocketError("BitcoinP2P object is not initialized");
+   }
 
-   while (run_.load(memory_order_relaxed))
-   {
-      //clean up stacks
-      dataStack_ = make_shared<BlockingQueue<vector<uint8_t>>>();
-      socket_ = make_unique<BitcoinP2PSocket>(addr_, port_, dataStack_);
-
-      verackPromise_ = make_unique<promise<bool>>();
+   while (run_.load(std::memory_order_relaxed)) {
+      //setup fresh connection
+      dataStack_ = std::make_shared<BlockingQueue<std::vector<uint8_t>>>();
+      socket_ = std::make_unique<BitcoinP2PSocket>(addr_, port_, dataStack_);
+      verackPromise_ = std::make_unique<std::promise<bool>>();
       auto verackFuture = verackPromise_->get_future();
 
-      while (run_.load(memory_order_relaxed))
-      {
-         if (socket_->openSocket(false))
+      while (run_.load(std::memory_order_relaxed)) {
+         if (socket_->openSocket(false)) {
             break;
+         }
 
-         if (waitBeforeReconnect < 5000)
-            waitBeforeReconnect += RECONNECT_INCREMENT_MS;
-
-         this_thread::sleep_for(chrono::milliseconds(waitBeforeReconnect));
+         waitBeforeReconnect = std::min(
+            waitBeforeReconnect + RECONNECT_DELAY, 5000ms);
+         std::this_thread::sleep_for(waitBeforeReconnect);
+      }
+      if (!socket_->isValid()) {
+         break;
       }
 
       auto processThread = [this](void)->void
       {
-         try
-         {
+         try {
             this->processDataStackThread();
-         }
-         catch (...)
-         {
-            this->process_except_ = current_exception();
+         } catch (...) {
+            this->process_except_ = std::current_exception();
          }
       };
-
       socket_->connectToRemote();
-      thread processThr(processThread);
+      std::thread processThr(processThread);
 
       //send version payload
-      auto version = make_unique<Payload_Version>();
+      auto version = std::make_unique<Payload_Version>();
       auto timestamp = getTimeStamp();
 
       struct sockaddr clientsocketaddr;
-
-      try
-      {
+      try {
          //send version
-         if (socket_->getSocketName(clientsocketaddr) != 0)
+         if (socket_->getSocketName(clientsocketaddr) != 0) {
             throw SocketError("failed to get client sockaddr");
-
-         if (socket_->getPeerName(node_addr_) != 0)
+         }
+         if (socket_->getPeerName(node_addr_) != 0) {
             throw SocketError("failed to get peer sockaddr");
+         }
 
          // Services, for future extensibility
          uint32_t services = NODE_WITNESS;
-
          version->setVersionHeaderIPv4(70012, services, timestamp,
             node_addr_, clientsocketaddr);
-
          version->userAgent_ = "Armory:0.96.5";
          version->startHeight_ = -1;
-
-         sendMessage(move(version));
+         sendMessage(std::move(version));
 
          //wait on verack
          verackFuture.get();
@@ -1041,288 +1414,254 @@ void BitcoinP2P::connectLoop(void)
 
          //signal calling thread
          connectedPromise_->set_value(true);
-         waitBeforeReconnect = 0;
+         waitBeforeReconnect = 0ms;
 
          //signal new blocks for good measure
-         processInvBlock(move(vector<InvEntry>()));
-      }
-      catch (...)
-      {
-         waitBeforeReconnect += RECONNECT_INCREMENT_MS;
-         this_thread::sleep_for(chrono::milliseconds(waitBeforeReconnect));
+         processInvBlock({});
+      } catch (...) {
+         waitBeforeReconnect += RECONNECT_DELAY;
+         std::this_thread::sleep_for(waitBeforeReconnect);
       }
 
       //wait on threads
-      if (processThr.joinable())
+      if (processThr.joinable()) {
          processThr.join();
-      
+      }
       //close socket to guarantee select returns
-      if (socket_->isValid())
+      if (socket_->isValid()) {
          socket_->shutdown();
-
+      }
       LOGINFO << "Disconnected from Bitcoin node";
       updateNodeStatus(false);
    }
-
    shutdownPromise.set_value(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void BitcoinP2P::processDataStackThread()
 {
-   try
-   {
-      shared_ptr<Payload::DeserializedPayloads> packetPtr;
-
-      while (1)
-      {
-         shared_ptr<Payload::DeserializedPayloads> prevPacket = packetPtr;
+   try {
+      std::shared_ptr<Payload::DeserializedPayloads> packetPtr;
+      while (true) {
+         auto prevPacket = packetPtr;
          packetPtr.reset();
 
-         auto&& data = dataStack_->pop_front();
-         auto&& processedPacket = Payload::deserialize(
+         auto data = std::move(dataStack_->pop_front());
+         auto processedPacket = Payload::deserialize(
             data, getMagicWord(), prevPacket);
 
-         if (processedPacket->spillOffset_ != SIZE_MAX)
-         {
+         if (processedPacket->spillOffset_ != SIZE_MAX) {
             packetPtr = processedPacket;
          }
-
-         processPayload(move(processedPacket->payloads_));
+         processPayload(std::move(processedPacket->payloads_));
       }
-   }
-   catch (StopBlockingLoop&)
-   {
+   } catch (const StopBlockingLoop&) {
       LOGERR << "caught StopBlockingLoop in processDataStackThread";
    }
-   catch (BitcoinP2P_Exception& e)
-   {
-      LOGERR << "caught BitcoinP2P_Exception in processDataStackThread: "
-         << e.what();
-   }
-   catch (exception& e)
-   {
-      LOGERR << "caught exception in processDataStackThread: "
-         << e.what();
-   }
-   catch (...)
-   {
-
-      LOGERR << "caught unkown exception in processDataStackThread";
-   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinP2P::processPayload(vector<unique_ptr<Payload>> payloadVec)
+void BitcoinP2P::processPayload(
+   std::vector<std::unique_ptr<Payload>> payloadVec)
 {
-   for (auto&& payload : payloadVec)
-   {
+   for (auto&& payload : payloadVec) {
       switch (payload->type())
       {
-      case Payload_version:
-         checkServices(move(payload));
-         returnVerack();
-         break;
+         case PayloadType::Version:
+         {
+            checkServices(std::move(payload));
+            returnVerack();
+            break;
+         }
 
-      case Payload_verack:
-         gotVerack();
-         break;
+         case PayloadType::VerAck:
+            gotVerack();
+            break;
 
-      case Payload_ping:
-         replyPong(move(payload));
-         break;
+         case PayloadType::Ping:
+            replyPong(std::move(payload));
+            break;
 
-      case Payload_inv:
-         processInv(move(payload));
-         break;
+         case PayloadType::Inv:
+            processInv(std::move(payload));
+            break;
 
-      case Payload_getdata:
-         processGetData(move(payload));
-         break;
+         case PayloadType::GetData:
+            processGetData(std::move(payload));
+            break;
 
-      case Payload_tx:
-         processGetTx(move(payload));
-         break;
+         case PayloadType::Tx:
+            processGetTx(std::move(payload));
+            break;
 
-      case Payload_reject:
-         processReject(move(payload));
-         break;
+         case PayloadType::Reject:
+            processReject(std::move(payload));
+            break;
 
-      default:
-         continue;
+         default:
+            continue;
       }
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinP2P::checkServices(unique_ptr<Payload> payload)
+void BitcoinP2P::checkServices(std::unique_ptr<Payload> payload)
 {
-   Payload_Version* pver = (Payload_Version*)payload.get();
-
-   auto& this_mw = Armory::Config::BitcoinSettings::getMagicBytes();
-   auto mwInt = (uint32_t*)this_mw.getPtr();
-
+   auto pver = (Payload_Version*)payload.get();
+   const auto& mw = Armory::Config::BitcoinSettings::getMagicBytes();
    auto magicWord = getMagicWord();
-   if(*mwInt != magicWord)
-   {
-      BinaryDataRef bdr_mw;
-      bdr_mw.setRef((uint8_t*)&magicWord, 4);
+
+   if (memcmp(mw.getPtr(), &magicWord, 4)) {
+      BinaryDataRef bdrMw;
+      bdrMw.setRef((uint8_t*)&magicWord, 4);
 
       LOGERR << "Node magic word does not match expected magic word:";
-      LOGERR << "   expected: " << this_mw.toHexStr();
-      LOGERR << "   got: " << bdr_mw.toHexStr();
-      throw BitcoinP2P_Exception("magic word mismatch");
+      LOGERR << "   expected: " << mw.toHexStr();
+      LOGERR << "   got: " << bdrMw.toHexStr();
+      throw NodeException("magic word mismatch");
    }
 
-   if(pver->vheader_.services_ & NODE_WITNESS)
-      PEER_USES_WITNESS = true;
-   else
-      PEER_USES_WITNESS = false;
-
+   if (pver->vheader_.services_ & NODE_WITNESS) {
+      isSegWit_ = true;
+   } else {
+      isSegWit_ = false;
+   }
    topBlock_ = pver->startHeight_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinP2P::gotVerack(void)
+void BitcoinP2P::gotVerack()
 {
-   if (verackPromise_ == nullptr)
+   if (verackPromise_ == nullptr) {
       return;
-
-   try
-   {
-      verackPromise_->set_value(true);
    }
-   catch (future_error&)
-   {
+   try {
+      verackPromise_->set_value(true);
+   } catch (const std::future_error&) {
       //already set or no shared state, move on
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinP2P::returnVerack(void)
+void BitcoinP2P::returnVerack()
 {
-   auto verack = make_unique<Payload_Verack>();
-   sendMessage(move(verack));
+   sendMessage(std::make_unique<Payload_Verack>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinP2P::replyPong(unique_ptr<Payload> payload)
+void BitcoinP2P::replyPong(std::unique_ptr<Payload> payload)
 {
    Payload_Ping* pping = (Payload_Ping*)payload.get();
-   auto ppong = make_unique<Payload_Pong>();
+   auto ppong = std::make_unique<Payload_Pong>();
 
    ppong->nonce_ = pping->nonce_;
-   sendMessage(move(ppong));
+   sendMessage(std::move(ppong));
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinP2P::processInv(unique_ptr<Payload> payload)
+void BitcoinP2P::processInv(std::unique_ptr<Payload> payload)
 {
    Payload_Inv* invptr = (Payload_Inv*)payload.get();
 
    //order entries by type
-   map<InvType, vector<InvEntry>> orderedEntries;
-   
-   for (auto& entry : invptr->invVector_)
-   {
-      auto& invvec = orderedEntries[entry.invtype_];
-      invvec.push_back(move(entry));
+   std::map<InvType, InvVector> orderedEntries;
+   for (auto& entry : invptr->invVector_) {
+      auto& invvec = orderedEntries[entry.invtype];
+      invvec.emplace_back(std::move(entry));
    }
 
    //process them
-   for (auto& entryVec : orderedEntries)
-   {
+   for (auto& entryVec : orderedEntries) {
       switch (entryVec.first)
       {
-      case Inv_Msg_Witness_Block:
-      case Inv_Msg_Block:
-      {
-         //1 sec delay to make sure data is written on disk
-         this_thread::sleep_for(chrono::seconds(1));
-         processInvBlock(move(entryVec.second));
-         break;
-      }
+         case Inv_Msg_Witness_Block:
+         case Inv_Msg_Block:
+         {
+            //1 sec delay to make sure data is written on disk
+            std::this_thread::sleep_for(1s);
+            processInvBlock(std::move(entryVec.second));
+            break;
+         }
 
-      case Inv_Msg_Witness_Tx:
-      case Inv_Msg_Tx:         
-         processInvTx(move(entryVec.second));
-         break;
+         case Inv_Msg_Witness_Tx:
+         case Inv_Msg_Tx:
+            processInvTx(std::move(entryVec.second));
+            break;
 
-      default:
-         continue;
+         default:
+            continue;
       }
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinP2P::processGetData(unique_ptr<Payload> payload)
+void BitcoinP2P::processGetData(std::unique_ptr<Payload> payload)
 {
    auto payloadgetdata = (Payload_GetData*)payload.get();
-
    auto& invvector = payloadgetdata->getInvVector();
    auto getdatamap = getDataPayloadMap_.get();
 
-   vector<unique_ptr<Payload>> payloadVec;
-   for (auto& entry : invvector)
-   {
+   std::vector<std::unique_ptr<Payload>> payloadVec;
+   for (auto& entry : invvector) {
       BinaryDataRef bdr(entry.hash, 32);
 
       auto payloadIter = getdatamap->find(bdr);
-      if (payloadIter == getdatamap->end())
+      if (payloadIter == getdatamap->end()) {
          continue;
-      
-      payloadVec.push_back(move(payloadIter->second->payload_));
+      }
+      payloadVec.emplace_back(std::move(payloadIter->second->payload_));
       getDataPayloadMap_.erase(payloadIter->first);
    }
-
-   sendMessage(move(payloadVec));
+   sendMessage(std::move(payloadVec));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinP2P::processReject(unique_ptr<Payload> payload)
+void BitcoinP2P::processReject(std::unique_ptr<Payload> payload)
 {
-   if (payload->type() != Payload_reject)
-   {
+   if (payload->type() != PayloadType::Reject) {
       LOGERR << "processReject: expected payload_reject type, got " <<
          payload->typeStr() << " instead";
       return;
    }
-
-   processGetTx(move(payload));
+   processGetTx(std::move(payload));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinP2P::sendMessage(unique_ptr<Payload> payload)
+void BitcoinP2P::sendMessage(std::unique_ptr<Payload> payload)
 {
-   auto&& msg = payload->serialize(getMagicWord());
+   auto msg = payload->serialize(getMagicWord());
 
-   unique_lock<mutex> lock(writeMutex_);
-   auto socket_payload = make_unique<WritePayload_Raw>();
-   socket_payload->data_ = move(msg);
-   socket_->pushPayload(move(socket_payload), nullptr);
+   std::unique_lock<std::mutex> lock(writeMutex_);
+   auto socket_payload = std::make_unique<WritePayload_Raw>(msg);
+   socket_->pushPayload(std::move(socket_payload), nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinP2P::sendMessage(vector<unique_ptr<Payload>> payloadVec)
+void BitcoinP2P::sendMessage(std::vector<std::unique_ptr<Payload>> payloadVec)
 {
-   vector<uint8_t> msg;
+   std::vector<uint8_t> msg;
    size_t totalSize = 0;
-   for (auto& payload : payloadVec)
+   for (auto& payload : payloadVec) {
       totalSize += payload->getSerializedSize();
+   }
 
    msg.resize(totalSize);
    size_t offset = 0;
-   for (auto& payload : payloadVec)
-   {
+   for (auto& payload : payloadVec) {
       offset += payload->serialize(
          getMagicWord(), &msg[0] + offset, msg.size() - offset);
    }
 
-   unique_lock<mutex> lock(writeMutex_);
-   auto socket_payload = make_unique<WritePayload_Raw>();
-   socket_payload->data_ = move(msg);
-   socket_->pushPayload(move(socket_payload), nullptr);
+   std::unique_lock<std::mutex> lock(writeMutex_);
+   auto socket_payload = std::make_unique<WritePayload_Raw>(msg);
+   socket_->pushPayload(std::move(socket_payload), nullptr);
+}
+
+void BitcoinP2P::callback() const
+{
+   if (nodeStatusLambda_) {
+      nodeStatusLambda_();
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1334,23 +1673,31 @@ int64_t BitcoinP2P::getTimeStamp() const
 ////////////////////////////////////////////////////////////////////////////////
 void BitcoinP2P::shutdown()
 {
-   if (!run_.load(memory_order_relaxed))
+   if (!run_.load(std::memory_order_relaxed)) {
       return;
+   }
+   run_.store(false, std::memory_order_relaxed);
 
-   if (socket_ != nullptr)
-   {
+   if (socket_ != nullptr) {
+      auto start = std::chrono::system_clock::now();
       socket_->shutdown();
-
-      //wait until connect loop exists
       shutdownFuture_.wait();
    }
+
+   //have to call the parent class shutdown explicitly
+   BitcoinNodeInterface::shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void BitcoinP2P::updateNodeStatus(bool connected)
 {
-   nodeConnected_.store(connected, memory_order_release);
+   nodeConnected_.store(connected, std::memory_order_relaxed);
    callback();
+}
+
+bool BitcoinP2P::connected() const
+{
+   return nodeConnected_.load(std::memory_order_relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1358,25 +1705,37 @@ void BitcoinP2P::updateNodeStatus(bool connected)
 // BitcoinP2PSocket
 //
 ////////////////////////////////////////////////////////////////////////////////
-void  BitcoinP2PSocket::respond(vector<uint8_t>& packet)
-{
+BitcoinP2PSocket::BitcoinP2PSocket(
+   const std::string& addr, const std::string& port,
+   std::shared_ptr<BlockingQueue<std::vector<uint8_t>>> readStack) :
+   PersistentSocket(addr, port), readDataStack_(readStack)
+{}
 
-   if (packet.size() > 0)
-      readDataStack_->push_back(move(packet));
-   else
-      readDataStack_->terminate();
+SocketType BitcoinP2PSocket::type() const
+{
+   return SocketType::BitcoinP2P;
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-void BitcoinP2PSocket::pushPayload(
-   unique_ptr<Socket_WritePayload> write_payload,
-   shared_ptr<Socket_ReadPayload>)
+////////
+void BitcoinP2PSocket::respond(std::vector<uint8_t>& packet)
 {
-   if (write_payload == nullptr)
-      return;
 
-   vector<uint8_t> data;
+   if (!packet.empty()) {
+      readDataStack_->push_back(std::move(packet));
+   } else {
+      readDataStack_->terminate();
+   }
+}
+
+////////
+void BitcoinP2PSocket::pushPayload(
+   std::unique_ptr<Socket_WritePayload> write_payload,
+   std::shared_ptr<Socket_ReadPayload>)
+{
+   if (write_payload == nullptr) {
+      return;
+   }
+   std::vector<uint8_t> data;
    write_payload->serialize(data);
    queuePayloadForWrite(data);
 }

@@ -11,17 +11,16 @@
 
 #include <mutex>
 #include <memory>
+#include <list>
 #include <string>
 #include <functional>
+#include <filesystem>
 
 #include "SocketObject.h"
 #include "StringSockets.h"
-#include "BtcUtils.h"
 
-#include "JSON_codec.h"
-
-#include "ReentrantLock.h"
-#include "ArmoryConfig.h"
+#include "Utils/JSON_codec.h"
+#include "Utils/ReentrantLock.h"
 
 namespace CoreRPC
 {
@@ -33,7 +32,7 @@ namespace CoreRPC
 ////
 enum NodeState
 {
-   NodeState_Offline,
+   NodeState_Offline = 0,
    NodeState_Online,
    NodeState_OffSync
 };
@@ -41,7 +40,7 @@ enum NodeState
 ////
 enum RpcState
 {
-   RpcState_Disabled,
+   RpcState_Disabled = 0,
    RpcState_BadAuth,
    RpcState_Online,
    RpcState_Error_28
@@ -50,7 +49,7 @@ enum RpcState
 ////
 enum ChainState
 {
-   ChainState_Unknown,
+   ChainState_Unknown = 0,
    ChainState_Syncing,
    ChainState_Ready
 };
@@ -59,7 +58,7 @@ enum ChainState
 class RpcError : public std::runtime_error
 {
 public:
-   RpcError(void) : 
+   RpcError(void) :
       std::runtime_error("RpcError")
    {}
 
@@ -181,14 +180,12 @@ private:
 
    RpcState previousState_ = RpcState_Disabled;
    std::condition_variable pollCondVar_;
-
-
    std::vector<std::thread> thrVec_;
    std::atomic<bool> run_ = { true };
 
 private:
    std::string getAuthString(void);
-   std::string getDatadir(void);
+   std::filesystem::path getDatadir(void);
 
    std::string queryRPC(JSON_object&);
    std::string queryRPC(HttpSocket&, JSON_object&);

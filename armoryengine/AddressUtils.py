@@ -149,7 +149,7 @@ def hash160_to_p2shAddrStr(binStr):
       raise InvalidHashError('Input string is %d bytes' % len(binStr))
 
    packer = BinaryPacker()
-   packer.put(BINARY_CHUNK, netbyte)
+   packer.put(BINARY_CHUNK, P2SHBYTE)
    packer.put(BINARY_CHUNK, binStr)
    hash21 = hash256(packer.getBinaryString())
    packer.put(BINARY_CHUNK, hash21[:4])
@@ -389,3 +389,45 @@ def LOGRAWDATA(rawStr, loglevel=DEFAULT_RAWDATA_LOGLEVEL):
       pstr = '   ' + '\n   '.join(pstr.split('\n'))
 
    logging.log(loglevel, methodStr + pstr)
+
+################################################################################
+class Balances(object):
+   def __init__(self, full=0, spendable=0, unconfirmed=0, txCount=-1):
+      self._full = full
+      self._spendable = spendable
+      self._unconfirmed = unconfirmed
+      self._txCount = txCount
+
+   @staticmethod
+   def fromProto(proto):
+      return Balances(
+         proto.full,
+         proto.spendable,
+         proto.unconfirmed,
+         proto.txnCount)
+
+   @property
+   def full(self):
+      return self._full
+
+   @property
+   def spendable(self):
+      return self._spendable
+
+   @property
+   def unconfirmed(self):
+      return self._unconfirmed
+
+   @property
+   def txCount(self):
+      return self._txCount
+
+   def getBalance(self, balType="Spendable"):
+      if balType.lower() in ('spendable','spend'):
+         return self.spendable
+      elif balType.lower() in ('unconfirmed','unconf'):
+         return self.unconfirmed
+      elif balType.lower() in ('total','ultimate','unspent','full'):
+         return self.full
+      else:
+         raise TypeError('Unknown balance type! "' + balType + '"')

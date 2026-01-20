@@ -1,24 +1,37 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2011-2019, Armory Technologies, Inc.                        //
+//  Copyright (C) 2011-2015, Armory Technologies, Inc.                        //
 //  Distributed under the GNU Affero General Public License (AGPL v3)         //
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
+//                                                                            //
+//  Copyright (C) 2016-2025, goatpig                                          //
+//  Distributed under the MIT license                                         //
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
+//                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
+#include <algorithm>
+
 #include "BlockDataViewer.h"
+#include <BlockchainDatabase/BlockUtils.h>
+#include <BlockchainDatabase/lmdb_wrapper.h>
+#include <Utils/DBUtils.h>
+#include <ZeroConf/Parser.h>
+#include <ZeroConf/Utils.h>
+#include <ZeroConf/Notifications.h>
+#include <Ledgers/LedgerEntry.h>
 
 using namespace std;
+using namespace Armory;
 
 /////////////////////////////////////////////////////////////////////////////
-BlockDataViewer::BlockDataViewer(BlockDataManager* bdm) :
-   rescanZC_(false), zeroConfCont_(bdm->zeroConfCont())
+BlockDataViewer::BlockDataViewer(std::shared_ptr<BlockDataManager> bdm) :
+   bdm_(bdm), rescanZC_(false), zeroConfCont_(bdm->zeroConfCont())
 {
    db_ = bdm->getIFace();
    bc_ = bdm->blockchain();
    saf_ = bdm->getScrAddrFilter().get();
    zc_ = bdm->zeroConfCont().get();
-
-   bdmPtr_ = bdm;
 
    groups_.push_back(WalletGroup(this, saf_));
    groups_.push_back(WalletGroup(this, saf_));
@@ -33,29 +46,58 @@ BlockDataViewer::~BlockDataViewer()
 }
 
 /////////////////////////////////////////////////////////////////////////////
-void BlockDataViewer::registerWallet(
-   shared_ptr<::Codec_BDVCommand::BDVCommand> msg)
+bool BlockDataViewer::isBDMRunning() const
 {
-   groups_[group_wallet].registerAddresses(msg);
+   if (bdm_ == nullptr) {
+      return false;
+   }
+   return bdm_->isRunning();
+}
+
+////
+void BlockDataViewer::blockUntilBDMisReady() const
+{
+   if (bdm_ == nullptr) {
+      throw std::runtime_error("no bdmPtr_");
+   }
+   bdm_->blockUntilReady();
+}
+
+////
+bool BlockDataViewer::isZcEnabled() const
+{
+   if (bdm_ == nullptr) {
+      return false;
+   }
+   return bdm_->isZcEnabled();
 }
 
 /////////////////////////////////////////////////////////////////////////////
-void BlockDataViewer::registerLockbox(
-   shared_ptr<::Codec_BDVCommand::BDVCommand> msg)
+void BlockDataViewer::registerAWallet(WalletRegistrationRequest& request)
 {
-   groups_[group_lockbox].registerAddresses(msg);
+   switch (request.type)
+   {
+      case WalletRegType::WALLET:
+         groups_[group_wallet].registerAddresses(request);
+         break;
+
+      case WalletRegType::LOCKBOX:
+         groups_[group_lockbox].registerAddresses(request);
+         break;
+
+      default:
+         LOGWARN << "invalid wallet registration group!";
+   }
 }
 
 /////////////////////////////////////////////////////////////////////////////
-void BlockDataViewer::unregisterWallet(const string& IDstr)
+void BlockDataViewer::unregisterWallet(const string& walletID)
 {
-   groups_[group_wallet].unregisterWallet(IDstr);
-}
-
-/////////////////////////////////////////////////////////////////////////////
-void BlockDataViewer::unregisterLockbox(const string& IDstr)
-{
-   groups_[group_lockbox].unregisterWallet(IDstr);
+   for (auto& group : groups_) {
+      if (group.hasID(walletID)) {
+         group.unregisterWallet(walletID);
+      }
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,125 +113,110 @@ void BlockDataViewer::scanWallets(shared_ptr<BDV_Notification> action)
    ScanWalletStruct scanData;
    vector<LedgerEntry>* leVecPtr = nullptr;
 
-   switch (action->action_type())
+   switch (action->actionType())
    {
-   case BDV_Init:
-   {
-      prevTopBlock = startBlock = 0;
-      endBlock = blockchain().top()->getBlockHeight();
-      refresh = true;
-      break;
-   }
+      case BDV_Init:
+      {
+         prevTopBlock = startBlock = 0;
+         endBlock = blockchain().top()->getBlockHeight();
+         refresh = true;
+         break;
+      }
 
-   case BDV_NewBlock:
-   {
-      auto reorgNotif =
-         dynamic_pointer_cast<BDV_Notification_NewBlock>(action);
-      auto& reorgState = reorgNotif->reorgState_;
-         
-      if (!reorgState.hasNewTop_)
+      case BDV_NewBlock:
+      {
+         auto reorgNotif =
+            std::dynamic_pointer_cast<BDV_Notification_NewBlock>(action);
+         auto& reorgState = reorgNotif->reorgState;
+
+         if (!reorgState.hasNewTop) {
+            return;
+         }
+
+         if (!reorgState.prevTopStillValid) {
+            //reorg
+            reorg = true;
+            startBlock = reorgState.reorgBranchPoint->getBlockHeight();
+         } else {
+            startBlock = reorgState.prevTop->getBlockHeight();
+         }
+         endBlock = reorgState.newTop->getBlockHeight();
+
+         //set invalidated keys
+         if (reorgNotif->zcPurgePacket != nullptr) {
+            scanData.saStruct_.invalidatedZcKeys_ =
+               &reorgNotif->zcPurgePacket->invalidatedZcKeys;
+
+            //carry zc state
+            scanData.saStruct_.zcState_ = reorgNotif->zcPurgePacket->ssPtr;
+            scanData.saStruct_.scrAddrToTxioKeys_ =
+               reorgNotif->zcPurgePacket->scrAddrToTxioKeys;
+         }
+
+         prevTopBlock = reorgState.prevTop->getBlockHeight() + 1;
+         break;
+      }
+
+      case BDV_ZC:
+      {
+         auto zcAction = std::dynamic_pointer_cast<BDV_Notification_ZC>(action);
+         scanData.saStruct_.scrAddrToTxioKeys_ =
+            std::move(zcAction->packet->scrAddrToTxioKeys);
+
+         scanData.saStruct_.zcState_ = zcAction->packet->ssPtr;
+         scanData.saStruct_.newKeysAndScrAddr_ =
+            zcAction->packet->newKeysAndScrAddr;
+
+         if (zcAction->packet->purgePacket != nullptr) {
+            scanData.saStruct_.invalidatedZcKeys_ =
+               &zcAction->packet->purgePacket->invalidatedZcKeys;
+         }
+
+         leVecPtr = &zcAction->leVec;
+         prevTopBlock = startBlock = endBlock =
+            blockchain().top()->getBlockHeight();
+         break;
+      }
+
+      case BDV_Refresh:
+      {
+         auto refreshNotif =
+            std::dynamic_pointer_cast<BDV_Notification_Refresh>(action);
+
+         if (refreshNotif->refresh == BDV_refreshSkipRescan) {
+            //only flagged the wallet to send a refresh notification, do not
+            //perform any other operations
+            ++updateID_;
+            return;
+         }
+
+         scanData.saStruct_.scrAddrToTxioKeys_ =
+            std::move(refreshNotif->zcPacket->scrAddrToTxioKeys);
+         scanData.saStruct_.zcState_ = refreshNotif->zcPacket->ssPtr;
+         refresh = true;
+         break;
+      }
+
+      default:
          return;
-    
-      if (!reorgState.prevTopStillValid_)
-      {
-         //reorg
-         reorg = true;
-         startBlock = reorgState.reorgBranchPoint_->getBlockHeight();
-      }
-      else
-      {
-         startBlock = reorgState.prevTop_->getBlockHeight();
-      }
-         
-      endBlock = reorgState.newTop_->getBlockHeight();
-
-      //set invalidated keys
-      if (reorgNotif->zcPurgePacket_ != nullptr)
-      {
-         scanData.saStruct_.invalidatedZcKeys_ =
-            &reorgNotif->zcPurgePacket_->invalidatedZcKeys_;
-
-         //carry zc state
-         scanData.saStruct_.zcState_ = reorgNotif->zcPurgePacket_->ssPtr_;
-         scanData.saStruct_.scrAddrToTxioKeys_ = 
-            reorgNotif->zcPurgePacket_->scrAddrToTxioKeys_;
-      }
-
-      prevTopBlock = reorgState.prevTop_->getBlockHeight() + 1;
-
-      break;
-   }
-   
-   case BDV_ZC:
-   {
-      auto zcAction = 
-         dynamic_pointer_cast<BDV_Notification_ZC>(action);
-      
-      scanData.saStruct_.scrAddrToTxioKeys_ = 
-         move(zcAction->packet_.scrAddrToTxioKeys_);
-
-      scanData.saStruct_.zcState_ = zcAction->packet_.ssPtr_;
-
-      scanData.saStruct_.newKeysAndScrAddr_ = 
-         zcAction->packet_.newKeysAndScrAddr_;
-
-      if (zcAction->packet_.purgePacket_ != nullptr)
-      {
-         scanData.saStruct_.invalidatedZcKeys_ =
-            &zcAction->packet_.purgePacket_->invalidatedZcKeys_;
-      }
-
-      leVecPtr = &zcAction->leVec_;
-      prevTopBlock = 
-      startBlock = 
-      endBlock = blockchain().top()->getBlockHeight();
-
-      break;
    }
 
-   case BDV_Refresh:
-   {
-      auto refreshNotif =
-         dynamic_pointer_cast<BDV_Notification_Refresh>(action);
-
-      if (refreshNotif->refresh_ == BDV_refreshSkipRescan)
-      {
-         //only flagged the wallet to send a refresh notification, do not
-         //perform any other operations
-         ++updateID_;
-         return;
-      }
-
-      scanData.saStruct_.scrAddrToTxioKeys_ =
-         move(refreshNotif->zcPacket_.scrAddrToTxioKeys_);
-
-      scanData.saStruct_.zcState_ = refreshNotif->zcPacket_.ssPtr_;
-
-      refresh = true;
-      break;
-   }
-
-   default:
-      return;
-   }
-   
    scanData.prevTopBlockHeight_ = prevTopBlock;
    scanData.endBlock_ = endBlock;
-   scanData.action_ = action->action_type();
+   scanData.action_ = action->actionType();
    scanData.reorg_ = reorg;
 
-   vector<uint32_t> startBlocks;
-   for (size_t i = 0; i < groups_.size(); i++)
-      startBlocks.push_back(startBlock);
+   std::vector<uint32_t> startBlocks;
+   startBlocks.reserve(groups_.size());
+   for (size_t i = 0; i < groups_.size(); i++) {
+      startBlocks.emplace_back(startBlock);
+   }
 
    auto sbIter = startBlocks.begin();
-   for (auto& group : groups_)
-   {
-      if (group.pageHistory(refresh, false))
-      {
+   for (auto& group : groups_) {
+      if (group.pageHistory(refresh, false)) {
          *sbIter = group.hist_.getPageBottom(0);
       }
-         
       sbIter++;
    }
 
@@ -197,20 +224,18 @@ void BlockDataViewer::scanWallets(shared_ptr<BDV_Notification> action)
    ++updateID_;
 
    sbIter = startBlocks.begin();
-   for (auto& group : groups_)
-   {
+   for (auto& group : groups_) {
       scanData.startBlock_ = *sbIter;
       group.scanWallets(scanData, updateID_);
 
       sbIter++;
    }
 
-   if (leVecPtr != nullptr)
-   {
-      for (auto& walletLedgerMap : scanData.saStruct_.zcLedgers_)
-      {
-         for(auto& lePair : walletLedgerMap.second)
+   if (leVecPtr != nullptr) {
+      for (auto& walletLedgerMap : scanData.saStruct_.zcLedgers_) {
+         for (auto& lePair : walletLedgerMap.second) {
             leVecPtr->push_back(lePair.second);
+         }
       }
    }
 
@@ -224,39 +249,34 @@ bool BlockDataViewer::hasWallet(const string& ID) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BlockDataViewer::registerAddresses(
-   shared_ptr<::Codec_BDVCommand::BDVCommand> msg)
+void BlockDataViewer::registerAddresses(WalletRegistrationRequest& request)
 {
-   auto& walletID = msg->walletid();
-   for (auto& group : groups_)
-   {
-      if (group.hasID(walletID))
-         group.registerAddresses(msg);
+   for (auto& group : groups_) {
+      if (group.hasID(request.walletId)) {
+         group.registerAddresses(request);
+      }
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-Tx BlockDataViewer::getTxByHash(BinaryData const & txhash) const
+Tx BlockDataViewer::getTxByHash(const BinaryData& txhash) const
 {
    StoredTx stx;
-   if (db_->getStoredTx_byHash(txhash, &stx))
-   {
+   if (db_->getStoredTx_byHash(txhash, &stx)) {
       auto tx = stx.getTxCopy();
-      for (unsigned i=0; i<tx.getNumTxIn(); i++)
-      {
-         auto&& txin = tx.getTxInCopy(i);
-         auto&& op = txin.getOutPoint();
+      for (unsigned i=0; i<tx.getNumTxIn(); i++) {
+         auto txin = tx.getTxInCopy(i);
+         auto op = txin.getOutPoint();
          tx.pushBackOpId(db_->getHeightForTxHash(op.getTxHashRef()));
       }
-
       return tx;
-   }
-   else
+   } else {
       return zeroConfCont_->getTxByHash(txhash);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-tuple<uint32_t, uint32_t, vector<unsigned>> 
+std::tuple<uint32_t, uint32_t, std::vector<unsigned>>
 BlockDataViewer::getTxMetaData(
    const BinaryDataRef& txHash, bool withOpId) const
 {
@@ -274,7 +294,7 @@ BlockDataViewer::getTxMetaData(
       txIndex = brr.get_uint16_t(BE);
 
       auto hgtx = dbKey.getSliceRef(0, 4);
-      if (db_->getDbType() == ARMORY_DB_SUPER)
+      if (db_->getDbType() == ARMORY_DB_TYPE::Super)
       {
          auto block_id = DBUtils::hgtxToHeight(hgtx);
          auto header = bc_->getHeaderById(block_id);
@@ -298,7 +318,7 @@ BlockDataViewer::getTxMetaData(
             auto&& txin = tx.getTxInCopy(i);
             auto&& op = txin.getOutPoint();
             opIds.push_back(db_->getHeightForTxHash(op.getTxHashRef()));
-         }    
+         }
       }
 
       break;
@@ -325,76 +345,90 @@ BlockDataViewer::getTxMetaData(
    return make_tuple(txHeight, txIndex, move(opIds));
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-TxOut BlockDataViewer::getPrevTxOut(TxIn & txin) const
+////////
+TxOut BlockDataViewer::getPrevTxOut(const TxIn& txin) const
 {
-   if (txin.isCoinbase())
-      return TxOut();
+   if (txin.isCoinbase()) {
+      throw std::runtime_error("txin is coinbase");
+   }
 
-   OutPoint op = txin.getOutPoint();
+   Outpoint op = txin.getOutPoint();
    Tx theTx = getTxByHash(op.getTxHash());
-   if (!theTx.isInitialized())
-      throw runtime_error("couldn't find prev tx");
-
+   if (!theTx.isInitialized()) {
+      throw std::runtime_error("couldn't find prev tx");
+   }
    uint32_t idx = op.getTxOutIndex();
    return theTx.getTxOutCopy(idx);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-Tx BlockDataViewer::getPrevTx(TxIn & txin) const
+Tx BlockDataViewer::getPrevTx(const TxIn& txin) const
 {
-   if (txin.isCoinbase())
-      return Tx();
-
-   OutPoint op = txin.getOutPoint();
+   if (txin.isCoinbase()) {
+      throw std::runtime_error("txin is coinbase");
+   }
+   Outpoint op = txin.getOutPoint();
    return getTxByHash(op.getTxHash());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-HashString BlockDataViewer::getSenderScrAddr(TxIn & txin) const
+BinaryData BlockDataViewer::getSenderScrAddr(const TxIn& txin) const
 {
-   if (txin.isCoinbase())
-      return HashString(0);
-
+   if (txin.isCoinbase()) {
+      return {};
+   }
    return getPrevTxOut(txin).getScrAddressStr();
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-int64_t BlockDataViewer::getSentValue(TxIn & txin) const
+int64_t BlockDataViewer::getSentValue(const TxIn& txin) const
 {
-   if (txin.isCoinbase())
+   if (txin.isCoinbase()) {
       return -1;
-
+   }
    return getPrevTxOut(txin).getValue();
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-LMDBBlockDatabase* BlockDataViewer::getDB(void) const
+LMDBBlockDatabase* BlockDataViewer::getDB() const
 {
    return db_;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-uint32_t BlockDataViewer::getTopBlockHeight(void) const
+BinaryData BlockDataViewer::getTxHashForDbKey(const BinaryData& dbKey6) const
+{
+   return db_->getTxHashForLdbKey(dbKey6);
+}
+
+const Blockchain& BlockDataViewer::blockchain() const
+{
+   return *bc_;
+}
+
+const std::shared_ptr<BlockHeader> BlockDataViewer::getTopBlockHeader() const
+{
+   return bc_->top();
+}
+
+uint32_t BlockDataViewer::getTopBlockHeight() const
 {
    return bc_->top()->getBlockHeight();
+}
+
+ZeroConf::ZeroConfContainer* BlockDataViewer::zcContainer() const
+{
+   return zc_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::reset()
 {
-   for (auto& group : groups_)
+   for (auto& group : groups_) {
       group.reset();
-
+   }
    rescanZC_   = false;
    lastScanned_ = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-size_t BlockDataViewer::getWalletsPageCount(void) const
+size_t BlockDataViewer::getWalletsPageCount() const
 {
    return groups_[group_wallet].getPageCount();
 }
@@ -550,24 +584,55 @@ LedgerDelegate BlockDataViewer::getLedgerDelegateForLockboxes()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-LedgerDelegate BlockDataViewer::getLedgerDelegateForScrAddr(
-   const string& wltID, const BinaryData& scrAddr)
+LedgerDelegate BlockDataViewer::getLedgerDelegateForWallet(
+   const std::string& wltID)
 {
-   BtcWallet* wlt = nullptr;
-   for (auto& group : groups_)
-   {
+   std::shared_ptr<BtcWallet> wlt;
+   for (auto& group : groups_) {
       ReadWriteLock::WriteLock wl(group.lock_);
-
       auto wltIter = group.wallets_.find(wltID);
-      if (wltIter != group.wallets_.end())
-      {
-         wlt = wltIter->second.get();
+      if (wltIter != group.wallets_.end()) {
+         wlt = wltIter->second;
          break;
       }
    }
 
-   if (wlt == nullptr)
-      throw runtime_error("Unregistered wallet ID");
+   if (wlt == nullptr) {
+      throw std::runtime_error("Unregistered wallet ID");
+   }
+
+   auto getHist = [wlt](uint32_t pageID)->vector<LedgerEntry>
+   { return wlt->getHistoryPageAsVector(pageID); };
+
+   auto getBlock = [wlt](uint32_t block)->uint32_t
+   { return wlt->historyPager().getBlockInVicinity(block); };
+
+   auto getPageId = [wlt](uint32_t block)->uint32_t
+   { return wlt->historyPager().getPageIdForBlockHeight(block); };
+
+   auto getPageCount = [wlt](void)->uint32_t
+   { return wlt->historyPager().getPageCount(); };
+
+   return LedgerDelegate(getHist, getBlock, getPageId, getPageCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+LedgerDelegate BlockDataViewer::getLedgerDelegateForScrAddr(
+   const string& wltID, const BinaryData& scrAddr)
+{
+   std::shared_ptr<BtcWallet> wlt;
+   for (auto& group : groups_) {
+      ReadWriteLock::WriteLock wl(group.lock_);
+      auto wltIter = group.wallets_.find(wltID);
+      if (wltIter != group.wallets_.end()) {
+         wlt = wltIter->second;
+         break;
+      }
+   }
+
+   if (wlt == nullptr) {
+      throw std::runtime_error("Unregistered wallet ID");
+   }
 
    ScrAddrObj& sca = wlt->getScrAddrObjRef(scrAddr);
 
@@ -631,58 +696,48 @@ uint32_t BlockDataViewer::getClosestBlockHeightForTime(uint32_t timestamp)
 TxOut BlockDataViewer::getTxOutCopy(
    const BinaryData& txHash, uint16_t index) const
 {
-   TxOut txOut;
-   
    {
-      auto&& tx = db_->beginTransaction(STXO, LMDB::ReadOnly);
+      auto tx = db_->beginTransaction(DB_SELECT::STXO, LMDB::Mode::ReadOnly);
       BinaryData bdkey = db_->getDBKeyForHash(txHash);
-      if (bdkey.getSize() != 0)
-         txOut = db_->getTxOutCopy(bdkey, index);
+      if (!bdkey.empty()) {
+         return db_->getTxOutCopy(bdkey, index);
+      }
    }
 
-   if (!txOut.isInitialized())
-   {
-      auto ss = zeroConfCont_->getSnapshot();
-      auto&& zcKey = ss->getKeyForHash(txHash);
-      txOut = ss->getTxOutCopy(zcKey, index);
-   }
-
-   return txOut;
+   auto ss = zeroConfCont_->getSnapshot();
+   auto zcKey = ss->getKeyForHash(txHash);
+   return ss->getTxOutCopy(zcKey, index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TxOut BlockDataViewer::getTxOutCopy(const BinaryData& dbKey) const
 {
-   if (dbKey.getSize() != 8)
-      throw runtime_error("invalid txout key length");
-
-   auto&& tx = db_->beginTransaction(STXO, LMDB::ReadOnly);
-
-   auto&& bdkey = dbKey.getSliceRef(0, 6);
-   auto index = READ_UINT16_BE(dbKey.getSliceRef(6, 2));
-
-   auto&& txOut = db_->getTxOutCopy(bdkey, index);
-   if (!txOut.isInitialized())
-   {
-      auto ss = zeroConfCont_->getSnapshot();
-      txOut = ss->getTxOutCopy(bdkey, index);
+   if (dbKey.getSize() != 8) {
+      throw std::runtime_error("invalid txout key length");
    }
+   auto tx = db_->beginTransaction(DB_SELECT::STXO, LMDB::Mode::ReadOnly);
 
-   return txOut;
+   auto bdkey = dbKey.getSliceRef(0, 6);
+   auto index = READ_UINT16_BE(dbKey.getSliceRef(6, 2));
+   try {
+      return db_->getTxOutCopy(bdkey, index);
+   } catch (const std::runtime_error&) {
+      auto ss = zeroConfCont_->getSnapshot();
+      return ss->getTxOutCopy(bdkey, index);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 StoredTxOut BlockDataViewer::getStoredTxOut(const BinaryData& dbKey) const
 {
-   if (dbKey.getSize() != 8)
-      throw runtime_error("invalid txout key length");
-
-   auto&& tx = db_->beginTransaction(STXO, LMDB::ReadOnly);
+   if (dbKey.getSize() != 8) {
+      throw std::runtime_error("invalid txout key length");
+   }
+   auto tx = db_->beginTransaction(DB_SELECT::STXO, LMDB::Mode::ReadOnly);
 
    StoredTxOut stxo;
    db_->getStoredTxOut(stxo, dbKey);
    stxo.parentHash_ = move(db_->getTxHashForLdbKey(dbKey.getSliceRef(0, 6)));
-   
    return stxo;
 }
 
@@ -693,9 +748,9 @@ Tx BlockDataViewer::getSpenderTxForTxOut(uint32_t height, uint32_t txindex,
    StoredTxOut stxo;
    db_->getStoredTxOut(stxo, height, txindex, txoutid);
 
-   if (!stxo.isSpent())
-      return Tx();
-
+   if (!stxo.isSpent()) {
+      throw std::runtime_error("output is not spent!");
+   }
    TxRef txref(stxo.spentByTxInKey_.getSliceCopy(0, 6));
    DBTxRef dbTxRef(txref, db_);
    return dbTxRef.getTxCopy();
@@ -704,49 +759,38 @@ Tx BlockDataViewer::getSpenderTxForTxOut(uint32_t height, uint32_t txindex,
 ////////////////////////////////////////////////////////////////////////////////
 bool BlockDataViewer::isRBF(const BinaryData& txHash) const
 {
-   auto&& zctx = zeroConfCont_->getTxByHash(txHash);
-   if (!zctx.isInitialized())
+   auto zctx = zeroConfCont_->getTxByHash(txHash);
+   if (!zctx.isInitialized()) {
       return false;
-
+   }
    return zctx.isRBF();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 bool BlockDataViewer::hasScrAddress(const BinaryDataRef& scrAddr) const
 {
-   //TODO: make sure this is thread safe
-
-   for (auto& group : groups_)
-   {
+   for (const auto& group : groups_) {
       ReadWriteLock::WriteLock wl(group.lock_);
-
-      for (auto& wlt : group.wallets_)
-      {
-         if (wlt.second->hasScrAddress(scrAddr))
+      for (const auto& wlt : group.wallets_) {
+         if (wlt.second->hasScrAddress(scrAddr)) {
             return true;
+         }
       }
    }
-
    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-set<BinaryDataRef> BlockDataViewer::getAddrSet() const
+std::set<BinaryDataRef> BlockDataViewer::getAddrSet() const
 {
-   //TODO: make sure this is thread safe
-   set<BinaryDataRef> addrSet;
-
-   for (auto& group : groups_)
-   {
+   std::set<BinaryDataRef> addrSet;
+   for (auto& group : groups_) {
       ReadWriteLock::WriteLock wl(group.lock_);
-
-      for (auto& wlt : group.wallets_)
-      {
+      for (auto& wlt : group.wallets_) {
          auto wltAddresses = wlt.second->getAddrSet();
          addrSet.insert(wltAddresses.begin(), wltAddresses.end());
       }
    }
-
    return addrSet;
 }
 
@@ -772,62 +816,29 @@ tuple<uint64_t, uint64_t> BlockDataViewer::getAddrFullBalance(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-unique_ptr<BDV_Notification_ZC> BlockDataViewer::createZcNotification(
-   const set<BinaryDataRef>& addrSet)
-{
-   ZcNotificationPacket packet(getID());
-
-   //grab zc map
-   auto ss = zeroConfCont_->getSnapshot();
-   if (ss != nullptr)
-   {
-      for (auto& addr : addrSet)
-      try
-      {
-         const auto& keySet = ss->getTxioKeysForScrAddr(addr);
-
-         auto iter = packet.scrAddrToTxioKeys_.emplace(addr, set<BinaryData>());
-         for (auto& key : keySet)
-            iter.first->second.emplace(key);
-      }
-      catch (range_error&)
-      {
-         continue;
-      }
-   }
-
-   packet.ssPtr_ = ss;
-   auto notifPtr = make_unique<BDV_Notification_ZC>(packet);
-   return notifPtr;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-map<BinaryData, map<BinaryData, map<unsigned, OpData>>>
-BlockDataViewer::getAddressOutpoints(
-   const std::set<BinaryDataRef>& scrAddrSet, 
+std::map<BinaryData, std::vector<Output>> BlockDataViewer::getAddressOutpoints(
+   const std::set<BinaryDataRef>& scrAddrSet,
    unsigned& heightCutoff, unsigned& zcCutoff) const
 {
    /*wallet agnostic method*/
 
    auto topHeight = getTopBlockHeader()->getBlockHeight();
-   map<BinaryData, map<BinaryData, map<unsigned, OpData>>> outpointMap;
+   std::map<BinaryData, std::vector<Output>> outpointMap;
 
-   //confirmed outputs, skip is heightCutoff is UINT32_MAX
-   if (heightCutoff != UINT32_MAX)
-   {
-      for (auto& scrAddr : scrAddrSet)
-      {
+   //confirmed outputs, skip if heightCutoff is UINT32_MAX
+   if (heightCutoff != UINT32_MAX) {
+      for (const auto& scrAddr : scrAddrSet) {
          StoredScriptHistory ssh;
-         if (!db_->getStoredScriptHistory(ssh, scrAddr, heightCutoff))
+         if (!db_->getStoredScriptHistory(ssh, scrAddr, heightCutoff)) {
             continue;
-
-         if (ssh.subHistMap_.empty())
+         }
+         if (ssh.subHistMap_.empty()) {
             continue;
+         }
 
-         auto firstPairIter = outpointMap.insert(
-            make_pair(scrAddr, map<BinaryData, map<unsigned, OpData>>()));
-
-         auto& opMap = firstPairIter.first->second;
+         auto firstPairIter = outpointMap.emplace(
+            scrAddr, std::vector<Output>());
+         auto& opVec = firstPairIter.first->second;
 
          /*
          Run decrementally to process spent txios first and ignore the
@@ -836,43 +847,33 @@ BlockDataViewer::getAddressOutpoints(
 
          set<BinaryData> processedKeys;
          auto rIter = ssh.subHistMap_.rbegin();
-         while (rIter != ssh.subHistMap_.rend())
-         {
+         while (rIter != ssh.subHistMap_.rend()) {
             auto& subssh = rIter->second;
-            for (auto& txioPair : subssh.txioMap_)
-            {
-               //keep track of processed txios by their output key, 
+            for (auto& txioPair : subssh.txioMap_) {
+               //keep track of processed txios by their output key,
                //skip if already in set
-               auto&& txOutKey = txioPair.second.getDBKeyOfOutput();
+               auto txOutKey = txioPair.second.getDBKeyOfOutput();
                auto insertIter = processedKeys.emplace(txOutKey);
-               if (!insertIter.second)
+               if (!insertIter.second) {
                   continue;
-
-               StoredTxOut stxo;
-               if (!db_->getStoredTxOut(stxo, txioPair.second.getDBKeyOfOutput()))
-                  throw runtime_error("failed to grab txout");
-
-               auto&& txHash = txioPair.second.getTxHashOfOutput(db_);
-               auto secondPairIter = opMap.find(txHash);
-               if (secondPairIter == opMap.end())
-               {
-                  secondPairIter = opMap.insert(
-                     make_pair(txHash, map<unsigned, OpData>())).first;
                }
 
-               auto& idMap = secondPairIter->second;
+               StoredTxOut stxo;
+               if (!db_->getStoredTxOut(stxo, txioPair.second.getDBKeyOfOutput())) {
+                  throw std::runtime_error("failed to grab txout");
+               }
 
-               OpData opdata;
-               opdata.height_ = stxo.getHeight();
-               opdata.txindex_ = stxo.txIndex_;
-               opdata.value_ = stxo.getValue();
-               opdata.isspent_ = stxo.isSpent();
+               auto txHash = txioPair.second.getTxHashOfOutput(db_);
+               BinaryData spenderHash;
+               if (stxo.isSpent()) {
+                  spenderHash = txioPair.second.getTxHashOfInput(db_);
+               }
 
-               //if the output is spent, set the spender hash
-               if (stxo.isSpent())
-                  opdata.spenderHash_ = txioPair.second.getTxHashOfInput(db_);
-
-               idMap.insert(make_pair((unsigned)stxo.txOutIndex_, move(opdata)));
+               opVec.emplace_back(Output(
+                  stxo.getValue(), stxo.getHeight(),
+                  stxo.txIndex_, stxo.txOutIndex_,
+                  txHash, stxo.getScriptRef(), spenderHash
+               ));
             }
 
             ++rIter;
@@ -884,45 +885,42 @@ BlockDataViewer::getAddressOutpoints(
    }
 
    //zc outpoints, skip if zcCutoff is UINT32_MAX
-   if (zcCutoff != UINT32_MAX)
-   {
+   if (zcCutoff != UINT32_MAX) {
       auto zcSnapshot = zc_->getSnapshot();
-      if (zcSnapshot == nullptr)
+      if (zcSnapshot == nullptr) {
          return outpointMap;
-         
-      for (auto& scrAddr : scrAddrSet)
-      {
+      }
+
+      for (const auto& scrAddr : scrAddrSet) {
          //NOTE: getTxioMapForScrAddr is semi expensive
          auto txioMapFromSS = zcSnapshot->getTxioMapForScrAddr(scrAddr);
-         for (auto& txiopair : txioMapFromSS)
-         {
+         for (const auto& txiopair : txioMapFromSS) {
             //grab txoutref, useful in all but 1 case
-            auto&& txOutRef = txiopair.second->getTxRefOfOutput();
+            auto txOutRef = txiopair.second->getTxRefOfOutput();
 
             //does this txio have a zc txin, txout or both?
             bool txOutZc = txiopair.second->hasTxOutZC();
             bool txInZc = txiopair.second->hasTxInZC();
             BinaryDataRef spenderHash;
 
-            if (txInZc)
-            {
+            if (txInZc) {
                //has zc txin, check cutoff
                auto txInRef = txiopair.second->getTxRefOfInput();
                BinaryRefReader brr(txInRef.getDBKeyRef());
                brr.advance(2);
 
                auto zcID = brr.get_uint32_t(BE);
-               if (zcID < zcCutoff)
+               if (zcID < zcCutoff) {
                   continue;
+               }
 
                //spent zc, grab the spender tx hash
                auto txFromSS = zcSnapshot->getTxByKey(txInRef.getDBKeyRef());
-               if (txFromSS == nullptr)
-                  throw runtime_error("missing spender zc");
+               if (txFromSS == nullptr) {
+                  throw std::runtime_error("missing spender zc");
+               }
                spenderHash = txFromSS->getTxHash().getRef();
-            }
-            else if (txOutZc)
-            {
+            } else if (txOutZc) {
                //has zc txout only (unspent), check cutoff
                BinaryRefReader brr(txOutRef.getDBKeyRef());
                brr.advance(2);
@@ -934,71 +932,42 @@ BlockDataViewer::getAddressOutpoints(
 
             //if we got this far, add this outpoint
             auto firstPairIter = outpointMap.find(scrAddr);
-            if (firstPairIter == outpointMap.end())
-            {
-               firstPairIter = outpointMap.insert(
-                  make_pair(scrAddr, map<BinaryData, map<unsigned, OpData>>())).first;
+            if (firstPairIter == outpointMap.end()) {
+               firstPairIter = outpointMap.emplace(
+                  scrAddr, std::vector<Output>()).first;
             }
 
-            if (!txOutZc)
-            {
-               auto&& txHash = txiopair.second->getTxHashOfOutput(db_);
-               auto secondPairIter = firstPairIter->second.find(txHash);
-               if (secondPairIter == firstPairIter->second.end())
-               {
-                  secondPairIter = firstPairIter->second.insert(
-                     make_pair(txHash, map<unsigned, OpData>())).first;
-               }
+            if (!txOutZc) {
+               auto txHash = txiopair.second->getTxHashOfOutput(db_);
 
                //mined txout, have to grab it from db
                StoredTxOut stxo;
-               if (!db_->getStoredTxOut(stxo, txiopair.second->getDBKeyOfOutput()))
-                  throw runtime_error("failed to grab txout");
-
-               auto& idMap = secondPairIter->second;
-
-               OpData opdata;
-               opdata.height_ = stxo.getHeight();
-               opdata.txindex_ = stxo.txIndex_;
-               opdata.value_ = stxo.getValue();
-               opdata.isspent_ = txiopair.second->hasTxIn();
-
-               //this is a mined txout, therefor the only way it is ZC is
-               //through the txin
-               opdata.spenderHash_ = spenderHash;
-
-               idMap[stxo.txOutIndex_] = move(opdata);
-            }
-            else
-            {
+               if (!db_->getStoredTxOut(stxo, txiopair.second->getDBKeyOfOutput())) {
+                  throw std::runtime_error("failed to grab txout");
+               }
+               firstPairIter->second.emplace_back(Output(
+                  stxo.getValue(), stxo.getHeight(),
+                  stxo.txIndex_, stxo.txOutIndex_,
+                  txHash, stxo.getScriptRef(), spenderHash)
+               );
+            } else {
                //zc txout, grab from snapshot
                auto txFromSS = zcSnapshot->getTxByKey(txOutRef.getDBKey());
-               if (txFromSS == nullptr)
-                  throw runtime_error("can't find zc tx by txiopair output key");
-
-               auto& txHash = txFromSS->getTxHash();
-               auto secondPairIter = firstPairIter->second.find(txHash);
-               if (secondPairIter == firstPairIter->second.end())
-               {
-                  secondPairIter = firstPairIter->second.insert(
-                     make_pair(txHash, map<unsigned, OpData>())).first;
+               if (txFromSS == nullptr) {
+                  throw std::runtime_error(
+                     "can't find zc tx by txiopair output key");
                }
 
+               const auto& txHash = txFromSS->getTxHash();
                auto outputIndex = txiopair.second->getIndexOfOutput();
-               const auto& parsedTxOut = txFromSS->outputs_[outputIndex];
-
-               OpData opdata;
-               opdata.height_ = UINT32_MAX;
-               opdata.txindex_ = UINT32_MAX;
-               opdata.value_ = parsedTxOut.value_;
-               opdata.isspent_ = txiopair.second->hasTxIn();
-
-               if (opdata.isspent_)
-                  opdata.spenderHash_ = spenderHash;
+               const auto& parsedTxOut = txFromSS->outputs[outputIndex];
 
                //zc outpoints override mined ones
-               auto& idMap = secondPairIter->second;
-               idMap[outputIndex] = move(opdata);
+               firstPairIter->second.emplace_back(Output{
+                  parsedTxOut.value, UINT32_MAX,
+                  UINT32_MAX, outputIndex,
+                  txHash, {}, spenderHash
+               });
             }
          }
       }
@@ -1011,154 +980,363 @@ BlockDataViewer::getAddressOutpoints(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-vector<UTXO> BlockDataViewer::getUtxosForAddress(
+std::vector<UTXO> BlockDataViewer::getUtxosForAddress(
    const BinaryDataRef& scrAddr, bool withZc) const
 {
    /*wallet agnostic method*/
 
-   vector<UTXO> result;
+   std::vector<UTXO> result;
 
    //mined utxos
    StoredScriptHistory ssh;
-   if (db_->getStoredScriptHistory(ssh, scrAddr))
-   {
-      for (auto& subssh : ssh.subHistMap_)
-      {
-         for (auto& txioPair : subssh.second.txioMap_)
-         {
-            if (!txioPair.second.isUTXO())
+   if (db_->getStoredScriptHistory(ssh, scrAddr)) {
+      for (auto& subssh : ssh.subHistMap_) {
+         for (auto& txioPair : subssh.second.txioMap_) {
+            if (!txioPair.second.isUTXO()) {
                continue;
+            }
 
             StoredTxOut stxo;
-            if (!db_->getStoredTxOut(stxo, txioPair.second.getDBKeyOfOutput()))
-               throw runtime_error("failed to grab txout");
+            if (!db_->getStoredTxOut(stxo, txioPair.second.getDBKeyOfOutput())) {
+               throw std::runtime_error("failed to grab txout");
+            }
 
-            auto&& txHash = txioPair.second.getTxHashOfOutput(db_);
+            auto txHash = txioPair.second.getTxHashOfOutput(db_);
             UTXO utxo(stxo.getValue(), stxo.getHeight(), stxo.txIndex_, 
                stxo.txOutIndex_, txHash, stxo.getScriptRef());
-
             result.emplace_back(utxo);
          }
       }
    }
 
-   if (!withZc)
+   if (!withZc) {
       return result;
+   }
 
    //zc utxos
    auto zcSnapshot = zc_->getSnapshot();
    auto txioMapFromSS = zcSnapshot->getTxioMapForScrAddr(scrAddr);
 
-   for (auto& txiopair : txioMapFromSS)
-   {
+   for (const auto& txiopair : txioMapFromSS) {
       //grab txoutref, useful in all but 1 case
-      auto&& txOutRef = txiopair.second->getTxRefOfOutput();
+      auto txOutRef = txiopair.second->getTxRefOfOutput();
 
       //does this txio have a zc txin, txout or both?
-      if (txiopair.second->hasTxInZC())
+      if (txiopair.second->hasTxInZC()) {
          continue;
+      }
 
       //zc txout, grab from snapshot
       auto txFromSS = zcSnapshot->getTxByKey(txOutRef.getDBKey());
-      if (txFromSS == nullptr)
-         throw runtime_error("can't find zc tx by txiopair output key");
+      if (txFromSS == nullptr) {
+         throw std::runtime_error("can't find zc tx by txiopair output key");
+      }
 
-      auto& txHash = txFromSS->getTxHash();
+      const auto& txHash = txFromSS->getTxHash();
       auto outputIndex = txiopair.second->getIndexOfOutput();
-      const auto& parsedTxOut = txFromSS->outputs_[outputIndex];
+      const auto& parsedTxOut = txFromSS->outputs[outputIndex];
 
       //some of these copies can be easily avoided
-      auto&& txOutCopy = txFromSS->tx_.getTxOutCopy(outputIndex);
-      UTXO utxo(parsedTxOut.value_, UINT32_MAX, UINT32_MAX,
-         outputIndex, txHash, txOutCopy.getScript());
-      result.emplace_back(utxo);
+      auto txOutCopy = txFromSS->getTxObj().getTxOutCopy(outputIndex);
+      result.emplace_back(UTXO{parsedTxOut.value,
+         UINT32_MAX, UINT32_MAX,
+         outputIndex, txHash, txOutCopy.getScript()
+      });
    }
-
    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<pair<StoredTxOut, BinaryDataRef>> BlockDataViewer::getOutputsForOutpoints(
-   const map<BinaryDataRef, set<unsigned>>& outpoints, bool withZc) const
+std::vector<std::pair<StoredTxOut, BinaryDataRef>>
+BlockDataViewer::getOutputsForOutpoints(
+   const std::map<BinaryDataRef, std::set<unsigned>>& outpoints, bool withZc) const
 {
-   vector<pair<StoredTxOut, BinaryDataRef>> result;
-   shared_ptr<MempoolSnapshot> zcSS = nullptr;
-   BinaryData zckey;
-   if (withZc)
-   {
-      zckey = DBUtils::heightAndDupToHgtx(0xFFFFFFFF, 0xFF);
-      zcSS = zc_->getSnapshot();
-   }
-   
-   auto&& stxo_tx = db_->beginTransaction(STXO, LMDB::ReadOnly);
+   std::vector<std::pair<StoredTxOut, BinaryDataRef>> result;
+   auto zcSS = !withZc ? nullptr : zc_->getSnapshot();
 
-   for (auto& opSet : outpoints)
-   {
+   auto stxo_tx = db_->beginTransaction(DB_SELECT::STXO, LMDB::Mode::ReadOnly);
+   for (auto& opSet : outpoints) {
       //get dbkey for this txhash
-      auto&& dbkey = db_->getDBKeyForHash(opSet.first);
-      if (dbkey.getSize() == 6)
-      {
-         for (auto& op : opSet.second)
-         {
+      auto dbkey = db_->getDBKeyForHash(opSet.first);
+      if (dbkey.getSize() == 6) {
+         for (auto& op : opSet.second) {
             //set txout index
             pair<StoredTxOut, BinaryDataRef> stxoPair;
             stxoPair.second = opSet.first;
-            
             auto& stxo = stxoPair.first;
             stxo.txOutIndex_ = op;
+
             auto stxoKey = dbkey;
             stxoKey.append(WRITE_UINT16_BE(op));
-
-            if (!db_->getStoredTxOut(stxo, stxoKey))
+            if (!db_->getStoredTxOut(stxo, stxoKey)) {
                throw runtime_error("invalid outpoint");
-               
-            result.emplace_back(stxoPair);
+            }
+            if (stxo.isSpent()) {
+               stxo.spenderHash_ = db_->getTxHashForLdbKey(
+                  stxo.spentByTxInKey_);
+            }
+            result.emplace_back(std::move(stxoPair));
          }
-
          continue;
       }
 
-      if (!withZc || zcSS == nullptr)
-         throw runtime_error("invalid outpoint");
+      if (!withZc || zcSS == nullptr) {
+         continue;
+      }
 
-      auto txFromSS = zcSS->getTxByHash(opSet.first);
-      if (txFromSS == nullptr)
-         throw runtime_error("invalid outpoint");
+      BinaryData zcKey;
+      try {
+         zcKey = zcSS->getKeyForHash(opSet.first);
+      } catch (const std::range_error&) {
+         continue;
+      }
 
-      for (auto& op : opSet.second)
-      {
+      auto txFromSS = zcSS->getTxByKey(zcKey);
+      if (txFromSS == nullptr) {
+         continue;
+      }
+
+      for (auto& op : opSet.second) {
          //set txout index
          pair<StoredTxOut, BinaryDataRef> stxoPair;
          stxoPair.second = opSet.first;
-            
+
          auto& stxo = stxoPair.first;
          stxo.txOutIndex_ = op;
-         if (txFromSS->outputs_.size() <= op)
-            throw runtime_error("invalid outpoint");
+         if (txFromSS->outputs.size() <= op) {
+            throw std::runtime_error("invalid outpoint");
+         }
 
-         const auto& output = txFromSS->outputs_[op];
-         BinaryRefReader brr(txFromSS->tx_.getPtr(), txFromSS->tx_.getSize());
-         brr.advance(output.offset_);
-         auto txOutRef = brr.get_BinaryDataRef(output.len_);
-            
+         const auto& output = txFromSS->outputs[op];
+         const auto& theTx = txFromSS->getTxObj();
+         BinaryRefReader brr{theTx.getPtr(), theTx.getSize()};
+         brr.advance(output.offset);
+         auto txOutRef = brr.get_BinaryDataRef(output.len);
+
          stxo.unserialize(txOutRef);
          stxo.blockHeight_ = UINT32_MAX;
          stxo.txIndex_ = UINT16_MAX;
-         stxo.hgtX_ = zckey;
+
+         //check spentness
+         BinaryWriter bwKey(8);
+         bwKey.put_BinaryData(zcKey);
+         bwKey.put_uint16_t(op, BE);
+         auto txioKey = bwKey.getDataRef();
+
+         if (zcSS->isTxOutSpentByZC(txioKey)) {
+            //this zc output is spent, get the txio
+            auto zcTxio = zcSS->getTxioByKey(txioKey);
+            if (!zcTxio->hasTxInZC()) {
+               throw std::runtime_error("this zc txio should have a txin");
+            }
+
+            //get hash for the txin key, this is our spender
+            auto txInRef = zcTxio->getTxRefOfInput();
+            stxoPair.first.spenderHash_ =
+               zcSS->getHashForKey(txInRef.getDBKeyRef());
+         }
+
          result.emplace_back(stxoPair);
       }
    }
-
    return result;
 }
 
+////////
+CombinedBalances BlockDataViewer::getCombinedBalances() const
+{
+   auto height = getTopBlockHeight();
+
+   CombinedBalances result;
+   for (const auto& group : groups_) {
+      auto wltMap = group.getWalletMap();
+      for (const auto& wlt : wltMap) {
+         std::map<BinaryData, CombinedBalances::BalanceAndCount> bnc;
+         auto txnCounts = wlt.second->getAddrTxnCounts(-1);
+         auto addrBalances = wlt.second->getAddrBalances(-1, height);
+
+         uint32_t count = 0;
+         for (const auto& txnCount : txnCounts) {
+            count += txnCount.second;
+            auto iter = addrBalances.find(txnCount.first);
+            if (iter != addrBalances.end()) {
+               bnc.emplace(txnCount.first, CombinedBalances::BalanceAndCount{
+                  std::get<0>(iter->second),
+                  std::get<1>(iter->second),
+                  std::get<2>(iter->second),
+                  txnCount.second});
+            } else {
+               bnc.emplace(txnCount.first, CombinedBalances::BalanceAndCount{
+                  0, 0, 0, txnCount.second});
+            }
+         }
+
+         auto full = wlt.second->getFullBalance();
+         auto spendable = wlt.second->getSpendableBalance(height);
+         auto unconfirmed = wlt.second->getUnconfirmedBalance(height);
+         CombinedBalances::BalanceAndCount wltBnc{
+            full, spendable, unconfirmed, count
+         };
+
+         result.wallets.emplace(wlt.first,
+            CombinedBalances::Wallet{wltBnc, bnc});
+      }
+   }
+   return result;
+}
+
+////////
+bool BlockDataViewer::isTxOutSpentByZC(const BinaryData& dbKey) const
+{
+   return zeroConfCont_->isTxOutSpentByZC(dbKey);
+}
+
+std::map<BinaryData, std::shared_ptr<const TxIOPair>>
+BlockDataViewer::getUnspentZCForScrAddr(
+   const BinaryData& scrAddr) const
+{
+   return zeroConfCont_->getUnspentZCforScrAddr(scrAddr);
+}
+
+std::map<BinaryData, std::shared_ptr<const TxIOPair>>
+BlockDataViewer::getRBFTxIOsforScrAddr(
+   const BinaryData& scrAddr) const
+{
+   return zeroConfCont_->getRBFTxIOsforScrAddr(scrAddr);
+}
+
+std::vector<TxOut> BlockDataViewer::getZcTxOutsForKeys(
+   const std::set<BinaryData>& keys) const
+{
+   return zeroConfCont_->getZcTxOutsForKey(keys);
+}
+
+std::vector<UTXO> BlockDataViewer::getZcUTXOsForKeys(
+   const std::set<BinaryData>& keys) const
+{
+   return zeroConfCont_->getZcUTXOsForKey(keys);
+}
+
+ScrAddrFilter* BlockDataViewer::getSAF()
+{
+   return saf_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
-//// WalletGroup
+// ReadWriteLock
+void ReadWriteLock::lockRead()
+{
+   std::unique_lock<std::mutex> rl(all_lock);
+   std::thread::id this_thread_id = std::this_thread::get_id();
+   auto idIter = thread_ids_.find(this_thread_id);
+
+   if (idIter != thread_ids_.end()) {
+      idIter->second++;
+   }
+
+   if (idIter == thread_ids_.end()) {
+      while (has_writer) {
+         no_writers.wait(rl);
+      }
+      thread_ids_.emplace(this_thread_id, 1);
+   }
+
+   num_readers++;
+}
+
+void ReadWriteLock::unlockRead()
+{
+   std::unique_lock<std::mutex> rl(all_lock);
+   std::thread::id this_thread_id = std::this_thread::get_id();
+   auto idIter = thread_ids_.find(this_thread_id);
+
+   if (idIter == thread_ids_.end()) {
+      throw std::runtime_error("unregistered thread attempted to release a lock");
+   }
+
+   idIter->second--;
+   if (idIter->second == 0) {
+      thread_ids_.erase(idIter);
+   }
+   num_readers--;
+   if (num_readers == 0) {
+      no_readers.notify_all();
+   }
+}
+
+void ReadWriteLock::lockWrite()
+{
+   std::unique_lock<std::mutex> rl(all_lock);
+   std::thread::id this_thread_id = std::this_thread::get_id();
+
+   auto idIter = thread_ids_.find(this_thread_id);
+   if (idIter != thread_ids_.end()) {
+      throw std::runtime_error("ReadWriteLock deadlock: requested write lock"
+         "within a thread already holding a read lock");
+   }
+
+   has_writer = true;
+   while (num_readers > 0) {
+      no_readers.wait(rl);
+   }
+
+   rl.release();
+}
+
+void ReadWriteLock::unlockWrite()
+{
+   has_writer = false;
+   no_writers.notify_all();
+   all_lock.unlock();
+}
+
+////////
+ReadWriteLock::ReadLock::ReadLock(ReadWriteLock& rwl) :
+   l(&rwl)
+{
+   l->lockRead();
+}
+
+ReadWriteLock::ReadLock::~ReadLock()
+{
+   if (locked) {
+      l->unlockRead();
+   }
+}
+
+void ReadWriteLock::ReadLock::unlock()
+{
+   locked=false;
+   l->unlockRead();
+}
+
+////////
+ReadWriteLock::WriteLock::WriteLock(ReadWriteLock &rwl) :
+   l(&rwl)
+{
+   l->lockWrite();
+}
+
+ReadWriteLock::WriteLock::~WriteLock()
+{
+   if (locked) {
+      l->unlockWrite();
+   }
+}
+
+void ReadWriteLock::WriteLock::unlock()
+{
+   locked=false;
+   l->unlockRead();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+// WalletGroup
 WalletGroup::~WalletGroup()
 {
-   for (auto& wlt : wallets_)
+   for (auto& wlt : wallets_) {
       wlt.second->unregister();
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1168,12 +1346,9 @@ shared_ptr<BtcWallet> WalletGroup::getOrSetWallet(const string& id)
    shared_ptr<BtcWallet> theWallet;
 
    auto wltIter = wallets_.find(id);
-   if (wltIter != wallets_.end())
-   {
+   if (wltIter != wallets_.end()) {
       theWallet = wltIter->second;
-   }
-   else
-   {
+   } else {
       auto walletPtr = make_shared<BtcWallet>(bdvPtr_, id);
       auto insertResult = wallets_.insert(make_pair(
          id, walletPtr));
@@ -1185,115 +1360,82 @@ shared_ptr<BtcWallet> WalletGroup::getOrSetWallet(const string& id)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletGroup::unregisterWallet(const string& id)
+bool WalletGroup::unregisterWallet(const string& id)
 {
    ReadWriteLock::WriteLock wl(lock_);
 
    auto wltIter = wallets_.find(id);
-   if (wltIter == wallets_.end())
-      return;
+   if (wltIter == wallets_.end()) {
+      return false;
+   }
 
    wallets_.erase(wltIter);
+   return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletGroup::registerAddresses(
-   shared_ptr<::Codec_BDVCommand::BDVCommand> msg)
+void WalletGroup::registerAddresses(WalletRegistrationRequest& request)
 {
-   if (!msg->has_walletid() || !msg->has_flag())
+   if (request.walletId.empty()) {
       return;
-  
-   auto walletID = msg->walletid();
-   if (walletID.empty())
-      return;
+   }
 
-   auto theWallet = getOrSetWallet(walletID);
-   if (theWallet == nullptr)
-   {
+   auto theWallet = getOrSetWallet(request.walletId);
+   if (theWallet == nullptr) {
       LOGWARN << "failed to get or set wallet";
-      return;
-   }
-
-   BinaryData id;
-   if (msg->has_hash() && msg->hash().size() != 0)
-   {
-      auto idstr = msg->hash();
-      id.copyFrom(idstr);
-   }
-
-   if (msg->bindata_size() == 0)
-   {
-      if (id.getSize() != 0)
-      {
-         theWallet->bdvPtr_->flagRefresh(
-            BDV_refreshAndRescan, id, nullptr);
-      }
-
       return;
    }
 
    //strip collisions from set of addresses to register
    auto addrMap = theWallet->scrAddrMap_.get();
-
-   set<BinaryDataRef> scrAddrSet;
-   for (int i=0; i<msg->bindata_size(); i++)
-   {
-      auto& scrAddr = msg->bindata(i);
-      if (scrAddr.empty())
+   std::set<BinaryData> scrAddrSet;
+   for (auto& addr : request.addresses) {
+      if (addr.empty()) {
          continue;
-
-      BinaryDataRef scrAddrRef; scrAddrRef.setRef(scrAddr);
-
-      if (addrMap->find(scrAddrRef) != addrMap->end())
+      }
+      if (addrMap->find(addr) != addrMap->end()) {
          continue;
-
-      scrAddrSet.insert(scrAddrRef);
+      }
+      scrAddrSet.emplace(std::move(addr));
    }
 
-   auto callback = 
-      [theWallet, id](set<BinaryDataRef>& addrSet)->void
+   auto callback = [theWallet, zcCB=request.zcCallback](
+      std::set<BinaryDataRef> addrSet, bool success)->void
    {
+      if (!success) {
+         return;
+      }
+
       auto bdvPtr = theWallet->bdvPtr_;
       auto dbPtr = theWallet->bdvPtr_->getDB();
       auto bcPtr = &theWallet->bdvPtr_->blockchain();
       auto zcPtr = theWallet->bdvPtr_->zcContainer();
 
-      map<BinaryDataRef, shared_ptr<ScrAddrObj>> saMap;
+      std::map<BinaryDataRef, std::shared_ptr<ScrAddrObj>> saMap;
       {
          auto addrMapPtr = theWallet->scrAddrMap_.get();
-         for (auto& addr : addrSet)
-         {
-            if (addrMapPtr->find(addr) != addrMapPtr->end())
+         for (auto& addr : addrSet) {
+            if (addrMapPtr->find(addr) != addrMapPtr->end()) {
                continue;
-
+            }
             auto scrAddrPtr = make_shared<ScrAddrObj>(
                dbPtr, bcPtr, zcPtr, addr);
-
-            saMap.insert(make_pair(addr, scrAddrPtr));
+            saMap.emplace(addr, scrAddrPtr);
          }
       }
 
-      unique_ptr<BDV_Notification_ZC> zcNotifPacket;
-      if (saMap.size() > 0)
-      {
-         zcNotifPacket = move(bdvPtr->createZcNotification(addrSet));
+      if (!saMap.empty()) {
          theWallet->scrAddrMap_.update(saMap);
+         if (zcCB) {
+            zcCB(addrSet);
+         }
       }
-
       theWallet->setRegistered();
-      
-      //no notification if the registration id is blank
-      if (id.empty())
-         return;
-      
-      bdvPtr->flagRefresh(
-         BDV_refreshAndRescan, id, move(zcNotifPacket));
    };
 
-   auto batch = make_shared<RegistrationBatch>();
-   batch->scrAddrSet_ = move(scrAddrSet);
-   batch->msg_ = msg;
-   batch->isNew_ = msg->flag();
+   auto batch = std::make_shared<RegistrationBatch>();
+   batch->scrAddrSet_ = std::move(scrAddrSet);
+   batch->isNew_ = request.isNew;
    batch->callback_ = callback;
 
    saf_->pushAddressBatch(batch);
@@ -1311,47 +1453,46 @@ bool WalletGroup::hasID(const string& ID) const
 void WalletGroup::reset()
 {
    ReadWriteLock::ReadLock rl(lock_);
-   for (const auto& wlt : values(wallets_))
-      wlt->reset();
+   for (const auto& wltPair : wallets_) {
+      wltPair.second->reset();
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-map<uint32_t, uint32_t> WalletGroup::computeWalletsSSHSummary(
+std::map<uint32_t, uint32_t> WalletGroup::computeWalletsSSHSummary(
    bool forcePaging, bool pageAnyway)
 {
-   map<uint32_t, uint32_t> fullSummary;
-
    ReadWriteLock::ReadLock rl(lock_);
+   std::map<uint32_t, uint32_t> fullSummary;
 
    bool isAlreadyPaged = true;
-   for (auto& wlt : values(wallets_))
-   {
-      if(forcePaging)
-         wlt->mapPages();
+   for (auto& wltPair : wallets_) {
+      if (forcePaging) {
+         wltPair.second->mapPages();
+      }
 
-      if (wlt->isPaged())
+      if (wltPair.second->isPaged()) {
          isAlreadyPaged = false;
-      else
-         wlt->mapPages();
+      } else {
+         wltPair.second->mapPages();
+      }
    }
 
-   if (isAlreadyPaged)
-   {
-      if (!forcePaging && !pageAnyway)
+   if (isAlreadyPaged) {
+      if (!forcePaging && !pageAnyway) {
          throw AlreadyPagedException();
+      }
    }
 
-   for (auto& wlt : values(wallets_))
-   {
-      if (wlt->uiFilter_ == false)
+   for (const auto& wltPair : wallets_) {
+      if (wltPair.second->uiFilter_ == false) {
          continue;
-
-      const auto& wltSummary = wlt->getSSHSummary();
-
-      for (auto summary : wltSummary)
+      }
+      const auto& wltSummary = wltPair.second->getSSHSummary();
+      for (const auto& summary : wltSummary) {
          fullSummary[summary.first] += summary.second;
+      }
    }
-
    return fullSummary;
 }
 
@@ -1365,8 +1506,8 @@ bool WalletGroup::pageHistory(bool forcePaging, bool pageAnyway)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<LedgerEntry> WalletGroup::getHistoryPage(
-   uint32_t pageId, unsigned updateID, 
+std::vector<LedgerEntry> WalletGroup::getHistoryPage(
+   uint32_t pageId, unsigned updateID,
    bool rebuildLedger, bool remapWallets)
 {
    unique_lock<mutex> mu(globalLedgerLock_);
@@ -1380,83 +1521,73 @@ vector<LedgerEntry> WalletGroup::getHistoryPage(
    if (rebuildLedger || remapWallets)
       pageHistory(remapWallets, false);
 
-   vector<LedgerEntry> vle;
-
-   if (rebuildLedger || remapWallets)
+   if (rebuildLedger || remapWallets) {
       updateID = UINT32_MAX;
+   }
 
+   std::vector<LedgerEntry> vle;
    {
       ReadWriteLock::ReadLock rl(lock_);
+      std::set<string> localFilterSet;
+      std::map<string, shared_ptr<BtcWallet>> localWalletMap;
 
-      set<string> localFilterSet;
-      map<string, shared_ptr<BtcWallet>> localWalletMap;
-      for (auto& wlt_pair : wallets_)
-      {
-         if (!wlt_pair.second->uiFilter_)
+      for (auto& wlt_pair : wallets_) {
+         if (!wlt_pair.second->uiFilter_) {
             continue;
-
-         localFilterSet.insert(wlt_pair.first);
-         localWalletMap.insert(wlt_pair);
+         }
+         localFilterSet.emplace(wlt_pair.first);
+         localWalletMap.emplace(wlt_pair);
       }
 
-      if (localFilterSet != wltFilterSet_)
-      {
+      if (localFilterSet != wltFilterSet_) {
          updateID = UINT32_MAX;
-         wltFilterSet_ = move(localFilterSet);
+         wltFilterSet_ = std::move(localFilterSet);
       }
 
       auto getTxio = [&localWalletMap](
-         uint32_t, uint32_t)->map<BinaryData, TxIOPair>
+         uint32_t, uint32_t)->std::map<BinaryData, TxIOPair>
       {
-         return map<BinaryData, TxIOPair>();
+         return {};
       };
 
       auto buildLedgers = [&localWalletMap](
          const map<BinaryData, TxIOPair>&,
-         uint32_t startBlock, uint32_t endBlock)->map<BinaryData, LedgerEntry>
+         uint32_t startBlock, uint32_t endBlock)
+      ->std::map<BinaryData, LedgerEntry>
       {
-         map<BinaryData, LedgerEntry> result;
+         std::map<BinaryData, LedgerEntry> result;
          unsigned i = 0;
-         for (auto& wlt_pair : localWalletMap)
-         {
-            auto&& txio_map = wlt_pair.second->getTxioForRange(
+         for (auto& wlt_pair : localWalletMap) {
+            auto txio_map = wlt_pair.second->getTxioForRange(
                startBlock, endBlock);
-            auto&& ledgerMap = wlt_pair.second->updateWalletLedgersFromTxio(
+            auto ledgerMap = wlt_pair.second->updateWalletLedgersFromTxio(
                txio_map, startBlock, endBlock);
 
-            for (auto& ledger : ledgerMap)
-            {
+            for (auto& ledger : ledgerMap) {
                BinaryWriter bw;
                bw.put_uint32_t(i++);
-
-               auto&& ledger_pair = make_pair(bw.getData(), move(ledger.second));
-               result.insert(move(ledger_pair));
+               result.emplace(bw.getData(), std::move(ledger.second));
             }
          }
-
          return result;
       };
 
       auto leMap = hist_.getPageLedgerMap(
          getTxio, buildLedgers, pageId, updateID, nullptr);
 
-      if (leMap != nullptr)
-      {
-         for (auto& le : *leMap)
-            vle.push_back(le.second);
+      if (leMap != nullptr) {
+         for (auto& le : *leMap) {
+            vle.emplace_back(le.second);
+         }
       }
    }
 
-   if (order_ == order_ascending)
-   {
-      sort(vle.begin(), vle.end());
-   }
-   else
-   {
+   if (order_ == order_ascending) {
+      std::sort(vle.begin(), vle.end());
+   } else {
       LedgerEntry_DescendingOrder desc;
-      sort(vle.begin(), vle.end(), desc);
+      std::sort(vle.begin(), vle.end(), desc);
    }
-
    return vle;
 }
 
@@ -1466,46 +1597,44 @@ void WalletGroup::updateLedgerFilter(const vector<string>& walletsList)
    ReadWriteLock::ReadLock rl(lock_);
 
    vector<string> enabledIDs;
-   for (auto& wlt_pair : wallets_)
-   {
-      if (wlt_pair.second->uiFilter_)
+   for (auto& wlt_pair : wallets_) {
+      if (wlt_pair.second->uiFilter_) {
          enabledIDs.push_back(wlt_pair.first);
+      }
       wlt_pair.second->uiFilter_ = false;
    }
 
 
-   for (auto walletID : walletsList)
-   {
+   for (auto walletID : walletsList) {
       auto iter = wallets_.find(walletID);
-      if (iter == wallets_.end())
+      if (iter == wallets_.end()) {
          continue;
-
+      }
       iter->second->uiFilter_ = true;
    }
-   
+
    auto vec_copy = walletsList;
    sort(vec_copy.begin(), vec_copy.end());
    sort(enabledIDs.begin(), enabledIDs.end());
 
-   if (vec_copy == enabledIDs)
+   if (vec_copy == enabledIDs) {
       return;
+   }
 
    pageHistory(false, true);
-   bdvPtr_->flagRefresh(BDV_filterChanged, BinaryData(), nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletGroup::scanWallets(ScanWalletStruct& scanData, 
-   int32_t updateID)
+void WalletGroup::scanWallets(ScanWalletStruct& scanData, int32_t updateID)
 {
    ReadWriteLock::ReadLock rl(lock_);
-
-   for (auto& wlt : wallets_)
+   for (auto& wlt : wallets_) {
       wlt.second->scanWallet(scanData, updateID);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-map<string, shared_ptr<BtcWallet> > WalletGroup::getWalletMap(void) const
+std::map<string, std::shared_ptr<BtcWallet>> WalletGroup::getWalletMap(void) const
 {
    ReadWriteLock::ReadLock rl(lock_);
    return wallets_;
@@ -1515,9 +1644,9 @@ map<string, shared_ptr<BtcWallet> > WalletGroup::getWalletMap(void) const
 shared_ptr<BtcWallet> WalletGroup::getWalletByID(const string& ID) const
 {
    auto iter = wallets_.find(ID);
-   if (iter != wallets_.end())
+   if (iter != wallets_.end()) {
       return iter->second;
-
+   }
    return nullptr;
 }
 

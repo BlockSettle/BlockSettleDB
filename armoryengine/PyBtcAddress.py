@@ -1,19 +1,24 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 ################################################################################
 #                                                                              #
 # Copyright (C) 2011-2015, Armory Technologies, Inc.                           #
 # Distributed under the GNU Affero General Public License (AGPL v3)            #
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
+# Copyright (C) 2016-2025, goatpig                                             #
+#  Distributed under the MIT license                                           #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                      #
+#                                                                              #
 ################################################################################
+from __future__ import (absolute_import, division,
+   print_function, unicode_literals)
+
 from armoryengine.ArmoryUtils import ADDRBYTE, hash256, \
    KeyDataError, RightNow, LOGERROR, ChecksumError, convertKeyDataToAddress, \
    verifyChecksum, WalletLockError, createDERSigFromRS, binary_to_int, \
    computeChecksum, getVersionInt, PYBTCWALLET_VERSION, bitset_to_int, \
    LOGDEBUG, int_to_bitset, UnserializeError, int_to_binary, BIGENDIAN, \
    checkAddrStrValid, binary_to_hex, ENABLE_DETSIGN
-from armoryengine.AddressUtils import AddressEntryType_Default
+from armoryengine.AddressUtils import Balances, AddressEntryType_Default
 from armoryengine.BinaryPacker import BinaryPacker, UINT8, UINT16, UINT32, \
    UINT64, INT8, INT16, INT32, INT64, VAR_INT, VAR_STR, FLOAT, BINARY_CHUNK
 from armoryengine.BinaryUnpacker import BinaryUnpacker
@@ -23,15 +28,6 @@ from armoryengine.Timer import TimeThisFunction
 class PyBtcAddress(object):
    """
    PyBtcAddress --
-
-   This class encapsulated EVERY kind of address object:
-      -- Plaintext private-key-bearing addresses
-      -- Encrypted private key addresses, with AES locking and unlocking
-      -- Watching-only public-key addresses
-      -- Address-only storage, representing someone else's key
-      -- Deterministic address generation from previous addresses
-      -- Serialization and unserialization of key data under all conditions
-      -- Checksums on all serialized fields to protect against HDD byte errors
 
       For deterministic wallets, new addresses will be created from a chaincode
       and the previous address.  What is implemented here is a special kind of
@@ -70,26 +66,16 @@ class PyBtcAddress(object):
 
    #############################################################################
    def __init__(self, parentWallet=None):
-      """
-      We use SecureBinaryData objects to store pub, priv and IV objects,
-      because that is what is required by the C++ code.  See EncryptionUtils.h
-      to see that available methods.
-      """
       self.prefixedHash          = []
       self.binPublicKey          = []  #33 or 65 bytes depending on address type
       self.precursorScript       = []
       self.isInitialized         = False
       self.chainIndex            = 0
-      self.useEncryption         = False
       self.hasPrivKey            = False
       self.addrType              = AddressEntryType_Default
       self.parentWallet          = parentWallet
       self.addressString         = None
-      
-      self.fullBalance           = 0
-      self.spendableBalance      = 0
-      self.unconfirmedBalance    = 0
-      self.txioCount             = 0
+      self.balance               = Balances()
 
       self.isUsed = False
       self.isChange = False
@@ -141,49 +127,37 @@ class PyBtcAddress(object):
       return (self.chainIndex==-1)
 
    #############################################################################
-   def loadFromProtobufPayload(self, payload):
+   def loadFromProto(self, payload):
       self.__init__()
 
-      self.prefixedHash = payload.prefixed_hash
-      self.binPublicKey = payload.public_key
-      self.chainIndex = payload.id
-      self.assetId = payload.asset_id
+      self.prefixedHash = payload.prefixedHash
+      self.binPublicKey = payload.publicKey
+      self.chainIndex = payload.index
+      self.assetId = payload.assetId
       self.isInitialized = True
-      self.addrType = payload.addr_type
-      self.addressString = payload.address_string
-      self.hasPrivKey = payload.has_priv_key
-      self.use_encryption = payload.use_encryption
+      self.addrType = payload.addrType
+      self.addressString = payload.addressString
+      self.hasPrivKey = payload.hasPrivKey
 
-      self.precursorScript = payload.precursor_script
-      self.isUsed = payload.is_used
-      self.isChange = payload.is_change
+      self.precursorScript = payload.precursorScript
+      self.isUsed = payload.isUsed
+      self.isChange = payload.isChange
 
    #############################################################################
    def getTxioCount(self):
       from armoryengine.BDM import TheBDM, BDM_OFFLINE, BDM_UNINITIALIZED
       if TheBDM.getState() in (BDM_OFFLINE,BDM_UNINITIALIZED):
          return "N/A"
+      return self.balance.txCount
 
-      return self.txioCount
-
-   #############################################################################
-   def getFullBalance(self):
-      return self.fullBalance
-
-   #############################################################################
-   def getSpendableBalance(self):
-      return self.spendableBalance
-
-   #############################################################################
-   def getUnconfirmedBalance(self):
-      return self.unconfirmedBalance
+   def getBalance(self, balType="Spendable"):
+      return self.balance.getBalance(balType)
 
    #############################################################################
    def getComment(self):
       if self.parentWallet is None:
          return ''
-
-      return self.parentWallet.getCommentForAddr(self.getAddr160())
+      return self.parentWallet.getComment(self.getAddr160())
 
    #############################################################################
    def filter(self, filterType, isUsed, isChange):
@@ -198,5 +172,4 @@ class PyBtcAddress(object):
 
       if isChange != self.isChange:
          return False
-
       return True

@@ -6,23 +6,13 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _BRIDGE_SOCKET_H
-#define _BRDIGE_SOCKET_H
+#pragma once
 
 #include <memory>
-
 #include "../SocketObject.h"
 
 class BIP151Connection;
 class AuthorizedPeers;
-
-namespace google
-{
-   namespace protobuf
-   {
-      class Message;
-   };
-};
 
 namespace Armory
 {
@@ -38,7 +28,7 @@ namespace Armory
       /////////////////////////////////////////////////////////////////////////////
       struct WritePayload_Bridge : public Socket_WritePayload
       {
-         std::unique_ptr<google::protobuf::Message> message_;
+         BinaryData data;
 
          void serialize(std::vector<uint8_t>&) override;
          std::string serializeToText(void) override
@@ -68,16 +58,14 @@ namespace Armory
 
       public:
          CppBridgeSocket(
-            const std::string& addr, const std::string& port,
-            std::shared_ptr<CppBridge> bridgePtr);
+            const std::string&, const std::string&,
+            std::shared_ptr<CppBridge>);
 
-         SocketType type(void) const override { return SocketCppBridge; }
-         void respond(std::vector<uint8_t>& data) override;
+         SocketType type(void) const override;
+         void respond(std::vector<uint8_t>&) override;
          void pushPayload(
             std::unique_ptr<Socket_WritePayload>,
             std::shared_ptr<Socket_ReadPayload>) override;
       };
-   }; //namespace Bridge
-}; //namespace Armory
-
-#endif
+   } //namespace Bridge
+} //namespace Armory

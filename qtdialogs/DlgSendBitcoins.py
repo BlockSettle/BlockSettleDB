@@ -4,14 +4,14 @@
 # Distributed under the GNU Affero General Public License (AGPL v3)          #
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                       #
 #                                                                            #
-# Copyright (C) 2016-2022, goatpig                                           #
+# Copyright (C) 2016-2024, goatpig                                           #
 #  Distributed under the MIT license                                         #
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
 #                                                                            #
 ##############################################################################
 
-from PySide2.QtCore import QSize
-from PySide2.QtWidgets import QVBoxLayout
+from qtpy import QtCore, QtWidgets
+
 
 from armoryengine.Settings import TheSettings
 
@@ -23,26 +23,23 @@ from ui.TxFrames import SendBitcoinsFrame
 ################################################################################
 class DlgSendBitcoins(ArmoryDialog):
    def __init__(self, wlt, parent=None, main=None,
-                              wltIDList=None, onlyOfflineWallets=False,
-                              spendFromLockboxID=None):
+      wltIDList=None, onlyOfflineWallets=False,
+      spendFromLockboxID=None):
       super(DlgSendBitcoins, self).__init__(parent, main)
-      layout = QVBoxLayout()
+      layout = QtWidgets.QVBoxLayout()
 
       self.spendFromLockboxID = spendFromLockboxID
-
       self.frame = SendBitcoinsFrame(self, main, self.tr('Send Bitcoins'),
-                   wlt, wltIDList, onlyOfflineWallets=onlyOfflineWallets,
-                   sendCallback=self.createTxAndBroadcast,
-                   createUnsignedTxCallback=self.createUnsignedTxAndDisplay,
-                   spendFromLockboxID=spendFromLockboxID)
+         wlt, wltIDList, onlyOfflineWallets=onlyOfflineWallets,
+         sendCallback=self.createTxAndBroadcast,
+         createUnsignedTxCallback=self.createUnsignedTxAndDisplay,
+         spendFromLockboxID=spendFromLockboxID)
       layout.addWidget(self.frame)
       self.setLayout(layout)
-      self.sizeHint = lambda: QSize(850, 600)
+      self.sizeHint = lambda: QtCore.QSize(850, 600)
       self.setMinimumWidth(700)
       # Update the any controls based on the initial wallet selection
       self.frame.fireWalletChange()
-
-
 
    #############################################################################
    def createUnsignedTxAndDisplay(self, ustx):
@@ -53,7 +50,6 @@ class DlgSendBitcoins(ArmoryDialog):
       else:
          dlg = DlgMultiSpendReview(self.parent, self.main, ustx)
          dlg.exec_()
-
 
    #############################################################################
    def createTxAndBroadcast(self):

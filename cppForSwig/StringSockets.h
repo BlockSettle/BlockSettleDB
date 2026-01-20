@@ -11,7 +11,7 @@
 
 #include <string.h>
 #include "SocketObject.h"
-#include "HttpMessage.h"
+#include "Utils/HttpMessage.h"
 
 typedef std::vector<uint8_t>::iterator vecIter;
 
@@ -99,13 +99,13 @@ public:
    HttpSocket(const std::string& addr, const std::string& port);
 
    static size_t getHttpBodyOffset(const char*, size_t);
-   virtual SocketType type(void) const { return SocketHttp; }
-   virtual bool processPacket(std::vector<uint8_t>&, std::vector<uint8_t>&);
+   SocketType type(void) const override;
+   bool processPacket(std::vector<uint8_t>&, std::vector<uint8_t>&);
 
-   virtual void pushPayload(
+   void pushPayload(
       std::unique_ptr<Socket_WritePayload>,
-      std::shared_ptr<Socket_ReadPayload>);
-   virtual void respond(std::vector<uint8_t>&);
+      std::shared_ptr<Socket_ReadPayload>) override;
+   void respond(std::vector<uint8_t>&);
 
    void precacheHttpHeader(std::string& header)
    {

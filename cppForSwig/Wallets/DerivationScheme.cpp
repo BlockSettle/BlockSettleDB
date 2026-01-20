@@ -1,13 +1,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2017, goatpig                                               //
+//  Copyright (C) 2017-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "ReentrantLock.h"
 #include "DerivationScheme.h"
+#include "Utils/ReentrantLock.h"
+#include "Utils/Cryptography.h"
 #include "EncryptedDB.h"
 #include "DecryptedDataContainer.h"
 #include "BIP32_Node.h"
@@ -17,20 +18,35 @@
 #define DERSCHEME_SALTED_VERSION 0x00000001
 #define DERSCHEME_ECDH_VERSION   0x00000001
 
-using namespace std;
 using namespace Armory::Assets;
 using namespace Armory::Wallets;
+
+////////////////////////////////////////////////////////////////////////////////
+DerivationSchemeException::DerivationSchemeException(const std::string& msg) :
+   std::runtime_error(msg)
+{}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// DerivationScheme
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+DerivationScheme::DerivationScheme(DerivationSchemeType type) :
+   type_(type)
+{}
+
+////////////////////////////////////////////////////////////////////////////////
 DerivationScheme::~DerivationScheme()
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data)
+DerivationSchemeType DerivationScheme::getType() const
+{
+   return type_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+std::shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data)
 {
    BinaryRefReader brr(data);
 
@@ -40,117 +56,111 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data)
    //get derivation scheme type
    auto schemeType = brr.get_uint8_t();
 
-   shared_ptr<DerivationScheme> derScheme;
-
+   std::shared_ptr<DerivationScheme> derScheme;
    switch (schemeType)
    {
-   case DERIVATIONSCHEME_LEGACY:
-   {
-      switch (version)
+      case DERIVATIONSCHEME_LEGACY:
       {
-      case 0x00000001:
+         switch (version)
+         {
+            case 0x00000001:
+            {
+               //get chaincode;
+               auto len = brr.get_var_int();
+               SecureBinaryData chainCode{brr.get_BinaryDataRef(len)};
+               derScheme = std::make_shared<DerivationScheme_ArmoryLegacy>(
+                  chainCode);
+               break;
+            }
+
+            default:
+               throw DerivationSchemeException("unsupported legacy scheme version");
+         }
+
+         break;
+      }
+
+      case DERIVATIONSCHEME_BIP32:
       {
-         //get chaincode;
-         auto len = brr.get_var_int();
-         auto&& chainCode = SecureBinaryData(brr.get_BinaryDataRef(len));
-         derScheme = make_shared<DerivationScheme_ArmoryLegacy>(
-            chainCode);
+         switch (version)
+         {
+            case 0x00000001:
+            {
+               //chaincode;
+               auto len = brr.get_var_int();
+               SecureBinaryData chainCode{brr.get_BinaryDataRef(len)};
+
+               //bip32 node meta data
+               auto depth = brr.get_uint32_t();
+               auto leafID = brr.get_uint32_t();
+
+               //instantiate object
+               derScheme = std::make_shared<DerivationScheme_BIP32>(
+                  chainCode, depth, leafID);
+               break;
+            }
+
+            default:
+               throw DerivationSchemeException("unsupported bip32 scheme version");
+         }
+
+         break;
+      }
+
+      case DERIVATIONSCHEME_BIP32_SALTED:
+      {
+         switch (version)
+         {
+            case 0x00000001:
+            {
+               //chaincode;
+               auto len = brr.get_var_int();
+               SecureBinaryData chainCode{brr.get_BinaryDataRef(len)};
+
+               //bip32 node meta data
+               auto depth = brr.get_uint32_t();
+               auto leafID = brr.get_uint32_t();
+
+               //salt
+               len = brr.get_var_int();
+               SecureBinaryData salt{brr.get_BinaryDataRef(len)};
+
+               //instantiate object
+               derScheme = std::make_shared<DerivationScheme_BIP32_Salted>(
+                  salt, chainCode, depth, leafID);
+               break;
+            }
+
+            default:
+               throw DerivationSchemeException("unsupported salted scheme version");
+         }
+
+         break;
+      }
+
+      case DERIVATIONSCHEME_BIP32_ECDH:
+      {
+         switch (version)
+         {
+            case 0x00000001:
+            {
+               //id
+               auto len = brr.get_var_int();
+               auto id = brr.get_BinaryData(len);
+               derScheme = std::make_shared<DerivationScheme_ECDH>(id);
+               break;
+            }
+
+            default:
+               throw DerivationSchemeException("unsupported ecdh scheme version");
+         }
 
          break;
       }
 
       default:
-         throw DerivationSchemeException("unsupported legacy scheme version");
-      }
-
-      break;
+         throw DerivationSchemeException("unsupported derivation scheme");
    }
-
-   case DERIVATIONSCHEME_BIP32:
-   {
-      switch (version)
-      {
-      case 0x00000001:
-      {
-         //chaincode;
-         auto len = brr.get_var_int();
-         auto&& chainCode = SecureBinaryData(brr.get_BinaryDataRef(len));
-
-         //bip32 node meta data
-         auto depth = brr.get_uint32_t();
-         auto leafID = brr.get_uint32_t();
-
-         //instantiate object
-         derScheme = make_shared<DerivationScheme_BIP32>(
-            chainCode, depth, leafID);
-
-         break;
-      }
-
-      default:
-         throw DerivationSchemeException("unsupported bip32 scheme version");
-      }
-
-      break;
-   }
-
-   case DERIVATIONSCHEME_BIP32_SALTED:
-   {
-      switch (version)
-      {
-      case 0x00000001:
-      {
-         //chaincode;
-         auto len = brr.get_var_int();
-         auto&& chainCode = SecureBinaryData(brr.get_BinaryDataRef(len));
-
-         //bip32 node meta data
-         auto depth = brr.get_uint32_t();
-         auto leafID = brr.get_uint32_t();
-
-         //salt
-         len = brr.get_var_int();
-         auto&& salt = SecureBinaryData(brr.get_BinaryDataRef(len));
-
-         //instantiate object
-         derScheme = make_shared<DerivationScheme_BIP32_Salted>(
-            salt, chainCode, depth, leafID);
-
-         break;
-      }
-
-      default:
-         throw DerivationSchemeException("unsupported salted scheme version");
-      }
-
-      break;
-   }
-
-   case DERIVATIONSCHEME_BIP32_ECDH:
-   {
-      switch (version)
-      {
-      case 0x00000001:
-      {
-         //id
-         auto len = brr.get_var_int();
-         auto id = brr.get_BinaryData(len);
-         derScheme = make_shared<DerivationScheme_ECDH>(id);
-
-         break;
-      }
-
-      default:
-         throw DerivationSchemeException("unsupported ecdh scheme version");
-      }
-
-      break;
-   }
-
-   default:
-      throw DerivationSchemeException("unsupported derivation scheme");
-   }
-
    return derScheme;
 }
 
@@ -159,127 +169,131 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data)
 //// DerivationScheme_ArmoryLegacy
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetEntry_Single>
-   DerivationScheme_ArmoryLegacy::computeNextPublicEntry(
-   const SecureBinaryData& pubKey, AssetId id)
-{
-   auto&& nextPubkey = CryptoECDSA().ComputeChainedPublicKey(
-      pubKey, chainCode_, nullptr);
+DerivationScheme_ArmoryLegacy::DerivationScheme_ArmoryLegacy(
+   SecureBinaryData& chainCode) :
+   DerivationScheme(DerivationSchemeType::ArmoryLegacy),
+   chainCode_(std::move(chainCode))
+{}
 
-   return make_shared<AssetEntry_Single>(id, nextPubkey, nullptr);
+////////////////////////////////////////////////////////////////////////////////
+const SecureBinaryData& DerivationScheme_ArmoryLegacy::getChaincode() const
+{
+   return chainCode_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<shared_ptr<AssetEntry>> DerivationScheme_ArmoryLegacy::extendPublicChain(
-   shared_ptr<AssetEntry> firstAsset, unsigned start, unsigned end,
+std::shared_ptr<AssetEntry_Single>
+DerivationScheme_ArmoryLegacy::computeNextPublicEntry(
+   const SecureBinaryData& pubKey, AssetId id)
+{
+   auto nextPubkey = Cryptography::ECDSA::computeChainedPublicKey(
+      pubKey, chainCode_);
+   return std::make_shared<AssetEntry_Single>(id, nextPubkey, nullptr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+std::vector<std::shared_ptr<AssetEntry>>
+DerivationScheme_ArmoryLegacy::extendPublicChain(
+   std::shared_ptr<AssetEntry> firstAsset, int32_t, int32_t end,
    const std::function<void(int)>& progressCallback)
 {
    auto nextAsset = [this](
-      shared_ptr<AssetEntry> assetPtr)->shared_ptr<AssetEntry>
+      std::shared_ptr<AssetEntry> assetPtr)->std::shared_ptr<AssetEntry>
    {
-      auto assetSingle =
-         dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
-
-      //get pubkey
+      auto assetSingle = std::dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
       auto pubkey = assetSingle->getPubKey();
-      auto& pubkeyData = pubkey->getUncompressedKey();
+      const auto& pubkeyData = pubkey->getUncompressedKey();
 
-      return computeNextPublicEntry(pubkeyData,
-         AssetId(assetSingle->getAccountID(), assetSingle->getIndex() + 1));
+      return computeNextPublicEntry(pubkeyData, AssetId(
+         assetSingle->getAccountID(), assetSingle->getIndex() + 1));
    };
 
-   vector<shared_ptr<AssetEntry>> assetVec;
+   std::vector<std::shared_ptr<AssetEntry>> assetVec;
+   assetVec.reserve(end - firstAsset->getIndex());
    auto currentAsset = firstAsset;
 
-   for (unsigned i = start; i <= end; i++)
-   {
+   for (int32_t i = firstAsset->getIndex(); i < end; i++) {
       currentAsset = nextAsset(currentAsset);
       assetVec.emplace_back(currentAsset);
 
-      if (progressCallback)
-         progressCallback(i-start+1);
+      if (progressCallback) {
+         progressCallback(i-firstAsset->getIndex()+1);
+      }
    }
-
    return assetVec;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetEntry_Single>
-   DerivationScheme_ArmoryLegacy::computeNextPrivateEntry(
-   shared_ptr<Encryption::DecryptedDataContainer> ddc,
+std::shared_ptr<AssetEntry_Single>
+DerivationScheme_ArmoryLegacy::computeNextPrivateEntry(
+   std::shared_ptr<Encryption::DecryptedDataContainer> ddc,
    const SecureBinaryData& privKeyData,
-   unique_ptr<Encryption::Cipher> cipher,
+   std::unique_ptr<Encryption::Cipher> cipher,
    AssetId id)
 {
    //chain the private key
-   auto&& nextPrivkeySBD = CryptoECDSA().ComputeChainedPrivateKey(
+   auto nextPrivkeySBD = Cryptography::ECDSA::computeChainedPrivateKey(
       privKeyData, chainCode_);
 
    //compute its pubkey
-   auto&& nextPubkey = CryptoECDSA().ComputePublicKey(nextPrivkeySBD);
+   auto nextPubkey = Cryptography::ECDSA::computePublicKey(nextPrivkeySBD);
 
    //encrypt the new privkey
-   auto&& newCipher = cipher->getCopy(); //copying a cipher cycles the IV
-   auto&& encryptedNextPrivKey = ddc->encryptData(
-      newCipher.get(), nextPrivkeySBD);
+   auto encryptedNextPrivKey = ddc->encryptData(
+      cipher.get(), nextPrivkeySBD);
 
    //clear the unencrypted privkey object
    nextPrivkeySBD.clear();
 
    //instantiate new encrypted key object
-   auto cipherData =
-      make_unique<Encryption::CipherData>(encryptedNextPrivKey, move(newCipher));
-   auto nextPrivKey = make_shared<Asset_PrivateKey>(id, move(cipherData));
+   auto cipherData = std::make_unique<Encryption::CipherData>(
+      encryptedNextPrivKey, std::move(cipher));
+   auto nextPrivKey = std::make_shared<Asset_PrivateKey>(
+      id, std::move(cipherData));
 
    //instantiate and return new asset entry
-   return make_shared<AssetEntry_Single>(id, nextPubkey, nextPrivKey);
+   return std::make_shared<AssetEntry_Single>(id, nextPubkey, nextPrivKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<shared_ptr<AssetEntry>>
-   DerivationScheme_ArmoryLegacy::extendPrivateChain(
-   shared_ptr<Encryption::DecryptedDataContainer> ddc,
-   shared_ptr<AssetEntry> firstAsset,
-   unsigned start, unsigned end)
+std::vector<std::shared_ptr<AssetEntry>>
+DerivationScheme_ArmoryLegacy::extendPrivateChain(
+   std::shared_ptr<Encryption::DecryptedDataContainer> ddc,
+   std::shared_ptr<AssetEntry> firstAsset, int32_t, int32_t end)
 {
    //throws if the wallet is locked or the asset is missing its private key
-
-   auto nextAsset = [this, ddc](
-      shared_ptr<AssetEntry> assetPtr)->shared_ptr<AssetEntry>
-   {
-      //sanity checks
-      auto assetSingle =
-         dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
-
-      auto privkey = assetSingle->getPrivKey();
-      if (privkey == nullptr)
-         throw AssetUnavailableException();
-      auto& privkeyData =
-         ddc->getClearTextAssetData(privkey);
-
-      return computeNextPrivateEntry(
-         ddc,
-         privkeyData, move(privkey->getCipherDataPtr()->cipher_->getCopy()),
-         AssetId(assetSingle->getAccountID(), assetSingle->getIndex() + 1));
-   };
-
-   if (ddc == nullptr || firstAsset == nullptr)
-   {
+   if (ddc == nullptr || firstAsset == nullptr) {
       LOGERR << "missing asset, cannot extent private chain";
       throw AssetUnavailableException();
    }
 
-   ReentrantLock lock(ddc.get());
-
-   vector<shared_ptr<AssetEntry>> assetVec;
-   auto currentAsset = firstAsset;
-
-   for (unsigned i = start; i <= end; i++)
+   auto nextAsset = [this, ddc](
+      std::shared_ptr<AssetEntry> assetPtr)->std::shared_ptr<AssetEntry>
    {
-      currentAsset = nextAsset(currentAsset);
-      assetVec.push_back(currentAsset);
-   }
+      //sanity checks
+      auto assetSingle = std::dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
+      auto privkey = assetSingle->getPrivKey();
+      if (privkey == nullptr) {
+         throw AssetUnavailableException();
+      }
+      auto& privkeyData = ddc->getClearTextAssetData(privkey);
 
+      return computeNextPrivateEntry(
+         ddc, privkeyData,
+         std::move(privkey->getCipherDataPtr()->cipher_->getCopy()),
+         AssetId(assetSingle->getAccountID(), assetSingle->getIndex() + 1)
+      );
+   };
+
+   ReentrantLock lock(ddc.get());
+   std::vector<std::shared_ptr<AssetEntry>> assetVec;
+   assetVec.reserve(end - firstAsset->getIndex());
+
+   auto currentAsset = firstAsset;
+   for (int32_t i = firstAsset->getIndex(); i < end; i++) {
+      currentAsset = nextAsset(currentAsset);
+      assetVec.emplace_back(currentAsset);
+   }
    return assetVec;
 }
 
@@ -304,112 +318,144 @@ BinaryData DerivationScheme_ArmoryLegacy::serialize() const
 //// DerivationScheme_BIP32
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetEntry_Single>
-   DerivationScheme_BIP32::computeNextPrivateEntry(
-   shared_ptr<Encryption::DecryptedDataContainer> ddc,
+DerivationScheme_BIP32::DerivationScheme_BIP32(DerivationSchemeType type,
+   SecureBinaryData& chainCode, unsigned depth, unsigned leafId) :
+   DerivationScheme(type),
+   chainCode_(std::move(chainCode)),
+   depth_(depth), leafId_(leafId)
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+DerivationScheme_BIP32::DerivationScheme_BIP32(SecureBinaryData& chainCode,
+   unsigned depth, unsigned leafId) :
+   DerivationScheme(DerivationSchemeType::BIP32),
+   chainCode_(std::move(chainCode)),
+   depth_(depth), leafId_(leafId)
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+const SecureBinaryData& DerivationScheme_BIP32::getChaincode() const
+{
+   return chainCode_;
+}
+
+////
+unsigned DerivationScheme_BIP32::getDepth() const
+{
+   return depth_;
+}
+
+////
+unsigned DerivationScheme_BIP32::getLeafId() const
+{
+   return leafId_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+std::shared_ptr<AssetEntry_Single>
+DerivationScheme_BIP32::computeNextPrivateEntry(
+   std::shared_ptr<Encryption::DecryptedDataContainer> ddc,
    const SecureBinaryData& privKeyData,
-   unique_ptr<Encryption::Cipher> cipher,
+   std::unique_ptr<Encryption::Cipher> cipher,
    AssetId id)
 {
    auto index = id.getAssetKey();
 
    //derScheme only allows for soft derivation
-   if (index > 0x7FFFFFFF)
+   if (index > 0x7FFFFFFF) {
       throw DerivationSchemeException("illegal: hard derivation");
-
+   }
    BIP32_Node node;
    node.initFromPrivateKey(depth_, leafId_, 0, privKeyData, chainCode_);
    node.derivePrivate(index);
 
    //encrypt the new privkey
-   auto&& newCipher = cipher->getCopy(); //copying a cypher cycles the IV
-   auto&& encryptedNextPrivKey = ddc->encryptData(
-      newCipher.get(), node.getPrivateKey());
+   auto encryptedNextPrivKey = ddc->encryptData(
+      cipher.get(), node.getPrivateKey());
 
    //instantiate new encrypted key object
-   auto cipherData =
-      make_unique<Encryption::CipherData>(
-         encryptedNextPrivKey, move(newCipher));
-   auto nextPrivKey = make_shared<Asset_PrivateKey>(id, move(cipherData));
+   auto cipherData = std::make_unique<Encryption::CipherData>(
+      encryptedNextPrivKey, std::move(cipher));
+   auto nextPrivKey = std::make_shared<Asset_PrivateKey>(
+      id, std::move(cipherData));
 
    //instantiate and return new asset entry
    auto nextPubkey = node.movePublicKey();
-   return make_shared<AssetEntry_Single>(id, nextPubkey, nextPrivKey);
+   return std::make_shared<AssetEntry_Single>(id, nextPubkey, nextPrivKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<shared_ptr<AssetEntry>>
-   DerivationScheme_BIP32::extendPrivateChain(
-   shared_ptr<Encryption::DecryptedDataContainer> ddc,
-   shared_ptr<AssetEntry> rootAsset,
-   unsigned start, unsigned end)
+std::vector<std::shared_ptr<AssetEntry>>
+DerivationScheme_BIP32::extendPrivateChain(
+   std::shared_ptr<Encryption::DecryptedDataContainer> ddc,
+   std::shared_ptr<AssetEntry> rootAsset,
+   int32_t start, int32_t end)
 {
    //throws if the wallet is locked or the asset is missing its private key
-
-   auto rootAsset_single = dynamic_pointer_cast<AssetEntry_Single>(rootAsset);
-   if (rootAsset_single == nullptr)
+   auto rootAsset_single = std::dynamic_pointer_cast<AssetEntry_Single>(rootAsset);
+   if (rootAsset_single == nullptr) {
       throw DerivationSchemeException("invalid root asset object");
-   const auto& account_id = rootAsset_single->getAccountID();
+   }
+   if (ddc == nullptr) {
+      throw AssetUnavailableException();
+   }
 
+   const auto& account_id = rootAsset_single->getAccountID();
    auto nextAsset = [this, ddc, rootAsset_single, &account_id](
-      unsigned derivationIndex)->shared_ptr<AssetEntry>
+      int32_t derivationIndex)->std::shared_ptr<AssetEntry>
    {
       //sanity checks
       auto privkey = rootAsset_single->getPrivKey();
-      if (privkey == nullptr)
+      if (privkey == nullptr) {
          throw AssetUnavailableException();
+      }
       auto& privkeyData = ddc->getClearTextAssetData(privkey);
 
       return computeNextPrivateEntry(
-         ddc,
-         privkeyData, move(privkey->getCipherDataPtr()->cipher_->getCopy()),
+         ddc, privkeyData,
+         std::move(privkey->getCipherDataPtr()->cipher_->getCopy()),
          AssetId(account_id, derivationIndex));
    };
 
-   if (ddc == nullptr)
-      throw AssetUnavailableException();
-
    ReentrantLock lock(ddc.get());
+   std::vector<std::shared_ptr<AssetEntry>> assetVec;
+   assetVec.reserve(end-start);
 
-   vector<shared_ptr<AssetEntry>> assetVec;
-
-   for (unsigned i = start; i <= end; i++)
-   {
-      auto newAsset = nextAsset(i);
-      assetVec.push_back(newAsset);
+   for (int32_t i = start; i < end; i++) {
+      auto newAsset = nextAsset(i+1);
+      assetVec.emplace_back(newAsset);
    }
-
    return assetVec;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetEntry_Single>
-   DerivationScheme_BIP32::computeNextPublicEntry(
+std::shared_ptr<AssetEntry_Single>
+DerivationScheme_BIP32::computeNextPublicEntry(
    const SecureBinaryData& pubKey, AssetId id)
 {
    auto index = id.getAssetKey();
 
    //derScheme only allows for soft derivation
-   if (index > 0x7FFFFFFF)
+   if (index > 0x7FFFFFFF) {
       throw DerivationSchemeException("illegal: hard derivation");
-
+   }
    BIP32_Node node;
    node.initFromPublicKey(depth_, leafId_, 0, pubKey, chainCode_);
    node.derivePublic(index);
 
    auto nextPubKey = node.movePublicKey();
-   return make_shared<AssetEntry_Single>(id, nextPubKey, nullptr);
+   return std::make_shared<AssetEntry_Single>(id, nextPubKey, nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<shared_ptr<AssetEntry>> DerivationScheme_BIP32::extendPublicChain(
-   shared_ptr<AssetEntry> rootAsset, uint32_t start, uint32_t end,
+std::vector<std::shared_ptr<AssetEntry>>
+DerivationScheme_BIP32::extendPublicChain(
+   std::shared_ptr<AssetEntry> rootAsset, int32_t start, int32_t end,
    const std::function<void(int)>& progressCallback)
 {
-   auto rootSingle = dynamic_pointer_cast<AssetEntry_Single>(rootAsset);
-
+   auto rootSingle = std::dynamic_pointer_cast<AssetEntry_Single>(rootAsset);
    auto nextAsset = [this, rootSingle](
-      uint32_t derivationIndex)->shared_ptr<AssetEntry>
+      int32_t derivationIndex)->std::shared_ptr<AssetEntry>
    {
       //get pubkey
       auto pubkey = rootSingle->getPubKey();
@@ -419,15 +465,15 @@ vector<shared_ptr<AssetEntry>> DerivationScheme_BIP32::extendPublicChain(
          AssetId(rootSingle->getAccountID(), derivationIndex));
    };
 
-   vector<shared_ptr<AssetEntry>> assetVec;
+   std::vector<std::shared_ptr<AssetEntry>> assetVec;
+   assetVec.reserve(end - start);
+   for (int32_t i = start; i < end; i++) {
+      auto newAsset = nextAsset(i+1);
+      assetVec.emplace_back(std::move(newAsset));
 
-   for (unsigned i = start; i <= end; i++)
-   {
-      auto newAsset = nextAsset(i);
-      assetVec.emplace_back(move(newAsset));
-
-      if (progressCallback)
+      if (progressCallback) {
          progressCallback(i-start+1);
+      }
    }
 
    return assetVec;
@@ -456,18 +502,34 @@ BinaryData DerivationScheme_BIP32::serialize() const
 //// DerivationScheme_BIP32_Salted
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-std::shared_ptr<AssetEntry_Single> 
+DerivationScheme_BIP32_Salted::DerivationScheme_BIP32_Salted(
+   SecureBinaryData& salt, SecureBinaryData& chainCode,
+   unsigned depth, unsigned leafId) :
+   DerivationScheme_BIP32(
+      DerivationSchemeType::BIP32_Salted, chainCode, depth, leafId),
+   salt_(std::move(salt))
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+const SecureBinaryData& DerivationScheme_BIP32_Salted::getSalt() const
+{
+   return salt_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+std::shared_ptr<AssetEntry_Single>
 DerivationScheme_BIP32_Salted::computeNextPrivateEntry(
    std::shared_ptr<Encryption::DecryptedDataContainer> ddc,
    const SecureBinaryData& privKey,
    std::unique_ptr<Encryption::Cipher> cipher,
    AssetId id)
 {
-   auto index = id.getAssetKey();
 
    //derScheme only allows for soft derivation
-   if (index > 0x7FFFFFFF)
+   auto index = id.getAssetKey();
+   if (index > 0x7FFFFFFF) {
       throw DerivationSchemeException("illegal: hard derivation");
+   }
 
    BIP32_Node node;
    node.initFromPrivateKey(
@@ -475,24 +537,25 @@ DerivationScheme_BIP32_Salted::computeNextPrivateEntry(
    node.derivePrivate(index);
 
    //salt the key
-   auto&& saltedPrivKey = CryptoECDSA::PrivKeyScalarMultiply(
+   auto saltedPrivKey = Cryptography::ECDSA::privKeyScalarMultiply(
       node.getPrivateKey(), salt_);
 
    //compute salted pubkey
-   auto&& saltedPubKey = CryptoECDSA().ComputePublicKey(saltedPrivKey, true);
+   auto saltedPubKey = Cryptography::ECDSA::computePublicKey(saltedPrivKey, true);
 
    //encrypt the new privkey
-   auto&& newCipher = cipher->getCopy(); //copying a cypher cycles the IV
-   auto&& encryptedNextPrivKey = ddc->encryptData(
+   auto newCipher = cipher->getCopy(); //copying a cypher cycles the IV
+   auto encryptedNextPrivKey = ddc->encryptData(
       newCipher.get(), saltedPrivKey);
 
    //instantiate encrypted salted privkey object
-   auto cipherData = make_unique<Encryption::CipherData>(
-         encryptedNextPrivKey, move(newCipher));
-   auto nextPrivKey = make_shared<Asset_PrivateKey>(id, move(cipherData));
+   auto cipherData = std::make_unique<Encryption::CipherData>(
+      encryptedNextPrivKey, std::move(newCipher));
+   auto nextPrivKey = std::make_shared<Asset_PrivateKey>(
+      id, std::move(cipherData));
 
    //instantiate and return new asset entry
-   return make_shared<AssetEntry_Single>(id, saltedPubKey, nextPrivKey);
+   return std::make_shared<AssetEntry_Single>(id, saltedPubKey, nextPrivKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -500,11 +563,11 @@ std::shared_ptr<AssetEntry_Single>
 DerivationScheme_BIP32_Salted::computeNextPublicEntry(
    const SecureBinaryData& pubKey, AssetId id)
 {
-   auto index = id.getAssetKey();
-
    //derScheme only allows for soft derivation
-   if (index > 0x7FFFFFFF)
+   auto index = id.getAssetKey();
+   if (index > 0x7FFFFFFF) {
       throw DerivationSchemeException("illegal: hard derivation");
+   }
 
    //compute pub key
    BIP32_Node node;
@@ -513,9 +576,9 @@ DerivationScheme_BIP32_Salted::computeNextPublicEntry(
    auto nextPubkey = node.movePublicKey();
 
    //salt it
-   auto&& saltedPubkey = CryptoECDSA::PubKeyScalarMultiply(nextPubkey, salt_);
-
-   return make_shared<AssetEntry_Single>(id, saltedPubkey, nullptr);
+   auto saltedPubkey = Cryptography::ECDSA::pubKeyScalarMultiply(
+      nextPubkey, salt_);
+   return std::make_shared<AssetEntry_Single>(id, saltedPubkey, nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -544,6 +607,11 @@ BinaryData DerivationScheme_BIP32_Salted::serialize() const
 //// DerivationScheme_ECDH
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+DerivationScheme_ECDH::DerivationScheme_ECDH() :
+   DerivationScheme(DerivationSchemeType::ECDH),
+   id_(Cryptography::PRNG::fortuna.generateRandom(8))
+{}
+
 DerivationScheme_ECDH::DerivationScheme_ECDH(const BinaryData& id) :
    DerivationScheme(DerivationSchemeType::ECDH), id_(id)
 {}
@@ -575,26 +643,29 @@ BinaryData DerivationScheme_ECDH::serialize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 AssetKeyType DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt,
-   shared_ptr<IO::DBIfaceTransaction> txPtr)
+   std::shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
-   if (salt.getSize() != 32)
+   if (salt.getSize() != 32) {
       throw DerivationSchemeException("salt is too small");
+   }
 
    //return the salt id if it's already in there
+   std::unique_lock<std::mutex> lock(saltMutex_);
    auto saltIter = saltMap_.find(salt);
-   if (saltIter != saltMap_.end())
+   if (saltIter != saltMap_.end()) {
       return saltIter->second;
-
-   unique_lock<mutex> lock(saltMutex_);
+   }
 
    unsigned id = ++topSaltIndex_;
-   auto insertIter = saltMap_.insert(make_pair(salt, id));
-   if (!insertIter.second)
+   auto insertIter = saltMap_.insert(std::make_pair(salt, id));
+   if (!insertIter.second) {
       throw DerivationSchemeException("failed to insert salt");
+   }
 
    //update on disk if we have a db tx
-   if (txPtr != nullptr)
+   if (txPtr != nullptr) {
       putSalt(id, salt, txPtr);
+   }
 
    //return insert index
    return id;
@@ -602,7 +673,7 @@ AssetKeyType DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt,
 
 ////////////////////////////////////////////////////////////////////////////////
 void DerivationScheme_ECDH::putSalt(AssetKeyType id,
-   const SecureBinaryData& salt, shared_ptr<IO::DBIfaceTransaction> txPtr)
+   const SecureBinaryData& salt, std::shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    //update on disk
    BinaryWriter bwKey;
@@ -611,14 +682,12 @@ void DerivationScheme_ECDH::putSalt(AssetKeyType id,
    bwKey.put_uint32_t(id, BE);
 
    auto dataRef = txPtr->getDataRef(bwKey.getData());
-   if (!dataRef.empty())
-   {
+   if (!dataRef.empty()) {
       //read the salt
       BinaryRefReader brr(dataRef);
       auto size = brr.get_var_int();
       auto saltRef = brr.get_BinaryDataRef(size);
-      if (saltRef != salt)
-      {
+      if (saltRef != salt) {
          throw DerivationSchemeException(
             "trying to write a salt different from the one on disk");
       }
@@ -630,20 +699,22 @@ void DerivationScheme_ECDH::putSalt(AssetKeyType id,
    BinaryWriter bwData;
    bwData.put_var_int(salt.getSize());
    bwData.put_BinaryData(salt);
-
    txPtr->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DerivationScheme_ECDH::putAllSalts(shared_ptr<IO::DBIfaceTransaction> txPtr)
+void DerivationScheme_ECDH::putAllSalts(
+   std::shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    //expects live read-write db tx
-   for (auto& saltPair : saltMap_)
+   for (auto& saltPair : saltMap_) {
       putSalt(saltPair.second, saltPair.first, txPtr);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DerivationScheme_ECDH::getAllSalts(shared_ptr<IO::DBIfaceTransaction> txPtr)
+void DerivationScheme_ECDH::getAllSalts(
+   std::shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    BinaryWriter bwKey;
    bwKey.put_uint8_t(ECDH_SALT_PREFIX);
@@ -652,12 +723,9 @@ void DerivationScheme_ECDH::getAllSalts(shared_ptr<IO::DBIfaceTransaction> txPtr
 
    auto dbIter = txPtr->getIterator();
    dbIter->seek(keyBdr);
-   while (dbIter->isValid())
-   {
-      auto&& key = dbIter->key();
-      if (!key.startsWith(keyBdr) ||
-         key.getSize() != keyBdr.getSize() + 4)
-      {
+   while (dbIter->isValid()) {
+      auto key = dbIter->key();
+      if (!key.startsWith(keyBdr) || key.getSize() != keyBdr.getSize() + 4) {
          break;
       }
 
@@ -667,23 +735,24 @@ void DerivationScheme_ECDH::getAllSalts(shared_ptr<IO::DBIfaceTransaction> txPtr
       auto value = dbIter->value();
       BinaryRefReader bdrData(value);
       auto len = bdrData.get_var_int();
-      auto&& salt = bdrData.get_SecureBinaryData(len);
+      SecureBinaryData salt{bdrData.get_BinaryDataRef(len)};
 
-      saltMap_.emplace(make_pair(move(salt), saltId));
+      saltMap_.emplace(std::move(salt), saltId);
       dbIter->advance();
    }
 
    //sanity check
-   set<unsigned> idSet;
-   for (auto& saltPair : saltMap_)
-   {
+   std::set<unsigned> idSet;
+   for (auto& saltPair : saltMap_) {
       auto insertIter = idSet.insert(saltPair.second);
-      if (insertIter.second == false)
+      if (insertIter.second == false) {
          throw DerivationSchemeException("ECDH id collision!");
+      }
    }
 
-   if (idSet.empty())
+   if (idSet.empty()) {
       return;
+   }
 
    //set top index
    auto idIter = idSet.rbegin();
@@ -691,16 +760,18 @@ void DerivationScheme_ECDH::getAllSalts(shared_ptr<IO::DBIfaceTransaction> txPtr
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<shared_ptr<AssetEntry>> DerivationScheme_ECDH::extendPublicChain(
-   shared_ptr<AssetEntry> root, unsigned start, unsigned end,
+std::vector<std::shared_ptr<AssetEntry>>
+DerivationScheme_ECDH::extendPublicChain(
+   std::shared_ptr<AssetEntry> root, int32_t start, int32_t end,
    const std::function<void(int)>& progressCallback)
 {
-   auto rootSingle = dynamic_pointer_cast<AssetEntry_Single>(root);
-   if (rootSingle == nullptr)
+   auto rootSingle = std::dynamic_pointer_cast<AssetEntry_Single>(root);
+   if (rootSingle == nullptr) {
       throw DerivationSchemeException("unexpected root asset type");
+   }
 
    auto nextAsset = [this, rootSingle](
-      unsigned derivationIndex)->shared_ptr<AssetEntry>
+      int32_t derivationIndex)->std::shared_ptr<AssetEntry>
    {
       //get pubkey
       auto pubkey = rootSingle->getPubKey();
@@ -710,69 +781,72 @@ vector<shared_ptr<AssetEntry>> DerivationScheme_ECDH::extendPublicChain(
          AssetId(rootSingle->getAccountID(), derivationIndex));
    };
 
-   vector<shared_ptr<AssetEntry>> assetVec;
+   std::vector<std::shared_ptr<AssetEntry>> assetVec;
+   for (int32_t i = start; i < end; i++) {
+      auto newAsset = nextAsset(i+1);
+      assetVec.emplace_back(std::move(newAsset));
 
-   for (unsigned i = start; i <= end; i++)
-   {
-      auto newAsset = nextAsset(i);
-      assetVec.emplace_back(move(newAsset));
-
-      if (progressCallback)
+      if (progressCallback) {
          progressCallback(i-start+1);
+      }
    }
-
    return assetVec;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetEntry_Single> DerivationScheme_ECDH::computeNextPublicEntry(
+std::shared_ptr<AssetEntry_Single> DerivationScheme_ECDH::computeNextPublicEntry(
    const SecureBinaryData& pubKey, AssetId id)
 {
-   if (pubKey.getSize() != 33)
+   if (pubKey.getSize() != 33) {
       throw DerivationSchemeException("unexpected pubkey size");
+   }
 
    //get salt
    auto index = id.getAssetKey();
    auto saltIter = saltMap_.rbegin();
-   while (saltIter != saltMap_.rend())
-   {
-      if (saltIter->second == index)
+   while (saltIter != saltMap_.rend()) {
+      if (saltIter->second == index) {
          break;
-
+      }
       ++saltIter;
    }
 
-   if (saltIter == saltMap_.rend())
+   if (saltIter == saltMap_.rend()) {
       throw DerivationSchemeException("missing salt for id");
+   }
 
-   if (saltIter->first.getSize() != 32)
+   if (saltIter->first.getSize() != 32) {
       throw DerivationSchemeException("unexpected salt size");
+   }
 
    //salt root pubkey
-   auto&& saltedPubkey = CryptoECDSA::PubKeyScalarMultiply(
+   auto saltedPubkey = Cryptography::ECDSA::pubKeyScalarMultiply(
       pubKey, saltIter->first);
-
-   return make_shared<AssetEntry_Single>(id, saltedPubkey, nullptr);
+   return std::make_shared<AssetEntry_Single>(id, saltedPubkey, nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<shared_ptr<AssetEntry>> DerivationScheme_ECDH::extendPrivateChain(
-   shared_ptr<Encryption::DecryptedDataContainer> ddc,
-   shared_ptr<AssetEntry> rootAsset, uint32_t start, uint32_t end)
+std::vector<std::shared_ptr<AssetEntry>>
+DerivationScheme_ECDH::extendPrivateChain(
+   std::shared_ptr<Encryption::DecryptedDataContainer> ddc,
+   std::shared_ptr<AssetEntry> rootAsset, int32_t start, int32_t end)
 {
    //throws if the wallet is locked or the asset is missing its private key
 
-   auto rootAsset_single = dynamic_pointer_cast<AssetEntry_Single>(rootAsset);
-   if (rootAsset_single == nullptr)
+   auto rootAsset_single = std::dynamic_pointer_cast<AssetEntry_Single>(
+      rootAsset);
+   if (rootAsset_single == nullptr) {
       throw DerivationSchemeException("invalid root asset object");
+   }
 
    auto nextAsset = [this, ddc, rootAsset_single](
-      uint32_t derivationIndex)->shared_ptr<AssetEntry>
+      int32_t derivationIndex)->std::shared_ptr<AssetEntry>
    {
       //sanity checks
       auto privkey = rootAsset_single->getPrivKey();
-      if (privkey == nullptr)
+      if (privkey == nullptr) {
          throw AssetUnavailableException();
+      }
       auto& privkeyData = ddc->getClearTextAssetData(privkey);
 
       return computeNextPrivateEntry(
@@ -781,65 +855,64 @@ vector<shared_ptr<AssetEntry>> DerivationScheme_ECDH::extendPrivateChain(
          AssetId(rootAsset_single->getAccountID(), derivationIndex));
    };
 
-   if (ddc == nullptr)
+   if (ddc == nullptr) {
       throw AssetUnavailableException();
-
+   }
    ReentrantLock lock(ddc.get());
 
-   vector<shared_ptr<AssetEntry>> assetVec;
-
-   for (uint32_t i = start; i <= end; i++)
-   {
-      auto newAsset = nextAsset(i);
+   std::vector<std::shared_ptr<AssetEntry>> assetVec;
+   for (int32_t i = start; i < end; i++) {
+      auto newAsset = nextAsset(i+1);
       assetVec.push_back(newAsset);
    }
-
    return assetVec;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetEntry_Single>
+std::shared_ptr<AssetEntry_Single>
 DerivationScheme_ECDH::computeNextPrivateEntry(
-   shared_ptr<Encryption::DecryptedDataContainer> ddc,
+   std::shared_ptr<Encryption::DecryptedDataContainer> ddc,
    const SecureBinaryData& privKeyData,
-   unique_ptr<Encryption::Cipher> cipher, AssetId id)
+   std::unique_ptr<Encryption::Cipher> cipher, AssetId id)
 {
    //get salt
    auto assetKey = id.getAssetKey();
    auto saltIter = saltMap_.rbegin();
-   while (saltIter != saltMap_.rend())
-   {
-      if (saltIter->second == assetKey)
+   while (saltIter != saltMap_.rend()) {
+      if (saltIter->second == assetKey) {
          break;
-
+      }
       ++saltIter;
    }
 
-   if (saltIter == saltMap_.rend())
+   if (saltIter == saltMap_.rend()) {
       throw DerivationSchemeException("missing salt for id");
-
-   if (saltIter->first.getSize() != 32)
+   }
+   if (saltIter->first.getSize() != 32) {
       throw DerivationSchemeException("unexpected salt size");
+   }
 
    //salt root privkey
-   auto&& saltedPrivKey = CryptoECDSA::PrivKeyScalarMultiply(
+   auto saltedPrivKey = Cryptography::ECDSA::privKeyScalarMultiply(
       privKeyData, saltIter->first);
 
    //compute salted pubkey
-   auto&& saltedPubKey = CryptoECDSA().ComputePublicKey(saltedPrivKey, true);
+   auto saltedPubKey = Cryptography::ECDSA::computePublicKey(
+      saltedPrivKey, true);
 
    //encrypt the new privkey
-   auto&& newCipher = cipher->getCopy(); //copying a cypher cycles the IV
-   auto&& encryptedNextPrivKey = ddc->encryptData(
+   auto newCipher = cipher->getCopy(); //copying a cypher cycles the IV
+   auto encryptedNextPrivKey = ddc->encryptData(
       newCipher.get(), saltedPrivKey);
 
    //instantiate new encrypted key object
-   auto cipherData = make_unique<Encryption::CipherData>(
+   auto cipherData = std::make_unique<Encryption::CipherData>(
       encryptedNextPrivKey, move(newCipher));
-   auto nextPrivKey = make_shared<Asset_PrivateKey>(id, move(cipherData));
+   auto nextPrivKey = std::make_shared<Asset_PrivateKey>(
+      id, std::move(cipherData));
 
    //instantiate and return new asset entry
-   return make_shared<AssetEntry_Single>(id, saltedPubKey, nextPrivKey);
+   return std::make_shared<AssetEntry_Single>(id, saltedPubKey, nextPrivKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -847,14 +920,15 @@ AssetKeyType DerivationScheme_ECDH::getIdForSalt(
    const SecureBinaryData& salt)
 {
    auto iter = saltMap_.find(salt);
-   if (iter == saltMap_.end())
+   if (iter == saltMap_.end()) {
       throw DerivationSchemeException("missing salt");
-
+   }
    return iter->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const map<SecureBinaryData, AssetKeyType>& DerivationScheme_ECDH::getSaltMap() const
+const std::map<SecureBinaryData, AssetKeyType>&
+DerivationScheme_ECDH::getSaltMap() const
 {
    return saltMap_;
 }

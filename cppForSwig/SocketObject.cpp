@@ -1,38 +1,77 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016, goatpig.                                              //
+//  Copyright (C) 2016-2025, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "SocketObject.h"
-#include "SocketWritePayload.h"
 #include <cstring>
 #include <stdexcept>
 
-#include "google/protobuf/text_format.h"
+#include "SocketObject.h"
+#include "SocketWritePayload.h"
+#include "bdmenums.h"
 
-using namespace std;
+#include <capnp/message.h>
+#include <capnp/serialize.h>
+
+using namespace std::chrono_literals;
+
+#ifdef _WIN32
+//i dont know how to get linkage for this with MSYS2 halp T_T
+//already has a body: char *gai_strerrorA(int errcode) { return nullptr; }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-// SocketPrototype
+//// SocketPrototype
 //
 ///////////////////////////////////////////////////////////////////////////////
+SocketPrototype::SocketPrototype() :
+   addr_(""), port_("")
+{}
+
+////////
+SocketPrototype::SocketPrototype(const std::string& addr,
+   const std::string& port, bool doInit) :
+   addr_(addr), port_(port)
+{
+   if (addr.empty() || port.empty()) {
+      throw std::runtime_error("empty addr/port");
+   }
+
+   if (doInit) {
+      init();
+   }
+}
+
+////////
 SocketPrototype::~SocketPrototype()
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
-SocketPrototype::SocketPrototype(const string& addr, const string& port,
-   bool doInit) :
-   addr_(addr), port_(port)
+bool SocketPrototype::isBlocking() const
 {
-   if (addr.empty() || port.empty())
-      throw runtime_error("empty addr/port");
+   return blocking_;
+}
 
-   if (doInit)
-      init();
+////////
+const std::string& SocketPrototype::getAddrStr() const
+{
+   return addr_;
+}
+
+////////
+const std::string& SocketPrototype::getPortStr() const
+{
+   return port_;
+}
+
+////////
+bool SocketPrototype::running() const
+{
+   return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -48,24 +87,22 @@ void SocketPrototype::init()
 
 #ifdef _WIN32
    //somehow getaddrinfo doesnt handle localhost on Windows
-   string addrstr = addr_;
-   if(addr_ == "localhost")
-      addrstr = "127.0.0.1"; 
+   std::string addrstr = addr_;
+   if(addr_ == "localhost") {
+      addrstr = "127.0.0.1";
+   }
 #else
    auto& addrstr = addr_;
 #endif
 
    getaddrinfo(addrstr.c_str(), port_.c_str(), &hints, &result);
-   for (auto ptr = result; ptr != nullptr; ptr = ptr->ai_next)
-   {
-      if (ptr->ai_family == AF_INET)
-      {
+   for (auto ptr = result; ptr != nullptr; ptr = ptr->ai_next) {
+      if (ptr->ai_family == AF_INET) {
          memcpy(&serv_addr_, ptr->ai_addr, sizeof(sockaddr_in));
          memcpy(&serv_addr_.sa_data, &ptr->ai_addr->sa_data, 14);
          break;
       }
-
-      throw runtime_error("unsupported remote address format");
+      throw std::runtime_error("unsupported remote address format");
    }
    freeaddrinfo(result);
 }
@@ -74,83 +111,75 @@ void SocketPrototype::init()
 SOCKET SocketPrototype::openSocket(bool blocking)
 {
    SOCKET sockfd = SOCK_MAX;
-   try
-   {
+   try {
       sockfd = socket(serv_addr_.sa_family, SOCK_STREAM, 0);
-      if (sockfd < 0)
+      if (sockfd < 0) {
          throw SocketError("failed to create socket");
-
+      }
       auto result = connect(sockfd, &serv_addr_, sizeof(serv_addr_));
-      if (result < 0)
-      {
+      if (result < 0) {
          closeSocket(sockfd);
          throw SocketError("failed to connect to server");
       }
-   
       setBlocking(sockfd, blocking);
-   }
-   catch (SocketError &)
-   {
+   } catch (const SocketError &) {
       closeSocket(sockfd);
       sockfd = SOCK_MAX;
    }
-
    return sockfd;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void SocketPrototype::closeSocket(SOCKET& sockfd)
 {
-   if (sockfd == SOCK_MAX)
+   if (sockfd == SOCK_MAX) {
       return;
-
+   }
 #ifdef WIN32
    closesocket(sockfd);
 #else
    close(sockfd);
 #endif
-
    sockfd = SOCK_MAX;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 bool SocketPrototype::testConnection(void)
 {
-   try
-   {
+   try {
       auto sockfd = openSocket(true);
-      if (sockfd == SOCK_MAX)
+      if (sockfd == SOCK_MAX) {
          return false;
-
+      }
       closeSocket(sockfd);
       return true;
+   } catch (const std::runtime_error&) {
+      return false;
    }
-   catch (runtime_error&)
-   {
-   }
-
-   return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void SocketPrototype::setBlocking(SOCKET sock, bool setblocking)
 {
-   if (sock < 0)
+   if (sock < 0) {
       throw SocketError("invalid socket");
-
+   }
 #ifdef WIN32
    unsigned long mode = (unsigned long)!setblocking;
-   if (ioctlsocket(sock, FIONBIO, &mode) != 0)
+   if (ioctlsocket(sock, FIONBIO, &mode) != 0) {
       throw SocketError("failed to set blocking mode on socket");
+   }
 #else
    int flags = fcntl(sock, F_GETFL, 0);
-   if (flags < 0) return;
+   if (flags < 0) {
+      return;
+   }
+
    flags = setblocking ? (flags&~O_NONBLOCK) : (flags | O_NONBLOCK);
    int rt = fcntl(sock, F_SETFL, flags);
-   if (rt != 0)
-   {
-      cout << "fcntl returned " << rt << endl;
-      cout << "error: " << strerror(errno);
+   if (rt != 0) {
+      std::cout << "fcntl returned " << rt << std::endl;
+      std::cout << "error: " << strerror(errno);
       throw SocketError("failed to set blocking mode on socket");
    }
 #endif
@@ -161,52 +190,44 @@ void SocketPrototype::setBlocking(SOCKET sock, bool setblocking)
 ///////////////////////////////////////////////////////////////////////////////
 void SocketPrototype::listen(AcceptCallback callback, SOCKET& sockfd)
 {
-   try
-   {
+   try {
       sockfd = socket(serv_addr_.sa_family, SOCK_STREAM, 0);
-      if (sockfd < 0)
+      if (sockfd < 0) {
          throw SocketError("failed to create socket");
+      }
 
-      if (::bind(sockfd, &serv_addr_, sizeof(serv_addr_)) < 0)
-      {
+      if (::bind(sockfd, &serv_addr_, sizeof(serv_addr_)) < 0) {
          closeSocket(sockfd);
          throw SocketError("failed to bind socket");
       }
 
-      if (::listen(sockfd, 10) < 0)
-      {
+      if (::listen(sockfd, 10) < 0) {
          closeSocket(sockfd);
          throw SocketError("failed to listen to socket");
       }
-   }
-   catch (SocketError &)
-   {
+   } catch (const SocketError&) {
       closeSocket(sockfd);
       return;
    }
 
-   stringstream errorss;
-   exception_ptr exceptptr = nullptr;
+   std::stringstream errorss;
+   std::exception_ptr exceptptr = nullptr;
 
    struct pollfd pfd;
    pfd.fd = sockfd;
    pfd.events = POLLIN;
 
-   try
-   {
-      while (1)
-      {
+   try {
+      while (true) {
 #ifdef _WIN32
          auto status = WSAPoll(&pfd, 1, 60000);
 #else
          auto status = poll(&pfd, 1, 60000);
 #endif
 
-         if (status == 0)
+         if (status == 0) {
             continue;
-
-         if (status == -1)
-         {
+         } else if (status == -1) {
             //select error, process and exit loop
 #ifdef _WIN32
             auto errornum = WSAGetLastError();
@@ -218,14 +239,12 @@ void SocketPrototype::listen(AcceptCallback callback, SOCKET& sockfd)
             throw SocketError(errorss.str());
          }
 
-         if (pfd.revents & POLLNVAL)
-         {
+         if (pfd.revents & POLLNVAL) {
             throw SocketError("POLLNVAL in readFromSocketThread");
          }
 
          //exceptions
-         if (pfd.revents & POLLERR)
-         {
+         if (pfd.revents & POLLERR) {
             //TODO: grab socket error code, pass error to callback
 
             //break out of poll loop
@@ -234,18 +253,15 @@ void SocketPrototype::listen(AcceptCallback callback, SOCKET& sockfd)
             throw SocketError(errorss.str());
          }
 
-         if (pfd.revents & POLLIN)
-         {
+         if (pfd.revents & POLLIN) {
             //accept socket and trigger callback
             AcceptStruct astruct;
             astruct.sockfd_ = accept(sockfd, &astruct.saddr_, &astruct.addrlen_);
-            callback(move(astruct));
+            callback(std::move(astruct));
          }
       }
-   }
-   catch (...)
-   {
-      exceptptr = current_exception();
+   } catch (...) {
+      exceptptr = std::current_exception();
    }
 
    //cleanup
@@ -253,27 +269,52 @@ void SocketPrototype::listen(AcceptCallback callback, SOCKET& sockfd)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
+//
 //// PersistentSocket
+//
 ///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-PersistentSocket::PersistentSocket(const string& addr, const string& port) :
+PersistentSocket::PersistentSocket(const std::string& addr,
+   const std::string& port) :
    SocketPrototype(addr, port)
 {
-   shutdownProm_ = make_unique<promise<bool>>();
+   shutdownProm_ = std::make_unique<std::promise<bool>>();
    shutdownFut_ = shutdownProm_->get_future();
-
    init();
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////
 PersistentSocket::PersistentSocket(SOCKET sockfd) :
    SocketPrototype(), sockfd_(sockfd)
 {
-   shutdownProm_ = make_unique<promise<bool>>();
+   shutdownProm_ = std::make_unique<std::promise<bool>>();
    shutdownFut_ = shutdownProm_->get_future();
-
    init();
+}
+
+////////
+PersistentSocket::~PersistentSocket()
+{
+   for (auto& thr : threads_) {
+      if (thr.joinable()) {
+         thr.join();
+      }
+   }
+   threads_.clear();
+
+   cleanUpPipes();
+   closeSocket(sockfd_);
+}
+
+////////
+bool PersistentSocket::isValid() const
+{
+   return sockfd_ != SOCK_MAX;
+}
+
+////////
+bool PersistentSocket::testConnection()
+{
+   return isValid();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -281,13 +322,12 @@ PersistentSocket::PersistentSocket(SOCKET sockfd) :
 void PersistentSocket::socketService_nix()
 {
    int readIncrement = 8192;
-   stringstream errorss;
-
-   exception_ptr exceptptr = nullptr;
-
-   struct pollfd pfd[2];
+   int timeout = 100;
+   std::stringstream errorss;
+   std::exception_ptr exceptptr = nullptr;
 
    //pipe to poll
+   struct pollfd pfd[2];
    pfd[0].fd = pipes_[0];
    pfd[0].events = POLLIN;
 
@@ -295,137 +335,122 @@ void PersistentSocket::socketService_nix()
    pfd[1].fd = sockfd_;
    pfd[1].events = POLLIN;
 
-   int timeout = 100;
-
    auto serviceWrite = [&](void)->void
    {
-      vector<uint8_t> payload;
-
-      if (writeLeftOver_.size() != 0)
-      {
-         payload = move(writeLeftOver_);
+      std::vector<uint8_t> payload;
+      if (!writeLeftOver_.empty()) {
+         payload = std::move(writeLeftOver_);
          writeLeftOver_.clear();
-      }
-      else
-      {
-         try
-         {
-            payload = move(writeQueue_.pop_front());
-         }
-         catch (Armory::Threading::IsEmpty&)
-         {
+      } else {
+         try {
+            payload = std::move(writeQueue_.pop_front());
+         } catch (const Armory::Threading::IsEmpty&) {
             pfd[1].events = POLLIN;
             return;
          }
       }
 
-      auto bytessent = send(sockfd_, 
-         (char*)&payload[0] + writeOffset_, 
-         payload.size() - writeOffset_, 0);
+      auto bytessent = send(sockfd_,
+         (char*)&payload[0] + writeOffset_,
+         payload.size() - writeOffset_, 0
+      );
 
-      if (bytessent == 0)
+      if (bytessent == 0) {
          LOGERR << "failed to send data: " << payload.size() << ", offset: " << writeOffset_;
+      }
 
       writeOffset_ += bytessent;
-      if (writeOffset_ < payload.size())
+      if (writeOffset_ < payload.size()) {
          writeLeftOver_ = move(payload);
-      else
+      } else {
          writeOffset_ = 0;
+      }
    };
 
    bool loop = true;
-   while (loop)
-   {
+   while (loop) {
       auto status = poll(pfd, 2, timeout);
-
-      if (status == 0)
+      if (status == 0) {
          continue;
-
-      if (status == -1)
-      {
+      } else if (status == -1) {
          //poll error, process and exit loop
          auto errornum = errno;
          LOGERR << "poll() error in readFromSocketThread: " << errornum;
          break;
       }
 
-      if (pfd[0].revents & POLLIN)
-      {
+      if (pfd[0].revents & POLLIN) {
          uint8_t b;
          auto readAmt = read(pipes_[0], (char*)&b, 1);
 
-         if (readAmt == 1)
-         {
-            if (b == 0)
+         if (readAmt == 1) {
+            if (b == 0) {
                pfd[1].events = POLLIN | POLLOUT;
-            else if (b == 1)
+            } else if (b == 1) {
                break; //exit poll loop signal
+            }
          }
       }
 
-      if (pfd[1].revents & POLLNVAL)
-      {
+      if (pfd[1].revents & POLLNVAL) {
          LOGERR << "POLLNVAL in readFromSocketThread";
       }
 
       //exceptions
-      if (pfd[1].revents & POLLERR)
-      {
+      if (pfd[1].revents & POLLERR) {
          //break out of poll loop
          LOGERR << "POLLERR error in readFromSocketThread";
          break;
       }
 
-      if (pfd[1].revents & POLLIN)
-      {
+      if (pfd[1].revents & POLLIN) {
          //read socket
-         vector<uint8_t> readdata;
+         std::vector<uint8_t> readdata;
          readdata.resize(readIncrement);
 
          size_t totalread = 0;
          int readAmt;
 
-         while (true)
-         {
-            readAmt = recv(
-               sockfd_, (char*)&readdata[0] + totalread, readIncrement, 0);
+         while (true) {
+            readAmt = recv(sockfd_,
+               (char*)&readdata[0] + totalread,
+               readIncrement, 0
+            );
 
-            if (readAmt <= 0)
-            {
+            if (readAmt <= 0) {
                auto errornum = errno;
-               if (errornum == EAGAIN || errornum == EWOULDBLOCK)
+               if (errornum == EAGAIN || errornum == EWOULDBLOCK) {
                   break;
-
+               }
                LOGERR << "recv error: " << errornum << ", aborting";
                loop = false;
                break;
             }
 
             totalread += readAmt;
-            if (readAmt < readIncrement)
+            if (readAmt < readIncrement) {
                break;
-
+            }
             readdata.resize(totalread + readIncrement);
          }
 
-         if (totalread > 0)
-         {
+         if (totalread > 0) {
             readdata.resize(totalread);
             readQueue_.push_back(move(readdata));
          }
       }
 
-      if (pfd[1].revents & POLLOUT)
-      {
+      if (pfd[1].revents & POLLOUT) {
          serviceWrite();
       }
 
       //socket was closed
-      if (pfd[1].revents & POLLHUP)
+      if (pfd[1].revents & POLLHUP) {
          break;
+      }
    }
 
-   run_.store(false, memory_order_relaxed);
+   run_.store(false, std::memory_order_relaxed);
    readQueue_.terminate();
 }
 #endif
@@ -442,23 +467,17 @@ void PersistentSocket::socketService_win()
 
    auto serviceSocketWrite = [&writeReady, this](void)->void
    {
-      if (!writeReady)
+      if (!writeReady) {
          return;
-
-      vector<uint8_t> payload;
-      if (writeLeftOver_.size() != 0)
-      {
-         payload = move(writeLeftOver_);
-         writeLeftOver_.clear();
       }
-      else
-      {
-         try
-         {
-            payload = move(writeQueue_.pop_front());
-         }
-         catch (Armory::Threading::IsEmpty&)
-         {
+      std::vector<uint8_t> payload;
+      if (!writeLeftOver_.empty()) {
+         payload = std::move(writeLeftOver_);
+         writeLeftOver_.clear();
+      } else {
+         try {
+            payload = std::move(writeQueue_.pop_front());
+         } catch (const Armory::Threading::IsEmpty&) {
             return;
          }
       }
@@ -469,127 +488,114 @@ void PersistentSocket::socketService_win()
 
       DWORD bytessent;
       if (WSASend(sockfd_, &wsaBuffer, 1, &bytessent, 0, nullptr, nullptr) ==
-         SOCKET_ERROR)
-      {
+         SOCKET_ERROR) {
          auto wsaError = WSAGetLastError();
-         if (wsaError == WSAEWOULDBLOCK)
-         {
+         if (wsaError == WSAEWOULDBLOCK) {
             writeReady = false;
-         }
-         else
-         {
+         } else {
             LOGERR << "WSASend error with code: " << wsaError;
             writeOffset_ = 0;
             writeLeftOver_.clear();
             return;
          }
-      }
-      else
-      {
-         if (bytessent == 0)
+      } else {
+         if (bytessent == 0) {
             LOGWARN << "failed to write to socket, aborting";
+         }
       }
 
       writeOffset_ += bytessent;
-      if (writeOffset_ < payload.size())
-         writeLeftOver_ = move(payload);
-      else
+      if (writeOffset_ < payload.size()) {
+         writeLeftOver_ = std::move(payload);
+      } else {
          writeOffset_ = 0;
+      }
    };
 
    bool loop = true;
-   while (loop)
-   {
+   while (loop) {
       serviceSocketWrite();
       auto ev = WSAWaitForMultipleEvents(1, events_, false, timeout, false);
-      if (ev == WSA_WAIT_TIMEOUT)
+      if (ev == WSA_WAIT_TIMEOUT) {
          continue;
+      }
 
-      if (ev == WSA_WAIT_FAILED)
-      {
+      if (ev == WSA_WAIT_FAILED) {
          LOGERR << "WSAWaitForMultipleEvents failed";
          break;
       }
 
-
-      if (ev == WSA_WAIT_EVENT_0)
-      {
+      if (ev == WSA_WAIT_EVENT_0) {
          //reset user event
          WSAResetEvent(events_[0]);
       }
 
       WSANETWORKEVENTS networkevents;
       if (WSAEnumNetworkEvents(sockfd_, 0,
-         &networkevents) == SOCKET_ERROR)
-      {
+         &networkevents) == SOCKET_ERROR) {
          LOGERR << "error getting network events for socket";
          break;
       }
-       
+
       //service socket
       if (networkevents.lNetworkEvents & FD_READ)
       {
          //read socket
-         vector<uint8_t> readdata;
+         std::vector<uint8_t> readdata;
          readdata.resize(readIncrement);
 
          size_t totalread = 0;
          int readAmt;
 
-         while ((readAmt =
-            recv(sockfd_, (char*)&readdata[0] + totalread, readIncrement, 0))
-            != 0)
-         {
-            if (readAmt < 0)
-            {
+         while ((readAmt = recv(
+            sockfd_, (char*)&readdata[0] + totalread, readIncrement, 0)) != 0) {
+            if (readAmt < 0) {
                auto errornum = errno;
-               if (errornum == EAGAIN || errornum == EWOULDBLOCK)
+               if (errornum == EAGAIN || errornum == EWOULDBLOCK) {
                   break;
-   
+               }
                LOGERR << "error reading socket, aborting";
                loop = false;
                break;
             }
 
             totalread += readAmt;
-            if (readAmt < readIncrement)
+            if (readAmt < readIncrement) {
                break;
-
+            }
             readdata.resize(totalread + readIncrement);
          }
 
-         if (totalread > 0)
-         {
+         if (totalread > 0) {
             readdata.resize(totalread);
-            readQueue_.push_back(move(readdata));
+            readQueue_.push_back(std::move(readdata));
          }
       }
 
-      if (networkevents.lNetworkEvents & FD_WRITE)
-      {
+      if (networkevents.lNetworkEvents & FD_WRITE) {
          writeReady = true;
       }
 
-      if (networkevents.lNetworkEvents & FD_CLOSE)
-      {
-         LOGERR << "socket was closed";
+      if (networkevents.lNetworkEvents & FD_CLOSE) {
+         LOGERR << "socket was closed: " << int(networkevents.iErrorCode[FD_CLOSE_BIT]);
          break;
       }
    }
 
-   run_.store(false, memory_order_relaxed);
+   run_.store(false, std::memory_order_relaxed);
    readQueue_.terminate();
 }
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
-void PersistentSocket::queuePayloadForWrite(vector<uint8_t>& payload)
+void PersistentSocket::queuePayloadForWrite(std::vector<uint8_t>& payload)
 {
-   if (payload.size() == 0)
+   if (payload.empty()) {
       return;
+   }
 
    //push to write queue
-   writeQueue_.push_back(move(payload));
+   writeQueue_.push_back(std::move(payload));
 
    //signal poll service with 0 to trigger POLLOUT event
    signalService(0);
@@ -598,51 +604,42 @@ void PersistentSocket::queuePayloadForWrite(vector<uint8_t>& payload)
 ///////////////////////////////////////////////////////////////////////////////
 void PersistentSocket::readService()
 {
-   while (1)
-   {
-      vector<uint8_t> packet;
-      try
-      {
-         packet = move(readQueue_.pop_front());
-      }
-      catch(Armory::Threading::StopBlockingLoop&)
-      {
+   while (true) {
+      try {
+         auto packet = readQueue_.pop_front();
+         respond(packet);
+      } catch (const Armory::Threading::StopBlockingLoop&) {
          //exit condition
          break;
       }
-
-      vector<uint8_t> payload;
-      if (!processPacket(packet, payload))
-         continue;
-
-      respond(payload);
    }
 
-   vector<uint8_t> emptyPacket;
-   respond(emptyPacket);
+   //respond with empty packet to kill the read thread
+   std::vector<uint8_t> empty;
+   respond(empty);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 bool PersistentSocket::processPacket(
-   vector<uint8_t>& packet, vector<uint8_t>& payload)
+   std::vector<uint8_t>& packet, std::vector<uint8_t>& payload)
 {
-   payload = move(packet);
+   payload = std::move(packet);
    return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void PersistentSocket::signalService(uint8_t signal)
 {
-
    //0 to trigger a pollout, 1 to exit poll loop
 #ifdef _WIN32
-   if (signal == 1)
-      run_.store(false, memory_order_relaxed);
-
+   if (signal == 1) {
+      run_.store(false, std::memory_order_relaxed);
+   }
    WSASetEvent(events_[0]);
 #else
-   if (pipes_[1] == SOCK_MAX)
+   if (pipes_[1] == SOCK_MAX) {
       return;
+   }
    write(pipes_[1], &signal, 1);
 #endif
 }
@@ -650,7 +647,7 @@ void PersistentSocket::signalService(uint8_t signal)
 ///////////////////////////////////////////////////////////////////////////////
 void PersistentSocket::init()
 {
-   run_.store(false, memory_order_relaxed);
+   run_.store(false, std::memory_order_relaxed);
 
 #ifndef _WIN32
    pipes_[0] = pipes_[1] = SOCK_MAX;
@@ -665,8 +662,9 @@ void PersistentSocket::initPipes()
    cleanUpPipes();
 
 #ifdef _WIN32
-   for (unsigned i = 0; i < 1; i++)
+   for (unsigned i = 0; i < 1; i++) {
       events_[i] = WSACreateEvent();
+   }
 #else
    pipe(pipes_);
 #endif
@@ -675,17 +673,16 @@ void PersistentSocket::initPipes()
 ///////////////////////////////////////////////////////////////////////////////
 void PersistentSocket::cleanUpPipes()
 {
-   for (unsigned i = 0; i < 2; i++)
-   {
+   for (unsigned i = 0; i < 2; i++) {
 #ifdef _WIN32
-      if (events_[i] != nullptr)
-      {
+      if (events_[i] != nullptr) {
          WSACloseEvent(events_[i]);
          events_[i] = nullptr;
       }
 #else
-      if (pipes_[i] != SOCK_MAX)
+      if (pipes_[i] != SOCK_MAX) {
          close(pipes_[i]);
+      }
       pipes_[i] = SOCK_MAX;
 #endif
    }
@@ -694,9 +691,9 @@ void PersistentSocket::cleanUpPipes()
 ///////////////////////////////////////////////////////////////////////////////
 bool PersistentSocket::openSocket(bool blocking)
 {
-   if (addr_.size() != 0 && port_.size() != 0)
+   if (!addr_.empty() && !port_.empty() && readQueue_.isValid()) {
       sockfd_ = SocketPrototype::openSocket(blocking);
-
+   }
    return isValid();
 }
 
@@ -708,7 +705,6 @@ int PersistentSocket::getSocketName(struct sockaddr& sa)
 #else
    unsigned int namelen = sizeof(sa);
 #endif
-
    return getsockname(sockfd_, &sa, &namelen);
 }
 
@@ -720,23 +716,23 @@ int PersistentSocket::getPeerName(struct sockaddr& sa)
 #else
    unsigned int namelen = sizeof(sa);
 #endif
-
    return getpeername(sockfd_, &sa, &namelen);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 bool PersistentSocket::connectToRemote()
 {
-   if (run_.load(memory_order_relaxed))
+   if (run_.load(std::memory_order_relaxed)) {
       return true;
-
-   if (sockfd_ == SOCK_MAX)
-   {
-      if (!openSocket(false))
-         return false;
    }
 
-   run_.store(true, memory_order_relaxed);
+   if (sockfd_ == SOCK_MAX) {
+      if (!openSocket(false)) {
+         return false;
+      }
+   }
+
+   run_.store(true, std::memory_order_relaxed);
    initPipes();
 
    auto readLBD = [this](void)->void
@@ -746,33 +742,28 @@ bool PersistentSocket::connectToRemote()
 
    auto socketLBD = [this](void)->void
    {
-      try
-      {
+      try {
          this->socketService();
-      }
-      catch (SocketError&)
-      {
+      } catch (const SocketError&) {
          LOGERR << "error in socket service, shutting down connection";
          shutdown();
       }
    };
 
-   threads_.push_back(thread(readLBD));
-   threads_.push_back(thread(socketLBD));
-
+   threads_.push_back(std::thread(readLBD));
+   threads_.push_back(std::thread(socketLBD));
    return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void PersistentSocket::shutdown()
 {
-   unique_lock<mutex> lock(shutdownMutex_);
-   if (shutdownFut_.wait_for(chrono::seconds(0)) == future_status::ready)
+   std::unique_lock<std::mutex> lock(shutdownMutex_);
+   if (shutdownFut_.wait_for(0s) == std::future_status::ready) {
       return;
-
+   }
    readQueue_.terminate();
    signalService(1);
-
    shutdownProm_->set_value(true);
 }
 
@@ -784,37 +775,65 @@ void PersistentSocket::blockUntilClosed() const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
+//
 //// SimpleSocket
+//
 ///////////////////////////////////////////////////////////////////////////////
+SimpleSocket::SimpleSocket(const std::string& addr, const std::string& port) :
+   SocketPrototype(addr, port)
+{}
+
+////////
+SimpleSocket::SimpleSocket(SOCKET sockfd) :
+   SocketPrototype(), sockfd_(sockfd)
+{}
+
+////////
+SimpleSocket::~SimpleSocket()
+{
+   closeSocket(sockfd_);
+}
+
+////////
+SocketType SimpleSocket::type() const
+{
+   return SocketType::Simple;
+}
+
+////////
+SOCKET SimpleSocket::getSockFD() const
+{
+   return sockfd_;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 void SimpleSocket::pushPayload(
-   unique_ptr<Socket_WritePayload> write_payload,
-   shared_ptr<Socket_ReadPayload> read_payload)
+   std::unique_ptr<Socket_WritePayload> write_payload,
+   std::shared_ptr<Socket_ReadPayload> read_payload)
 {
-   if (write_payload == nullptr)
+   if (write_payload == nullptr) {
       return;
-
-   vector<uint8_t> data;
+   }
+   std::vector<uint8_t> data;
    write_payload->serialize(data);
    writeToSocket(data);
 
-   if (read_payload == nullptr)
+   if (read_payload == nullptr) {
       return;
-
-   auto&& result = readFromSocket();
+   }
+   auto result = readFromSocket();
 
    BinaryDataRef bdr;
-   if (result.size() != 0)
+   if (!result.empty()) {
       bdr.setRef(&result[0], result.size());
-
+   }
    read_payload->callbackReturn_->callback(bdr);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void SimpleSocket::listen(AcceptCallback acb)
 {
-   SocketPrototype::listen(move(acb), sockfd_);
+   SocketPrototype::listen(std::move(acb), sockfd_);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -824,7 +843,7 @@ void SimpleSocket::shutdown()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-vector<uint8_t> SimpleSocket::readFromSocket(void)
+std::vector<uint8_t> SimpleSocket::readFromSocket(void)
 {
    //exit after one read
    size_t readIncrement = 8192;
@@ -832,22 +851,18 @@ vector<uint8_t> SimpleSocket::readFromSocket(void)
    struct pollfd pfd;
    pfd.fd = sockfd_;
    pfd.events = POLLIN;
-
    int timeout = 100;
 
-   while (1)
-   {
+   while (true) {
 #ifdef _WIN32
       auto status = WSAPoll(&pfd, 1, timeout);
 #else
       auto status = poll(&pfd, 1, timeout);
 #endif
 
-      if (status == 0)
+      if (status == 0) {
          continue;
-
-      if (status == -1)
-      {
+      } else if (status == -1) {
          //poll error, process and exit loop
 #ifdef _WIN32
          auto errornum = WSAGetLastError();
@@ -858,79 +873,71 @@ vector<uint8_t> SimpleSocket::readFromSocket(void)
          break;
       }
 
-      if (pfd.revents & POLLNVAL)
-      {
+      if (pfd.revents & POLLNVAL) {
          LOGERR << "POLLNVAL in readFromSocketThread";
          break;
       }
 
       //exceptions
-      if (pfd.revents & POLLERR)
-      {
+      if (pfd.revents & POLLERR) {
          //break out of poll loop
          LOGERR << "POLLERR error in readFromSocketThread";
          break;
       }
 
-      if (pfd.revents & POLLIN)
-      {
+      if (pfd.revents & POLLIN) {
          //read socket
-         vector<uint8_t> readdata;
+         std::vector<uint8_t> readdata;
          readdata.resize(readIncrement);
 
          size_t totalread = 0;
          int readAmt;
-
-         while ((readAmt =
-            recv(sockfd_, (char*)&readdata[0] + totalread, readIncrement, 0))
-            != 0)
-         {
-            if (readAmt < 0)
-            {
+         while ((readAmt = recv(
+            sockfd_, (char*)&readdata[0] + totalread, readIncrement, 0)) != 0) {
+            if (readAmt < 0) {
 #ifdef _WIN32
                auto errornum = WSAGetLastError();
-               if (errornum == WSAEWOULDBLOCK)
+               if (errornum == WSAEWOULDBLOCK) {
                   break;
+               }
 #else
                auto errornum = errno;
-               if (errornum == EAGAIN || errornum == EWOULDBLOCK)
+               if (errornum == EAGAIN || errornum == EWOULDBLOCK) {
                   break;
+               }
 #endif
-
                LOGERR << "recv error: " << errornum;
                break;
             }
 
             totalread += readAmt;
-            if (readAmt < (ssize_t)readIncrement)
+            if (readAmt < (ssize_t)readIncrement) {
                break;
-
+            }
             readdata.resize(totalread + readIncrement);
          }
 
-         if (readAmt == 0)
-         {
+         if (readAmt == 0) {
             LOGINFO << "POLLIN recv return 0";
             break;
          }
 
-         if (totalread > 0)
-         {
+         if (totalread > 0) {
             readdata.resize(totalread);
             return readdata;
          }
       }
 
       //socket was closed
-      if (pfd.revents & POLLHUP)
+      if (pfd.revents & POLLHUP) {
          break;
+      }
    }
-
-   return vector<uint8_t>();
+   return {};
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-int SimpleSocket::writeToSocket(vector<uint8_t>& payload)
+int SimpleSocket::writeToSocket(std::vector<uint8_t>& payload)
 {
    return send(sockfd_, (char*)&payload[0], payload.size(), 0);
 }
@@ -938,27 +945,37 @@ int SimpleSocket::writeToSocket(vector<uint8_t>& payload)
 ///////////////////////////////////////////////////////////////////////////////
 bool SimpleSocket::connectToRemote()
 {
-   if (sockfd_ == SOCK_MAX)
+   if (sockfd_ == SOCK_MAX) {
       sockfd_ = openSocket(false);
+   }
    return sockfd_ != SOCK_MAX;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool SimpleSocket::checkSocket(const string& ip, const string& port)
+bool SimpleSocket::checkSocket(const std::string& ip, const std::string& port)
 {
    SimpleSocket testSock(ip, port);
    return testSock.testConnection();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
+//
 //// ListenServer
+//
 ///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-ListenServer::ListenServer(const string& addr, const string& port)
+ListenServer::ListenServer(const std::string& addr, const std::string& port)
 {
-   listenSocket_ = make_unique<SimpleSocket>(addr, port);
+   listenSocket_ = std::make_unique<SimpleSocket>(addr, port);
    listenSocket_->verbose_ = false;
+}
+
+////////
+ListenServer::SocketStruct::SocketStruct()
+{}
+
+ListenServer::~ListenServer()
+{
+   stop();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -969,14 +986,15 @@ void ListenServer::start(ReadCallback callback)
       this->listenThread(clbk);
    };
 
-   listenThread_ = thread(listenlbd, callback);
+   listenThread_ = std::thread(listenlbd, callback);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void ListenServer::join()
 {
-   if (listenThread_.joinable())
+   if (listenThread_.joinable()) {
       listenThread_.join();
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -985,7 +1003,7 @@ void ListenServer::listenThread(ReadCallback callback)
    auto acceptlbd = [callback, this](AcceptStruct astruct)->void
    {
       astruct.readCallback_ = callback;
-      this->acceptProcess(move(astruct));
+      this->acceptProcess(std::move(astruct));
    };
 
    listenSocket_->listen(acceptlbd);
@@ -994,77 +1012,69 @@ void ListenServer::listenThread(ReadCallback callback)
 ///////////////////////////////////////////////////////////////////////////////
 void ListenServer::acceptProcess(AcceptStruct aStruct)
 {
-   unique_lock<mutex> lock(mu_);
+   std::unique_lock<std::mutex> lock(mu_);
 
    auto readldb = [this](
-      shared_ptr<SimpleSocket> sock, ReadCallback callback)->void
+      std::shared_ptr<SimpleSocket> sock, ReadCallback callback)->void
    {
       sock->connectToRemote();
 
-      vector<uint8_t> result;
-      exception_ptr eptr;
-      try
-      {
-         result = move(sock->readFromSocket());
-      }
-      catch (exception&)
-      {
-         eptr = current_exception();
+      std::vector<uint8_t> result;
+      std::exception_ptr eptr;
+      try {
+         result = std::move(sock->readFromSocket());
+      } catch (const std::exception&) {
+         eptr = std::current_exception();
       }
 
       callback(result, eptr);
-
       auto sockfd = sock->getSockFD();
-      this->cleanUpStack_.push_back(move(sockfd));
+      this->cleanUpStack_.push_back(std::move(sockfd));
    };
 
-   auto ss = make_unique<SocketStruct>();
+   auto ss = std::make_unique<SocketStruct>();
 
    //create BinarySocket object from sockfd
-   ss->sock_ = make_shared<SimpleSocket>(aStruct.sockfd_);
+   ss->sock_ = std::make_shared<SimpleSocket>(aStruct.sockfd_);
    ss->sock_->verbose_ = false;
 
    //start read lambda thread
-   ss->thr_ = thread(readldb, ss->sock_, aStruct.readCallback_);
+   ss->thr_ = std::thread(readldb, ss->sock_, aStruct.readCallback_);
 
    //record thread id and socket ptr in socketStruct, add to acceptMap_
-   acceptMap_.insert(make_pair(aStruct.sockfd_, move(ss)));
+   acceptMap_.emplace(aStruct.sockfd_, std::move(ss));
 
    //run through clean up stack, removing flagged entries from acceptMap_
-   try
-   {
-      while (1)
-      {
-         auto&& sock = cleanUpStack_.pop_front();
+   try {
+      while (true) {
+         auto sock = cleanUpStack_.pop_front();
          auto iter = acceptMap_.find(sock);
-         if (iter != acceptMap_.end())
-         {
-            auto ssptr = move(iter->second);
+         if (iter != acceptMap_.end()) {
+            auto ssptr = std::move(iter->second);
             acceptMap_.erase(iter);
 
-            if (ssptr->thr_.joinable())
+            if (ssptr->thr_.joinable()) {
                ssptr->thr_.join();
+            }
          }
       }
-   }
-   catch (Armory::Threading::IsEmpty&)
-   {}
+   } catch (const Armory::Threading::IsEmpty&) {}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void ListenServer::stop()
 {
    listenSocket_->shutdown();
-   if (listenThread_.joinable())
+   if (listenThread_.joinable()) {
       listenThread_.join();
+   }
 
-   for (auto& sockPair : acceptMap_)
-   {
+   for (auto& sockPair : acceptMap_) {
       auto& sockstruct = sockPair.second;
-      
       sockstruct->sock_->shutdown();
-      if (sockstruct->thr_.joinable())
+      if (sockstruct->thr_.joinable()) {
          sockstruct->thr_.join();
+      }
    }
 }
 
@@ -1078,35 +1088,101 @@ CallbackReturn::~CallbackReturn()
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-// Socket_WritePayload
+//// Socket_WritePayload
 //
 ///////////////////////////////////////////////////////////////////////////////
 Socket_WritePayload::~Socket_WritePayload(void)
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
-void WritePayload_Raw::serialize(vector<uint8_t>& data)
+void WritePayload_Raw::serialize(std::vector<uint8_t>& destination)
 {
-   data = move(data_);
+   destination = std::move(data);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-string WritePayload_Protobuf::serializeToText(void)
-{
-   if (message_ == nullptr)
-      return string();
+//
+//// WritePayload_Capnp
+//
+///////////////////////////////////////////////////////////////////////////////
+WritePayload_Capnp::WritePayload_Capnp(
+   std::unique_ptr<capnp::MessageBuilder> builderPtr,
+   std::vector<uint8_t> firstSegment) :
+   builder(std::move(builderPtr)),
+   firstSegment(std::move(firstSegment))
+{}
 
-   string str;
-   ::google::protobuf::TextFormat::PrintToString(*message_.get(), &str);
-   return str;
+////
+WritePayload_Capnp::~WritePayload_Capnp()
+{
+   builder.reset();
+   firstSegment.clear();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void WritePayload_Protobuf::serialize(vector<uint8_t>& data)
+void WritePayload_Capnp::serialize(std::vector<uint8_t>& dest)
 {
-   if (message_ == nullptr)
-      return;
-
-   data.resize(message_->ByteSizeLong());
-   message_->SerializeToArray(&data[0], data.size());
+   //NOTE: this should only ever be used in tests
+   auto flat = capnp::messageToFlatArray(*builder);
+   auto bytes = flat.asBytes();
+   dest = std::vector<uint8_t>(bytes.begin(), bytes.end());
 }
+
+///////////////////////////////////////////////////////////////////////////////
+size_t WritePayload_Capnp::getSerializedSize() const
+{
+   return builder->sizeInWords() * sizeof(capnp::word);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool WritePayload_Capnp::isSingleSegment() const
+{
+   return false;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+//// CallbackReturn_CloseBitcoinP2PSocket
+//
+///////////////////////////////////////////////////////////////////////////////
+CallbackReturn_CloseBitcoinP2PSocket::CallbackReturn_CloseBitcoinP2PSocket(
+   std::shared_ptr<Armory::Threading::BlockingQueue<std::vector<uint8_t>>> datastack) :
+   dataStack_(datastack)
+{}
+
+void CallbackReturn_CloseBitcoinP2PSocket::callback(const BinaryDataRef&)
+{
+   dataStack_->terminate();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+//// Socket_ReadPayload
+//
+///////////////////////////////////////////////////////////////////////////////
+Socket_ReadPayload::Socket_ReadPayload()
+{}
+
+Socket_ReadPayload::Socket_ReadPayload(unsigned id) :
+   id_(id)
+{}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+//// Socket_WritePayload
+//
+///////////////////////////////////////////////////////////////////////////////
+bool Socket_WritePayload::isSingleSegment() const
+{
+   return true;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+//// AcceptStruct
+//
+///////////////////////////////////////////////////////////////////////////////
+AcceptStruct::AcceptStruct() :
+   addrlen_(sizeof(saddr_))
+{}
+

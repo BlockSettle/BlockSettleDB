@@ -1,14 +1,13 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 ##############################################################################
 #                                                                            #
-# Copyright (C) 2016-2021, goatpig                                           #
+# Copyright (C) 2016-2024, goatpig                                           #
 #  Distributed under the MIT license                                         #
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
 #                                                                            #
 ##############################################################################
 import binascii
-from PySide2.QtCore import Qt, QAbstractItemModel, QModelIndex, QObject
+
+from qtpy import QtCore
 
 from armoryengine.ArmoryUtils import coin2str, getNameForAddrType
 from armoryengine.AddressUtils import addrStr_to_hash160
@@ -51,7 +50,7 @@ class AddressObjectItem(object):
       return self.addrObj.getTxioCount()
 
    def getBalance(self):
-      return self.addrObj.getFullBalance()
+      return self.addrObj.getBalance('full')
 
    def getComment(self):
       return self.addrObj.getComment()
@@ -70,18 +69,18 @@ class CoinControlUtxoItem():
       self.parent = parent
 
       if utxo.getTxHeight() == 2**32 - 1:
-         self.name = QObject().tr("ZC ID: %s | TxOut: %s" % \
+         self.name = QtCore.QObject().tr("ZC ID: %s | TxOut: %s" % \
             (str(utxo.getTxIndex()), \
             str(utxo.getTxOutIndex())))
       else:
-         self.name = QObject().tr("Block: #%s | Tx: #%s | TxOut: #%s" % \
+         self.name = QtCore.QObject().tr("Block: #%s | Tx: #%s | TxOut: #%s" % \
             (str(utxo.getTxHeight()), \
             str(utxo.getTxIndex()), \
             str(utxo.getTxOutIndex())))
 
-      self.state = Qt.Checked
+      self.state = QtCore.Qt.Checked
       if utxo.isChecked() == False:
-         self.state = Qt.Unchecked
+         self.state = QtCore.Qt.Unchecked
 
       self.comment = self.parent.getCommentFromWallet(self.utxo.getTxHash())
 
@@ -112,9 +111,8 @@ class CoinControlUtxoItem():
          pass
 
    def checkDown(self, val):
-      self.state = val
-
-      if val == Qt.Checked:
+      self.state = QtCore.Qt.CheckState(val)
+      if self.state == QtCore.Qt.Checked:
          self.utxo.setChecked(True)
       else:
          self.utxo.setChecked(False)
@@ -126,18 +124,18 @@ class RBFutxoItem():
       self.utxo = utxo
       self.parent = parent
       if utxo.getTxHeight() == 2**32 - 1:
-         self.name = QObject().tr("ZC id: %s | TxOut: %s" % \
+         self.name = QtCore.QObject().tr("ZC id: %s | TxOut: %s" % \
             (str(utxo.getTxIndex()), \
             str(utxo.getTxOutIndex())))
       else:
-         self.name = QObject().tr("Block: #%s | Tx: #%s | TxOut: #%s" % \
+         self.name = QtCore.QObject().tr("Block: #%s | Tx: #%s | TxOut: #%s" % \
             (str(utxo.getTxHeight()), \
             str(utxo.getTxIndex()), \
             str(utxo.getTxOutIndex())))
 
-      self.state = Qt.Checked
+      self.state = QtCore.Qt.Checked
       if utxo.isChecked() == False:
-         self.state = Qt.Unchecked
+         self.state = QtCore.Qt.Unchecked
 
       self.addrStr = TheBridge.scriptUtils.getAddrStrForScrAddr(
          utxo.getRecipientScrAddr())
@@ -258,12 +256,12 @@ class TreeNode(object):
          raise Exception("node needs children to compute state")
 
       self.populate()
-      state = Qt.Checked
+      state = QtCore.Qt.Checked
       try:
          state = self.entries[0].checked()
          for i in range(1, len(self.entries)):
             if self.entries[i].checked() != state:
-               state = Qt.PartiallyChecked
+               state = QtCore.Qt.PartiallyChecked
                break
       except:
          pass
@@ -395,7 +393,7 @@ class CoinControlTreeNode(TreeNode):
 
       balance = 0
       for entry in self.entries:
-         if entry.checked() != Qt.Unchecked:
+         if entry.checked() != QtCore.Qt.Unchecked:
             balance += entry.getBalance()
 
       return balance
@@ -419,7 +417,7 @@ class RBFutxoTreeNode(TreeNode):
 
    def __init__(self, parent, utxoList):
       self.utxoList = utxoList
-      name = QObject().tr("Redeemed Outputs")
+      name = QtCore.QObject().tr("Redeemed Outputs")
       super(RBFutxoTreeNode, self).__init__(parent, name, True)
 
    def populate(self):
@@ -438,7 +436,7 @@ class RBFspendTreeNode(TreeNode):
    def __init__(self, parent, txList):
       self.txList = txList
 
-      name = QObject().tr("Spender Tx")
+      name = QtCore.QObject().tr("Spender Tx")
       super(RBFspendTreeNode, self).__init__(parent, name, True)
 
    def populate(self):
@@ -459,9 +457,9 @@ class RBFTxTreeNode(TreeNode):
 
    def __init__(self, parent, txhash, entryList):
       self.entryList = entryList
-      name = QObject().tr("Tx: %s" % txhash)
+      name = QtCore.QObject().tr("Tx: %s" % txhash)
       #fee, fee_byte = getFeeForTx(txhash)
-      #self.value = QObject().tr("Fee: %1 sat. (%2 sat/B)").arg(\
+      #self.value = QtCore.QObject().tr("Fee: %1 sat. (%2 sat/B)").arg(\
       #                        unicode(fee), unicode(fee_byte))
       super(RBFTxTreeNode, self).__init__(parent, name, True)
 
@@ -561,23 +559,23 @@ class TreeStructure_AddressDisplay():
       self.root.appendEntry(nodeChange)
       self.root.appendEntry(nodeUnused)
 
+      '''
       #if we have imports, add an import section
       if not self.wallet.hasImports():
          return
 
       nodeImports = AddressTreeNode(
-         'Imports', True, \
+         'Imports', True,
          self.wallet.getImportCppAddrList)
 
       self.root.appendEntry(nodeImports)
+      '''
 
 ################################################################################
 class TreeStructure_CoinControl():
-
    def __init__(self, wallet):
       self.wallet = wallet
       self.root = None
-
       self.setup()
 
    def getTreeData(self):
@@ -589,7 +587,6 @@ class TreeStructure_CoinControl():
 
          for addr in addrDict:
             utxoList = addrDict[addr]
-            
             for utxo in utxoList:
                utxo.setChecked(True)
 
@@ -597,10 +594,10 @@ class TreeStructure_CoinControl():
       addrTypes = self.wallet.getAddressTypes()
 
       self.treeData = {
-         'UTXO':dict(),
-         'RBF':dict(),
-         'CPFP':dict()
-         }
+         'UTXO'   : dict(),
+         'RBF'    : dict(),
+         'CPFP'   : dict()
+      }
 
       utxoDict = self.treeData['UTXO']
       for addrType in addrTypes:
@@ -660,14 +657,14 @@ class TreeStructure_CoinControl():
          return nodeMain
 
       #create top 3 nodes
-      nodeUTXO = createUtxoNode(QObject().tr("Unspent Outputs"))
+      nodeUTXO = createUtxoNode(QtCore.QObject().tr("Unspent Outputs"))
       #nodeRBF = createChildNode(self.main.tr("RBF Eligible"), "RBF")
-      nodeCPFP = createCPFPNode(QObject().tr("CPFP Eligible Outputs"))
+      nodeCPFP = createCPFPNode(QtCore.QObject().tr("CPFP Eligible Outputs"))
 
       self.root.appendEntry(nodeUTXO)
       #self.root.appendEntry(nodeRBF)
       self.root.appendEntry(nodeCPFP)
-      nodeCPFP.setCheckState(Qt.Unchecked)
+      nodeCPFP.setCheckState(QtCore.Qt.Unchecked)
       self.root.checkStatus = self.root.computeState()
 
    def getCommentFromWallet(self, val):
@@ -743,7 +740,7 @@ class NodeItem(object):
          self.depth = parent.depth + 1
          parent.addChild(self)
       else:
-         self.depth = 0 
+         self.depth = 0
 
    def addChild(self, child):
       self.children[child.row] = child
@@ -769,7 +766,7 @@ class NodeItem(object):
          return False
 
 ################################################################################      
-class ArmoryTreeModel(QAbstractItemModel):
+class ArmoryTreeModel(QtCore.QAbstractItemModel):
 
    def __init__(self, main):
       super(ArmoryTreeModel, self).__init__()
@@ -777,15 +774,15 @@ class ArmoryTreeModel(QAbstractItemModel):
 
    def parent(self, index):
       if not index.isValid():
-         return QModelIndex()
+         return QtCore.QModelIndex()
 
       node = self.getNodeItem(index)
       if node is None:
-         return QModelIndex()
+         return QtCore.QModelIndex()
 
       parent = node.parent
       if parent is None:
-         return QModelIndex()
+         return QtCore.QModelIndex()
 
       return self.createIndex(parent.row, 0, parent)
 
@@ -824,11 +821,11 @@ class AddressTreeModel(ArmoryTreeModel):
       self.treeStruct = TreeStructure_AddressDisplay(self.wlt, self)
       self.root = NodeItem(0, None, self.treeStruct.root)
 
-   def columnCount(self, index=QModelIndex()):
+   def columnCount(self, index=QtCore.QModelIndex()):
       return 4
 
-   def data(self, index, role=Qt.DisplayRole):
-      if role==Qt.DisplayRole:
+   def data(self, index, role=QtCore.Qt.DisplayRole):
+      if role==QtCore.Qt.DisplayRole:
          col = index.column()
          node = self.getNodeItem(index)
 
@@ -855,9 +852,9 @@ class AddressTreeModel(ArmoryTreeModel):
 
       return None
 
-   def headerData(self, section, orientation, role=Qt.DisplayRole):
-      if role==Qt.DisplayRole:
-         if orientation==Qt.Horizontal:
+   def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
+      if role==QtCore.Qt.DisplayRole:
+         if orientation==QtCore.Qt.Horizontal:
             if section==COL_TREE: return self.tr('Address')
             if section==COL_COMMENT: return self.tr('Comment')
             if section==COL_COUNT:  return self.tr('Tx Count')
@@ -869,7 +866,7 @@ class AddressTreeModel(ArmoryTreeModel):
       #this method repopulates the underlying tree view map, only use
       #when that data changed
       self.treeStruct = TreeStructure_AddressDisplay(self.wlt, self)
-      self.root = NodeItem(0, None, self.treeStruct.root)     
+      self.root = NodeItem(0, None, self.treeStruct.root)
 
 
 ################################################################################ 
@@ -882,14 +879,14 @@ class CoinControlTreeModel(ArmoryTreeModel):
       self.treeStruct = TreeStructure_CoinControl(self.wlt)
       self.root = NodeItem(0, None, self.treeStruct.root)
 
-   def columnCount(self, index=QModelIndex()):
+   def columnCount(self, index=QtCore.QModelIndex()):
       return 4
 
-   def data(self, index, role=Qt.DisplayRole):
+   def data(self, index, role=QtCore.Qt.DisplayRole):
       col = index.column()
       node = self.getNodeItem(index)
 
-      if role==Qt.DisplayRole:
+      if role==QtCore.Qt.DisplayRole:
          if col == COL_NAME:
             return node.treeNode.getName()
 
@@ -911,7 +908,7 @@ class CoinControlTreeModel(ArmoryTreeModel):
             except:
                pass
 
-      elif role==Qt.CheckStateRole:
+      elif role==QtCore.Qt.CheckStateRole:
          try:
             if col == COL_NAME:
                st = node.treeNode.checked()
@@ -921,25 +918,25 @@ class CoinControlTreeModel(ArmoryTreeModel):
          except:
             pass
 
-      elif role==Qt.BackgroundRole:
+      elif role==QtCore.Qt.BackgroundRole:
          try:
-            if node.treeNode.checked() != Qt.Unchecked:
+            if node.treeNode.checked() != QtCore.Qt.Unchecked:
                return Colors.SlightBlue
          except:
             pass
 
-      elif role==Qt.FontRole:
+      elif role==QtCore.Qt.FontRole:
          try:
-            if node.treeNode.checked() != Qt.Unchecked:
+            if node.treeNode.checked() != QtCore.Qt.Unchecked:
                return GETFONT('Fixed', bold=True)
          except:
             pass
 
       return None
 
-   def headerData(self, section, orientation, role=Qt.DisplayRole):
-      if role==Qt.DisplayRole:
-         if orientation==Qt.Horizontal:
+   def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
+      if role==QtCore.Qt.DisplayRole:
+         if orientation==QtCore.Qt.Horizontal:
             if section==COL_NAME: return self.tr('Address/ID')
             if section==COL_DESCR:  return self.tr('Comment')
             if section==COL_VALUE:  return self.tr('Selected Balance/Value')
@@ -948,15 +945,15 @@ class CoinControlTreeModel(ArmoryTreeModel):
       return None
 
    def flags(self, index):
-      f = Qt.ItemIsEnabled
+      f = QtCore.Qt.ItemIsEnabled
       if index.column() == 0:
          node = self.getNodeItem(index)
          if node.treeNode.getName() != 'None':
-            f |= Qt.ItemIsUserCheckable
+            f |= QtCore.Qt.ItemIsUserCheckable
       return f
 
    def setData(self, index, value, role):
-      if role == Qt.CheckStateRole:
+      if role == QtCore.Qt.CheckStateRole:
          node = self.getNodeItem(index)
          node.treeNode.setCheckState(value)
 
@@ -972,16 +969,15 @@ class RBFTreeModel(ArmoryTreeModel):
       super(RBFTreeModel, self).__init__(main)
 
       self.wlt = wlt
-      
       self.treeStruct = TreeStructure_RBF(self.wlt)
       self.root = NodeItem(0, None, self.treeStruct.root)
 
-   def columnCount(self, index=QModelIndex()):
+   def columnCount(self, index=QtCore.QModelIndex()):
       return 3
 
-   def headerData(self, section, orientation, role=Qt.DisplayRole):
-      if role==Qt.DisplayRole:
-         if orientation==Qt.Horizontal:
+   def headerData(self, section, orientation, role=QtCore.Qt.DisplayRole):
+      if role==QtCore.Qt.DisplayRole:
+         if orientation==QtCore.Qt.Horizontal:
             if section==COL_OUTPUT: return self.tr('Output ID')
             if section==COL_ADDR:  return self.tr('Address')
             if section==COL_VALUE:  return self.tr('Value')
@@ -989,31 +985,31 @@ class RBFTreeModel(ArmoryTreeModel):
       return None
 
    def setData(self, index, value, role):
-      if role == Qt.CheckStateRole:
+      if role == QtCore.Qt.CheckStateRole:
          node = self.getNodeItem(index)
          node.treeNode.setCheckState(value)
 
-         self.emit(SIGNAL('layoutChanged()'))
+         self.layoutChanged.emit()
          return True
 
       return False
 
    def flags(self, index):
-      f = Qt.ItemIsEnabled
+      f = QtCore.Qt.ItemIsEnabled
       if index.column() == 0:
          node = self.getNodeItem(index)
          try:
             if node.treeNode.isCheckable():
-               f |= Qt.ItemIsUserCheckable
+               f |= QtCore.Qt.ItemIsUserCheckable
          except:
             pass
       return f
 
-   def data(self, index, role=Qt.DisplayRole):
+   def data(self, index, role=QtCore.Qt.DisplayRole):
       col = index.column()
       node = self.getNodeItem(index)
 
-      if role==Qt.DisplayRole:
+      if role==QtCore.Qt.DisplayRole:
          if col == COL_OUTPUT:
             return node.treeNode.getName()
 
@@ -1029,7 +1025,7 @@ class RBFTreeModel(ArmoryTreeModel):
             except:
                pass
 
-      elif role==Qt.CheckStateRole:
+      elif role==QtCore.Qt.CheckStateRole:
          try:
             if col == COL_OUTPUT:
                if node.treeNode.isCheckable():
@@ -1040,16 +1036,16 @@ class RBFTreeModel(ArmoryTreeModel):
          except:
             pass
 
-      elif role==Qt.BackgroundRole:
+      elif role==QtCore.Qt.BackgroundRole:
          try:
-            if node.treeNode.checked() != Qt.Unchecked:
+            if node.treeNode.checked() != QtCore.Qt.Unchecked:
                return Colors.SlightBlue
          except:
             pass
 
-      elif role==Qt.FontRole:
+      elif role==QtCore.Qt.FontRole:
          try:
-            if node.treeNode.checked() != Qt.Unchecked:
+            if node.treeNode.checked() != QtCore.Qt.Unchecked:
                return GETFONT('Fixed', bold=True)
          except:
             pass

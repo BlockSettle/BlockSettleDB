@@ -1,17 +1,12 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 ##############################################################################
 #                                                                            #
-# Copyright (C) 2016-17, goatpig                                             #
+# Copyright (C) 2016-2024, goatpig                                           #
 #  Distributed under the MIT license                                         #
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
 #                                                                            #
 ##############################################################################
 
-from PySide2.QtCore import Qt, SIGNAL
-from PySide2.QtWidgets import QFrame, QRadioButton, QLineEdit, QGridLayout, \
-   QLabel, QPushButton, QCheckBox, QSlider, QComboBox
-
+from qtpy import QtCore, QtWidgets
 from qtdialogs.qtdefines import STYLE_RAISED, GETFONT, \
    tightSizeNChar, QLabelButton, makeHorizFrame, STYLE_NONE, \
    createToolTipWidget
@@ -62,18 +57,18 @@ class FeeSelectionDialog(ArmoryDialog):
       def updateLbl():
          self.updateCoinSelection()
 
-      self.radioFlatFee = QRadioButton(self.tr("Flat Fee (BTC)"))
-      self.edtFeeAmt = QLineEdit(flatFee)
+      self.radioFlatFee = QtWidgets.QRadioButton(self.tr("Flat Fee (BTC)"))
+      self.edtFeeAmt = QtWidgets.QLineEdit(flatFee)
       self.edtFeeAmt.setFont(GETFONT('Fixed'))
       self.edtFeeAmt.setMinimumWidth(tightSizeNChar(self.edtFeeAmt, 6)[0])
       self.edtFeeAmt.setMaximumWidth(tightSizeNChar(self.edtFeeAmt, 12)[0])
 
-      self.connect(self.radioFlatFee, SIGNAL('clicked()'), setFlatFee())
-      self.connect(self.edtFeeAmt, SIGNAL('textChanged(QString)'), updateLbl)
+      self.radioFlatFee.clicked.connect(setFlatFee())
+      self.edtFeeAmt.textChanged.connect(updateLbl)
 
-      frmFlatFee = QFrame()
+      frmFlatFee = QtWidgets.QFrame()
       frmFlatFee.setFrameStyle(STYLE_RAISED)
-      layoutFlatFee = QGridLayout()
+      layoutFlatFee = QtWidgets.QGridLayout()
       layoutFlatFee.addWidget(self.radioFlatFee, 0, 0, 1, 1)
       layoutFlatFee.addWidget(self.edtFeeAmt, 0, 1, 1, 1)
       frmFlatFee.setLayout(layoutFlatFee)
@@ -84,18 +79,18 @@ class FeeSelectionDialog(ArmoryDialog):
             return self.selectType('FeeByte')
          return callbck
 
-      self.radioFeeByte = QRadioButton(self.tr("Fee/Byte (Satoshi/Byte)"))
-      self.edtFeeByte = QLineEdit(fee_byte)
+      self.radioFeeByte = QtWidgets.QRadioButton(self.tr("Fee/Byte (Satoshi/Byte)"))
+      self.edtFeeByte = QtWidgets.QLineEdit(fee_byte)
       self.edtFeeByte.setFont(GETFONT('Fixed'))
       self.edtFeeByte.setMinimumWidth(tightSizeNChar(self.edtFeeByte, 6)[0])
       self.edtFeeByte.setMaximumWidth(tightSizeNChar(self.edtFeeByte, 12)[0])
 
-      self.connect(self.radioFeeByte, SIGNAL('clicked()'), setFeeByte())
-      self.connect(self.edtFeeByte, SIGNAL('textChanged(QString)'), updateLbl)
+      self.radioFeeByte.clicked.connect(setFeeByte())
+      self.edtFeeByte.textChanged.connect(updateLbl)
 
-      frmFeeByte = QFrame()
+      frmFeeByte = QtWidgets.QFrame()
       frmFeeByte.setFrameStyle(STYLE_RAISED)
-      layoutFeeByte = QGridLayout()
+      layoutFeeByte = QtWidgets.QGridLayout()
       layoutFeeByte.addWidget(self.radioFeeByte, 0, 0, 1, 1)
       layoutFeeByte.addWidget(self.edtFeeByte, 0, 1, 1, 1)
       frmFeeByte.setLayout(layoutFeeByte)
@@ -109,20 +104,20 @@ class FeeSelectionDialog(ArmoryDialog):
             feeEstimate, blocksToConfirm)
 
       #adjust and close
-      self.btnClose = QPushButton(self.tr('Close'))
-      self.connect(self.btnClose, SIGNAL('clicked()'), self.accept)
+      self.btnClose = QtWidgets.QPushButton(self.tr('Close'))
+      self.btnClose.clicked.connect(self.accept)
 
-      self.checkBoxAdjust = QCheckBox(self.tr('Adjust fee/byte for privacy'))
+      self.checkBoxAdjust = QtWidgets.QCheckBox(self.tr('Adjust fee/byte for privacy'))
       self.checkBoxAdjust.setChecked(\
          TheSettings.getSettingOrSetDefault('AdjustFee', True))
 
-      self.connect(self.checkBoxAdjust, SIGNAL('clicked()'), updateLbl)
+      self.checkBoxAdjust.clicked.connect(updateLbl)
 
       frmClose = makeHorizFrame(\
          [self.checkBoxAdjust, 'Stretch', self.btnClose], STYLE_NONE)
 
       #main layout
-      layout = QGridLayout()
+      layout = QtWidgets.QGridLayout()
       layout.addWidget(frmAutoFeeByte, 0, 0, 1, 4)
       layout.addWidget(frmFeeByte, 2, 0, 1, 4)
       layout.addWidget(frmFlatFee, 4, 0, 1, 4)
@@ -160,17 +155,17 @@ class FeeSelectionDialog(ArmoryDialog):
       if not self.validAutoFee:
          radioButtonTxt = self.tr("Failed to fetch fee/byte from node")
 
-      self.radioAutoFeeByte = QRadioButton(radioButtonTxt)
-      self.lblAutoFeeByte = QLabel(feeByteToStr(feeEstimate))
+      self.radioAutoFeeByte = QtWidgets.QRadioButton(radioButtonTxt)
+      self.lblAutoFeeByte = QtWidgets.QLabel(feeByteToStr(feeEstimate))
       self.lblAutoFeeByte.setFont(GETFONT('Fixed'))
       self.lblAutoFeeByte.setMinimumWidth(tightSizeNChar(self.lblAutoFeeByte, 6)[0])
       self.lblAutoFeeByte.setMaximumWidth(tightSizeNChar(self.lblAutoFeeByte, 12)[0])
 
-      self.sliderAutoFeeByte = QSlider(Qt.Horizontal, self)
+      self.sliderAutoFeeByte = QtWidgets.QSlider(QtCore.Qt.Horizontal, self)
       self.sliderAutoFeeByte.setMinimum(2)
       self.sliderAutoFeeByte.setMaximum(6)
       self.sliderAutoFeeByte.setValue(blocksToConfirm)
-      self.lblSlider = QLabel()
+      self.lblSlider = QtWidgets.QLabel()
 
       def getSliderLabelTxt():
          return self.tr("Blocks to confirm: %s" % \
@@ -187,13 +182,13 @@ class FeeSelectionDialog(ArmoryDialog):
 
       self.lblSlider.setText(getSliderLabelTxt())
 
-      self.connect(self.radioAutoFeeByte, SIGNAL('clicked()'), setAutoFeeByte())
+      self.radioAutoFeeByte.clicked.connect(setAutoFeeByte())
       self.sliderAutoFeeByte.valueChanged.connect(updateAutoFeeByte)
       self.sliderAutoFeeByte.setEnabled(False)
 
-      frmAutoFeeByte = QFrame()
+      frmAutoFeeByte = QtWidgets.QFrame()
       frmAutoFeeByte.setFrameStyle(STYLE_RAISED)
-      layoutAutoFeeByte = QGridLayout()
+      layoutAutoFeeByte = QtWidgets.QGridLayout()
       layoutAutoFeeByte.addWidget(self.radioAutoFeeByte, 0, 0, 1, 1)
       layoutAutoFeeByte.addWidget(self.lblAutoFeeByte, 0, 1, 1, 1)
       layoutAutoFeeByte.addWidget(self.lblSlider, 1, 0, 1, 2)
@@ -239,19 +234,19 @@ class FeeSelectionDialog(ArmoryDialog):
       if not self.validAutoFee:
          radioButtonTxt = self.tr("Failed to fetch fee/byte from node")
 
-      self.radioAutoFeeByte = QRadioButton(radioButtonTxt)
-      self.lblAutoFeeByte = QLabel(feeByteToStr(feeEstimate))
+      self.radioAutoFeeByte = QtWidgets.QRadioButton(radioButtonTxt)
+      self.lblAutoFeeByte = QtWidgets.QLabel(feeByteToStr(feeEstimate))
       self.lblAutoFeeByte.setFont(GETFONT('Fixed'))
       self.lblAutoFeeByte.setMinimumWidth(tightSizeNChar(self.lblAutoFeeByte, 6)[0])
       self.lblAutoFeeByte.setMaximumWidth(tightSizeNChar(self.lblAutoFeeByte, 12)[0])
 
-      self.sliderAutoFeeByte = QSlider(Qt.Horizontal, self)
+      self.sliderAutoFeeByte = QtWidgets.QSlider(QtCore.Qt.Horizontal, self)
       self.sliderAutoFeeByte.setMinimum(2)
       self.sliderAutoFeeByte.setMaximum(100)
       self.sliderAutoFeeByte.setValue(blocksToConfirm)
-      self.lblSlider = QLabel()
+      self.lblSlider = QtWidgets.QLabel()
 
-      self.lblStrat = QLabel(self.tr("Profile:"))
+      self.lblStrat = QtWidgets.QLabel(self.tr("Profile:"))
       self.ttStart = createToolTipWidget(self.tr(
          '''
          <u>Fee Estimation Profiles:</u><br><br>
@@ -267,7 +262,7 @@ class FeeSelectionDialog(ArmoryDialog):
          \"estimatesmartfee\" section in the Bitcoin Core 0.15 changelog for more
          informations.
          '''))
-      self.comboStrat = QComboBox()
+      self.comboStrat = QtWidgets.QComboBox()
       currentIndex = 0
       for i in range(len(stratList)):
          self.comboStrat.addItem(stratList[i])
@@ -294,15 +289,14 @@ class FeeSelectionDialog(ArmoryDialog):
 
       self.lblSlider.setText(getSliderLabelTxt())
 
-      self.connect(self.radioAutoFeeByte, SIGNAL('clicked()'), setAutoFeeByte())
+      self.radioAutoFeeByte.clicked.connect(setAutoFeeByte())
       self.sliderAutoFeeByte.valueChanged.connect(updateAutoFeeByte)
       self.sliderAutoFeeByte.setEnabled(False)
+      self.comboStrat.currentIndexChanged.connect(stratComboChange)
 
-      self.connect(self.comboStrat, SIGNAL('currentIndexChanged(int)'), stratComboChange)
-
-      frmAutoFeeByte = QFrame()
+      frmAutoFeeByte = QtWidgets.QFrame()
       frmAutoFeeByte.setFrameStyle(STYLE_RAISED)
-      layoutAutoFeeByte = QGridLayout()
+      layoutAutoFeeByte = QtWidgets.QGridLayout()
       layoutAutoFeeByte.addWidget(self.radioAutoFeeByte, 0, 0, 1, 2)
       layoutAutoFeeByte.addWidget(self.lblAutoFeeByte, 0, 2, 1, 2)
       layoutAutoFeeByte.addWidget(self.lblSlider, 1, 0, 1, 1)
@@ -321,9 +315,20 @@ class FeeSelectionDialog(ArmoryDialog):
    #############################################################################
    def getFeeByteFromNode(self, blocksToConfirm, strategy):
       try:
-         feeEstimateResult = TheBridge.service.estimateFee(
-            blocksToConfirm, strategy)
-         return feeEstimateResult.fee_byte * 100000, feeEstimateResult.smart_fee
+         feeEstimateResult = TheBridge.service.getFeeSchedule(strategy)
+         if not feeEstimateResult:
+            raise Exception("no available fee schedule")
+
+         #find target closets to our desired conf count
+         feeTarget = feeEstimateResult[0]
+         for target in feeEstimateResult:
+            if target.target == blocksToConfirm:
+               feeTarget = target
+               break
+            elif target.target > blocksToConfirm:
+               break
+            feeTarget = target
+         return feeTarget.feeByte * 100000, feeTarget.smartFee
       except Exception as e:
          LOGWARN(f"[getFeeByteFromNode] failed with error: {str(e)}")
          self.validAutoFee = False

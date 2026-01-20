@@ -1,22 +1,19 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2017-2021, goatpig                                          //
+//  Copyright (C) 2017-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
+#pragma once
+
 #include <memory>
 #include <map>
 
-#include "../../BinaryData.h"
-#include "../../SecureBinaryData.h"
-#include "../../ReentrantLock.h"
-
+#include "Utils/ReentrantLock.h"
+#include "Utils/SecureBinaryData.h"
 #include "AccountTypes.h"
-
-#ifndef _H_META_ACCOUNTS
-#define _H_META_ACCOUNTS
 
 #define META_ACCOUNT_COMMENTS    0x000000C0
 #define META_ACCOUNT_AUTHPEER    0x000000C1
@@ -36,18 +33,14 @@ namespace Armory
 
    namespace Accounts
    {
-      //////////////////////////////////////////////////////////////////////////
       class MetaDataAccount : public Lockable
       {
-         friend struct AuthPeerAssetConversion;
-         friend struct CommentAssetConversion;
-
       private:
-         MetaAccountType type_ = MetaAccount_Unset;
+         MetaAccountType type_ = MetaAccountType::Unset;
          BinaryData ID_;
-
          const std::string dbName_;
 
+         uint32_t lastAssetId_ = UINT32_MAX;
          std::map<unsigned, std::shared_ptr<Assets::MetaData>> assets_;
 
       private:
@@ -76,22 +69,29 @@ namespace Armory
          void make_new(MetaAccountType);
 
          //
-         std::shared_ptr<Assets::MetaData> getMetaDataByIndex(unsigned) const;
-         void eraseMetaDataByIndex(unsigned);
-         MetaAccountType getType(void) const { return type_; }
+         std::shared_ptr<Assets::MetaData> getMetaDataByIndex(uint32_t) const;
+         uint32_t getNextAssetId(void);
+         void addAsset(std::shared_ptr<Assets::MetaData>);
+         const std::map<uint32_t, std::shared_ptr<Assets::MetaData>>&
+         getAssetMap(void) const;
+         void eraseMetaDataByIndex(uint32_t);
+         MetaAccountType getType(void) const;
+         const BinaryData& getID(void) const;
       };
 
       struct AuthPeerAssetMap
       {
          //<name, authorized pubkey>
-         std::map<std::string, const SecureBinaryData*> nameKeyPair_;
+         std::map<std::string, const SecureBinaryData*> nameKeyPair;
          
          //<pubkey, sig>
-         std::pair<SecureBinaryData, SecureBinaryData> rootSignature_;
+         std::pair<SecureBinaryData, SecureBinaryData> rootSignature;
 
-         //<pubkey, description>
+         //<pubkey, <description, assetId>>
          std::map<SecureBinaryData,
-            std::pair<std::string, unsigned>> peerRootKeys_;
+            std::pair<std::string, uint32_t>> peerRootKeys;
+
+         SecureBinaryData masterKey;
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -113,6 +113,11 @@ namespace Armory
          static unsigned addRootPeer(MetaDataAccount*,
             const SecureBinaryData&, const std::string&,
             std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
+
+         static void addMasterKey(MetaDataAccount*,
+            const SecureBinaryData&,
+            std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
+         static void clearMasterKeyAssets(MetaDataAccount*);
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -134,5 +139,3 @@ namespace Armory
       };
    }; //namespace Accounts
 }; //namespace Armory
-
-#endif

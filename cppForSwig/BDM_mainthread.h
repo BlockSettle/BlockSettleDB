@@ -2,62 +2,67 @@
 //                                                                            //
 //  Copyright (C) 2011-2015, Armory Technologies, Inc.                        //
 //  Distributed under the GNU Affero General Public License (AGPL v3)         //
-//  See LICENSE or http://www.gnu.org/licenses/agpl.html                      //
+//  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
+//                                                                            //
+//                                                                            //
+//  Copyright (C) 2016-2025, goatpig                                          //
+//  Distributed under the MIT license                                         //
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
-#ifndef BDM_MAINTHREAD_H
-#define BDM_MAINTHREAD_H
 
+#pragma once
+
+#include <vector>
 #include <string>
-#include <stdint.h>
-
-#ifdef _MSC_VER
-   #ifndef _WIN32_
-      #define _WIN32_
-   #endif
-#endif
-
-#include "UniversalTimer.h"
+#include <memory>
+#include <thread>
 #include "bdmenums.h"
-#include "BlockchainDatabase/BlockUtils.h"
-#include "BDM_Server.h"
 
 struct BlockDataManagerConfig;
-
 class BinaryData;
+class BlockDataManager;
 
 class BDM_CallBack
 {
 public:
-   virtual ~BDM_CallBack();
-   virtual void run(BDMAction action, void* ptr, int block=0)=0;
+   virtual ~BDM_CallBack(void);
+   virtual void run(BDMAction, void*, int=0)=0;
    virtual void progress(
-      BDMPhase phase,
-      const std::vector<std::string> &walletIdVec,
-      float progress, unsigned secondsRem,
-      unsigned progressNumeric
-   )=0;
+      BDMPhase,
+      const std::vector<std::string>&,
+      float, unsigned, unsigned)=0;
 };
 
-// let an outsider call functions from the BDM thread
-
-class BDMFailure : public std::exception
+////////
+class BlockDataManagerThread
 {
+   struct BlockDataManagerThreadImpl
+   {
+      std::shared_ptr<BlockDataManager> bdm;
+      BdmInitMode mode = BdmInitMode::RESUME;
+      volatile bool run = false;
+      bool failure = false;
+      std::thread tID;
+   };
+   std::unique_ptr<BlockDataManagerThreadImpl> pimpl;
+
 public:
-   BDMFailure() { }
+   BlockDataManagerThread(void);
+   ~BlockDataManagerThread(void);
+
+   // start the BDM thread
+   void start(BdmInitMode);
+   std::shared_ptr<BlockDataManager> bdm(void);
+
+   // return true if the caller should wait on callback notification
+   bool shutdown();
+   void join();
+
+private:
+   static void* thrun(void *);
+   void run();
+
+private:
+   BlockDataManagerThread(const BlockDataManagerThread&);
 };
-
-class BlockDataManager_LevelDB;
-class BlockDataViewer;
-
-inline void StartCppLogging(std::string fname, int lvl) { STARTLOGGING(fname, (LogLevel)lvl); }
-inline void ChangeCppLogLevel(int lvl) { SETLOGLEVEL((LogLevel)lvl); }
-inline void DisableCppLogging() { SETLOGLEVEL(LogLvlDisabled); }
-inline void EnableCppLogStdOut() { LOGENABLESTDOUT(); }
-inline void DisableCppLogStdOut() { LOGDISABLESTDOUT(); }
-
-
-
-// kate: indent-width 3; replace-tabs on;
-
-#endif

@@ -1,55 +1,55 @@
-##############################################################################
-#                                                                            #
-# Copyright (C) 2011-2015, Armory Technologies, Inc.                         #
-# Distributed under the GNU Affero General Public License (AGPL v3)          #
-# See LICENSE or http://www.gnu.org/licenses/agpl.html                       #
-#                                                                            #
-# Copyright (C) 2016-2022, goatpig                                           #
-#  Distributed under the MIT license                                         #
-#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
-#                                                                            #
-##############################################################################
+################################################################################
+#                                                                              #
+# Copyright (C) 2011-2015, Armory Technologies, Inc.                           #
+# Distributed under the GNU Affero General Public License (AGPL v3)            #
+# See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
+#                                                                              #
+# Copyright (C) 2016-2025, goatpig                                             #
+#  Distributed under the MIT license                                           #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                      #
+#                                                                              #
+################################################################################
 
-from PySide2.QtCore import Qt, QByteArray
-from PySide2.QtWidgets import QFrame, QVBoxLayout, QGridLayout, QPushButton, \
-   QTreeView, QLabel, QCheckBox, QLineEdit, QDialogButtonBox, QTextEdit
+from qtpy import QtCore, QtWidgets
 
 from armoryengine.ArmoryUtils import getVersionString, coin2str, isASCII
 from armoryengine.AddressUtils import addrStr_to_hash160
 from armoryengine.BDM import TheBDM, BDM_UNINITIALIZED, BDM_OFFLINE, \
    BDM_SCANNING
 from armoryengine.Settings import TheSettings
+from armoryengine.WalletUtils import WalletTypes, determineWalletType
 from armorycolors import htmlColor
 from ui.TreeViewGUI import AddressTreeModel
+from ui.QtExecuteSignal import TheSignalExecution
 
-from qtdialogs.qtdefines import USERMODE, determineWalletType, \
+from qtdialogs.qtdefines import USERMODE, \
    relaxedSizeNChar, relaxedSizeStr, QLabelButton, STYLE_SUNKEN, STYLE_NONE, \
-   QRichLabel, makeHorizFrame, restoreTableView, WLTTYPES, \
+   QRichLabel, makeHorizFrame, restoreTableView, \
    WLTFIELDS, tightSizeStr, saveTableView, tightSizeNChar, \
    UnicodeErrorBox, STRETCH, createToolTipWidget, MSGBOX
 
 from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
+from qtdialogs.MsgBoxCustom import MsgBoxCustom
+from qtdialogs.DlgSetComment import DlgSetComment
 
 from qtdialogs.qtdialogs import LoadingDisp
 from qtdialogs.DlgNewAddress import \
    DlgNewAddressDisp, ShowRecvCoinsWarningIfNecessary
 from qtdialogs.DlgKeypoolSettings import DlgKeypoolSettings
 from qtdialogs.DlgSendBitcoins import DlgSendBitcoins
-from qtdialogs.DlgBackupCenter import DlgBackupCenter
+from qtdialogs.DlgBackupCenter import DlgBackupCenter, DlgSimpleBackup, \
+   OpenPaperBackupDialog
 from qtdialogs.DlgAddressInfo import DlgAddressInfo
-from qtdialogs.DlgRestore import OpenPaperBackupDialog
-
+from qtdialogs.DlgChangePassphrase import DlgChangePassphrase
+from qtdialogs.DlgRemoveWallet import DlgRemoveWallet
+from qtdialogs.DlgExportWO import DlgExpWOWltData
 
 ################################################################################
 class DlgWalletDetails(ArmoryDialog):
-   """ For displaying the details of a specific wallet, with options """
-
-   #############################################################################
    def __init__(self, wlt, usermode=USERMODE.Standard, parent=None, main=None):
-      super(DlgWalletDetails, self).__init__(parent, main)
-      self.setAttribute(Qt.WA_DeleteOnClose)
-
+      super().__init__(parent, main)
+      self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
 
       self.wlt = wlt
       self.usermode = usermode
@@ -64,27 +64,25 @@ class DlgWalletDetails(ArmoryDialog):
       w, h = relaxedSizeNChar(self, 60)
       viewWidth, viewHeight = w, 10 * h
 
-
       # Address view
       self.wltAddrTreeModel = AddressTreeModel(self, wlt)
-      self.wltAddrView = QTreeView()
+      self.wltAddrView = QtWidgets.QTreeView()
       self.wltAddrView.setModel(self.wltAddrTreeModel)
       self.wltAddrView.setMinimumWidth(550)
       self.wltAddrView.setMinimumHeight(150)
       self.wltAddrView.doubleClicked.connect(self.dblClickAddressView)
 
       # Now add all the options buttons, dependent on the type of wallet.
-
       lbtnChangeLabels = QLabelButton(self.tr('Change Wallet Labels'))
       lbtnChangeLabels.linkActivated.connect(self.changeLabels)
 
       if not self.wlt.watchingOnly:
-         s = ''
+         label = ''
          if self.wlt.useEncryption:
-            s = self.tr('Change or Remove Passphrase')
+            label = self.tr('Change or Remove Passphrase')
          else:
-            s = self.tr('Encrypt Wallet')
-         lbtnChangeCrypto = QLabelButton(s)
+            label = self.tr('Encrypt Wallet')
+         lbtnChangeCrypto = QLabelButton(label)
          lbtnChangeCrypto.linkActivated.connect(self.changeEncryption)
 
       exportStr = 'Data' if self.wlt.watchingOnly else 'Copy'
@@ -104,45 +102,51 @@ class DlgWalletDetails(ArmoryDialog):
       lbtnDeleteA.linkActivated.connect(self.execDeleteAddress)
       lbtnExpWOWlt.linkActivated.connect(self.execExpWOCopy)
 
-      lbtnSendBtc.setToolTip(self.tr('Send bitcoins to other users, or transfer between wallets'))
+      lbtnSendBtc.setToolTip(self.tr(
+         'Send bitcoins to other users, or transfer between wallets'))
       if self.wlt.watchingOnly:
-         lbtnSendBtc.setToolTip(self.tr('If you have a full-copy of this wallet on another computer, you can prepare a '
-                                'transaction, to be signed by that computer.'))
-      lbtnGenAddr.setToolTip(self.tr('Get a new address from this wallet for receiving '
-                             'bitcoins.  Right click on the address list below '
-                             'to copy an existing address.'))
-      lbtnImportA.setToolTip(self.tr('Import or "Sweep" an address which is not part '
-                             'of your wallet.  Useful for VanityGen addresses '
-                             'and redeeming Casascius physical bitcoins.'))
-      lbtnDeleteA.setToolTip(self.tr('Permanently delete an imported address from '
-                             'this wallet.  You cannot delete addresses that '
-                             'were generated natively by this wallet.'))
-      # lbtnSweepA .setToolTip('')
-      lbtnExpWOWlt.setToolTip(self.tr('Export a copy of this wallet that can '
-                             'only be used for generating addresses and '
-                             'monitoring incoming payments.  A watching-only '
-                             'wallet cannot spend the funds, and thus cannot '
-                             'be compromised by an attacker'))
-      lbtnBackups.setToolTip(self.tr('See lots of options for backing up your wallet '
-                             'to protect the funds in it.'))
-      lbtnRemove.setToolTip(self.tr('Permanently delete this wallet, or just delete '
-                             'the private keys to convert it to a watching-only '
-                             'wallet.'))
-      #lbtnRecover.setToolTip('Attempt to recover a lost password using '
-      #                      'details that you remember.')
+         lbtnSendBtc.setToolTip(self.tr(
+            'If you have a full-copy of this wallet on '
+            'another computer, you can prepare a transaction, '
+            'to be signed by that computer.'))
+      lbtnGenAddr.setToolTip(self.tr(
+         'Get a new address from this wallet for receiving '
+         'bitcoins. Right click on the address list below '
+         'to copy an existing address.'))
+      lbtnImportA.setToolTip(self.tr(
+         'Import or "Sweep" an address which is not part '
+         'of your wallet.  Useful for VanityGen addresses '
+         'and redeeming Casascius physical bitcoins.'))
+      lbtnDeleteA.setToolTip(self.tr(
+         'Permanently delete an imported address from '
+         'this wallet.  You cannot delete addresses that '
+         'were generated natively by this wallet.'))
+      lbtnExpWOWlt.setToolTip(self.tr(
+         'Export a copy of this wallet that can '
+         'only be used for generating addresses and '
+         'monitoring incoming payments.  A watching-only '
+         'wallet cannot spend the funds, and thus cannot '
+         'be compromised by an attacker'))
+      lbtnBackups.setToolTip(self.tr(
+         'See lots of options for backing up your wallet '
+         'to protect the funds in it.'))
+      lbtnRemove.setToolTip(self.tr(
+         'Permanently delete this wallet, or just delete '
+         'the private keys to convert it to a watching-only '
+         'wallet.'))
       if not self.wlt.watchingOnly:
          lbtnChangeCrypto.setToolTip(self.tr('Add/Remove/Change wallet encryption settings.'))
 
-      optFrame = QFrame()
+      optFrame = QtWidgets.QFrame()
       optFrame.setFrameStyle(STYLE_SUNKEN)
-      optLayout = QVBoxLayout()
+      optLayout = QtWidgets.QVBoxLayout()
 
       hasPriv = not self.wlt.watchingOnly
       adv = (self.main.usermode in (USERMODE.Advanced, USERMODE.Expert))
 
       def createVBoxSeparator():
-         frm = QFrame()
-         frm.setFrameStyle(QFrame.HLine | QFrame.Plain)
+         frm = QtWidgets.QFrame()
+         frm.setFrameStyle(QtWidgets.QFrame.HLine | QtWidgets.QFrame.Plain)
          return frm
 
       if True:              optLayout.addWidget(lbtnSendBtc)
@@ -155,9 +159,6 @@ class DlgWalletDetails(ArmoryDialog):
       if hasPriv:           optLayout.addWidget(lbtnBackups)
       if adv:               optLayout.addWidget(lbtnExpWOWlt)
       if True:              optLayout.addWidget(lbtnRemove)
-      # if True:              optLayout.addWidget(lbtnRecover)
-      # Not sure yet that we want to include the password finer in here
-
       if adv:               optLayout.addWidget(createVBoxSeparator())
 
       if adv:   optLayout.addWidget(lbtnImportA)
@@ -167,14 +168,13 @@ class DlgWalletDetails(ArmoryDialog):
       optLayout.addStretch()
       optFrame.setLayout(optLayout)
 
-
-      self.frm = QFrame()
+      self.frm = QtWidgets.QFrame()
       self.setWltDetailsFrame()
 
       totalFunds = self.wlt.getBalance('Total')
       spendFunds = self.wlt.getBalance('Spendable')
       unconfFunds = self.wlt.getBalance('Unconfirmed')
-      uncolor = htmlColor('MoneyNeg')  if unconfFunds > 0          else htmlColor('Foreground')
+      uncolor = htmlColor('MoneyNeg') if unconfFunds > 0 else htmlColor('Foreground')
       btccolor = htmlColor('DisableFG') if spendFunds == totalFunds else htmlColor('MoneyPos')
       lblcolor = htmlColor('DisableFG') if spendFunds == totalFunds else htmlColor('Foreground')
       goodColor = htmlColor('TextGreen')
@@ -186,33 +186,31 @@ class DlgWalletDetails(ArmoryDialog):
       self.lblTotalFunds = QRichLabel('', doWrap=False)
       self.lblSpendFunds = QRichLabel('', doWrap=False)
       self.lblUnconfFunds = QRichLabel('', doWrap=False)
-      self.lblTotalFunds.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-      self.lblSpendFunds.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-      self.lblUnconfFunds.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+      self.lblTotalFunds.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+      self.lblSpendFunds.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+      self.lblUnconfFunds.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
 
-      self.lblTot.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-      self.lblSpd.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-      self.lblUnc.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-
+      self.lblTot.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+      self.lblSpd.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+      self.lblUnc.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
 
       self.lblBTC1 = QRichLabel('', doWrap=False)
       self.lblBTC2 = QRichLabel('', doWrap=False)
       self.lblBTC3 = QRichLabel('', doWrap=False)
 
-      ttipTot = createToolTipWidget(\
-            self.tr('Total funds if all current transactions are confirmed. '
+      ttipTot = createToolTipWidget(
+         self.tr('Total funds if all current transactions are confirmed. '
             'Value appears gray when it is the same as your spendable funds.'))
-      ttipSpd = createToolTipWidget(\
-            self.tr('Funds that can be spent <i>right now</i>'))
-      ttipUcn = createToolTipWidget(\
-            self.tr('Funds that have less than 6 confirmations'))
+      ttipSpd = createToolTipWidget(
+         self.tr('Funds that can be spent <i>right now</i>'))
+      ttipUcn = createToolTipWidget(
+         self.tr('Funds that have less than 6 confirmations'))
 
       self.setSummaryBalances()
 
-
-      frmTotals = QFrame()
+      frmTotals = QtWidgets.QFrame()
       frmTotals.setFrameStyle(STYLE_NONE)
-      frmTotalsLayout = QGridLayout()
+      frmTotalsLayout = QtWidgets.QGridLayout()
       frmTotalsLayout.addWidget(self.lblTot, 0, 0)
       frmTotalsLayout.addWidget(self.lblSpd, 1, 0)
       frmTotalsLayout.addWidget(self.lblUnc, 2, 0)
@@ -233,16 +231,14 @@ class DlgWalletDetails(ArmoryDialog):
 
       lblWltAddr = QRichLabel(self.tr('<b>Addresses in Wallet:</b>'), doWrap=False)
 
-      btnGoBack = QPushButton(self.tr('<<< Go Back'))
+      btnGoBack = QtWidgets.QPushButton(self.tr('<<< Go Back'))
       btnGoBack.clicked.connect(self.accept)
       bottomFrm = makeHorizFrame([btnGoBack, STRETCH, frmTotals])
 
-      layout = QGridLayout()
+      layout = QtWidgets.QGridLayout()
       layout.addWidget(self.frm, 0, 0)
       layout.addWidget(self.wltAddrView, 2, 0)
       layout.addWidget(bottomFrm, 3, 0)
-
-      # layout.addWidget(QLabel("Available Actions:"), 0, 4)
       layout.addWidget(optFrame, 0, 1, 4, 1)
       layout.setRowStretch(0, 0)
       layout.setRowStretch(1, 0)
@@ -251,10 +247,7 @@ class DlgWalletDetails(ArmoryDialog):
       layout.setColumnStretch(0, 1)
       layout.setColumnStretch(1, 0)
       self.setLayout(layout)
-
       self.setWindowTitle(self.tr('Wallet Properties'))
-
-      #self.doFilterAddr()
 
       hexgeom = TheSettings.get('WltPropGeometry')
       tblgeom = TheSettings.get('WltPropAddrCols')
@@ -263,50 +256,53 @@ class DlgWalletDetails(ArmoryDialog):
          if type(hexgeom) == bytes:
             geom = hexgeom
          else:
-            geom = QByteArray(bytes.fromhex(hexgeom))
+            geom = QtCore.QByteArray(bytes.fromhex(hexgeom))
          self.restoreGeometry(geom)
 
       if len(tblgeom) > 0:
          restoreTableView(self.wltAddrView, tblgeom)
 
       def remindBackup():
-         result = MsgBoxWithDNAA(self, self.main, MSGBOX.Warning, self.tr('Wallet Backup'), self.tr(
+         result = MsgBoxWithDNAA(self, self.main, MSGBOX.Warning,
+            self.tr('Wallet Backup'), self.tr(
             '<b><font color="red" size=4>Please backup your wallet!</font></b> '
             '<br><br>'
             'Making a paper backup will guarantee you can recover your '
             'coins at <a>any time in the future</a>, even if your '
             'hard drive dies or you forget your passphrase.  Without it, '
-            'you could permanently lose your coins!  '
+            'you could permanently lose your coins! '
             'The backup buttons are to the right of the address list.'
             '<br><br>'
             'A paper backup is recommended, '
             'and it can be copied by hand if you do not have a working printer. '
             'A digital backup only works if you remember the passphrase '
-            'used at the time it was created.  If you have ever forgotten a '
+            'used at the time it was created. If you have ever forgotten a '
             'password before, only rely on a digital backup if you store '
             'the password with it!'
             '<br><br>'
             '<a href="https://bitcointalk.org/index.php?topic=152151.0">'
-            'Read more about Armory backups</a>'), None, yesStr='Ok', \
+            'Read more about Armory backups</a>'), None, yesStr='Ok',
             dnaaStartChk=True)
-         self.main.setWltSetting(wlt.uniqueIDB58, 'DNAA_RemindBackup', result[1])
-
-
+         wlt.setSetting('DNAA_RemindBackup', result[1])
 
       wltType = determineWalletType(wlt, main)[0]
       chkLoad = (TheSettings.getSettingOrSetDefault('Load_Count', 1) % 5 == 0)
-      chkType = not wltType in (WLTTYPES.Offline, WLTTYPES.WatchOnly)
-      chkDNAA = not self.main.getWltSetting(wlt.uniqueIDB58, 'DNAA_RemindBackup')
+      chkType = not wltType in [WalletTypes.Offline, WalletTypes.WatchOnly]
+      chkDNAA = not wlt.getSetting('DNAA_RemindBackup')
       chkDont = not TheSettings.getSettingOrSetDefault('DNAA_AllBackupWarn', False)
       if chkLoad and chkType and chkDNAA and chkDont:
          self.callLater(1, remindBackup)
-         lbtnBackups.setText(self.tr('<font color="%s"><b>Backup This Wallet</b></font>' % htmlColor('TextWarn')))
+         lbtnBackups.setText(self.tr(
+            '<font color="%s"><b>Backup This Wallet</b></font>'
+            % htmlColor('TextWarn')
+         ))
 
    #############################################################################
    def doFilterAddr(self):
-      self.wltAddrModel.setFilter(self.chkHideEmpty.isChecked(), \
-                                  self.chkHideChange.isChecked(), \
-                                  self.chkHideUnused.isChecked())
+      self.wltAddrModel.setFilter(
+         self.chkHideEmpty.isChecked(),
+         self.chkHideChange.isChecked(),
+         self.chkHideUnused.isChecked())
       self.wltAddrModel.reset()
 
    #############################################################################
@@ -340,7 +336,6 @@ class DlgWalletDetails(ArmoryDialog):
       self.lblBTC2.setText('<b>BTC</b>')
       self.lblBTC3.setText('<b>BTC</b>')
 
-
    #############################################################################
    def saveGeometrySettings(self):
       geom = self.saveGeometry().data().hex()
@@ -364,7 +359,7 @@ class DlgWalletDetails(ArmoryDialog):
 
    #############################################################################
    def showContextMenu(self, pos):
-      menu = QMenu(self.wltAddrView)
+      menu = QtWidgets.QMenu(self.wltAddrView)
       std = (self.main.usermode == USERMODE.Standard)
       adv = (self.main.usermode == USERMODE.Advanced)
       dev = (self.main.usermode == USERMODE.Expert)
@@ -382,15 +377,13 @@ class DlgWalletDetails(ArmoryDialog):
       except IndexError:
          # Nothing was selected for a context menu to act upon.  Return.
          return
-      action = menu.exec_(QCursor.pos())
-
+      action = menu.exec_(QtGui.QCursor.pos())
 
       # Get data on a given row, easily
       def getModelStr(col):
          model = self.wltAddrView.model()
          qstr = model.index(idx.row(), col).data().toString()
          return str(qstr).strip()
-
 
       addr = getModelStr(ADDRESSCOLS.Address)
       if action == actionCopyAddr:
@@ -400,15 +393,15 @@ class DlgWalletDetails(ArmoryDialog):
          try:
             DlgBrowserWarn(blkchnURL).exec_()
          except:
-            QMessageBox.critical(self, self.tr('Could not open browser'), self.tr(
+            QtWidgets.QMessageBox.critical(self, self.tr('Could not open browser'), self.tr(
                'Armory encountered an error opening your web browser.  To view '
                'this address on blockchain.info, please copy and paste '
                'the following URL into your browser: '
                '<br><br>'
-               '<a href="%s">%s</a>' % (blkchnURL, blkchnURL)), QMessageBox.Ok)
+               '<a href="%s">%s</a>' % (blkchnURL, blkchnURL)), QtWidgets.QMessageBox.Ok)
          return
       elif action == actionShowQRCode:
-         wltstr = 'Wallet: %s (%s)' % (self.wlt.labelName, self.wlt.uniqueIDB58)
+         wltstr = 'Wallet: %s (%s)' % (self.wlt.labelName, self.wlt.walletId)
          DlgQRCodeDisplay(self, self.main, addr, addr, wltstr).exec_()
          return
       elif action == actionReqPayment:
@@ -427,14 +420,13 @@ class DlgWalletDetails(ArmoryDialog):
       else:
          return
 
-      clipb = QApplication.clipboard()
+      clipb = QtWidgets.QApplication.clipboard()
       clipb.clear()
       clipb.setText(str(clippy).strip())
 
    #############################################################################
    def dblClickAddressView(self, index):
       from ui.TreeViewGUI import COL_TREE, COL_COMMENT
-
       nodeItem = self.wltAddrTreeModel.getNodeItem(index)
       try:
          if not nodeItem.treeNode.canDoubleClick():
@@ -442,31 +434,28 @@ class DlgWalletDetails(ArmoryDialog):
       except:
          return
 
-      cppAddrObj = nodeItem.treeNode.getAddrObj()
-
+      addrObj = nodeItem.treeNode.getAddrObj()
       if index.column() == COL_COMMENT:
          # Update the address's comment. We apparently need to reset the model
          # to get an immediate comment update on OS X, unlike Linux or Windows.
-         currComment = cppAddrObj.getComment()
-
-
+         currComment = addrObj.getComment()
          if not currComment:
-            dialog = DlgSetComment(self, self.main, currComment, self.tr('Add Address Comment'))
+            dialog = DlgSetComment(self, self.main, currComment,
+               self.tr('Add Address Comment'))
          else:
-            dialog = DlgSetComment(self, self.main, currComment, self.tr('Change Address Comment'))
+            dialog = DlgSetComment(self, self.main, currComment,
+               self.tr('Change Address Comment'))
          if dialog.exec_():
             newComment = str(dialog.edtComment.text())
-            addr160 = cppAddrObj.getAddrHash()
-            self.wlt.setComment(addr160[1:], newComment)
-            cppAddrObj.setComment(newComment)
-
-            if OS_MACOSX:
-               self.wltAddrView.reset()
-
+            addr160 = addrObj.getAddr160()
+            self.wlt.setComment(addr160, newComment)
       else:
-         dlg = DlgAddressInfo(self.wlt, cppAddrObj, self, self.main)
-         dlg.exec_()
-
+         try:
+            dlg = DlgAddressInfo(self.wlt, addrObj, self, self.main)
+            dlg.exec_()
+         except Exception as e:
+            MsgBoxCustom(MSGBOX.Error, title="Error", msg=str(e))
+            return
 
    #############################################################################
    def changeLabels(self):
@@ -481,49 +470,17 @@ class DlgWalletDetails(ArmoryDialog):
          self.labelValues[WLTFIELDS.Name].setText(newName)
          self.labelValues[WLTFIELDS.Descr].setText(newDescr)
 
-
    #############################################################################
    def changeEncryption(self):
-      dlgCrypt = DlgChangePassphrase(self, self.main, not self.wlt.useEncryption)
-      if dlgCrypt.exec_():
-         self.disableEncryption = dlgCrypt.chkDisableCrypt.isChecked()
-         newPassphrase = SecureBinaryData(str(dlgCrypt.edtPasswd1.text()))
-         dlgCrypt.edtPasswd1.clear()
-         dlgCrypt.edtPasswd2.clear()
+      dlgCrypt = DlgChangePassphrase(self, self.main, self.wlt)
+      dlgCrypt.exec_()
 
-         if self.wlt.useEncryption:
-            origPassphrase = SecureBinaryData(str(dlgCrypt.edtPasswdOrig.text()))
-            dlgCrypt.edtPasswdOrig.clear()
-            if self.wlt.verifyPassphrase(origPassphrase):
-               unlockProgress = DlgProgress(self, self.main, HBar=1,
-                                            Title="Unlocking Wallet")
-               unlockProgress.exec_(self.wlt.unlock, securePassphrase=origPassphrase)
-            else:
-               # Even if the wallet is already unlocked, enter pwd again to change it
-               QMessageBox.critical(self, self.tr('Invalid Passphrase'), \
-                     self.tr('Previous passphrase is not correct!  Could not unlock wallet.'), \
-                     QMessageBox.Ok)
-
-
-         if self.disableEncryption:
-            unlockProgress = DlgProgress(self, self.main, HBar=1,
-                                         Title=self.tr("Changing Encryption"))
-            unlockProgress.exec_(self.wlt.changeWalletEncryption)
-            # self.accept()
-            self.labelValues[WLTFIELDS.Secure].setText(self.tr('No Encryption'))
-            self.labelValues[WLTFIELDS.Secure].setText('')
-            self.labelValues[WLTFIELDS.Secure].setText('')
-         else:
-            if not self.wlt.useEncryption:
-               kdfParams = self.wlt.computeSystemSpecificKdfParams(0.2)
-               self.wlt.changeKdfParams(*kdfParams)
-            unlockProgress = DlgProgress(self, self.main, HBar=2,
-                                         Title=self.tr("Changing Encryption"))
-            unlockProgress.exec_(self.wlt.changeWalletEncryption,
-                                 securePassphrase=newPassphrase)
-            self.labelValues[WLTFIELDS.Secure].setText(self.tr('Encrypted (AES256)'))
-            # self.accept()
-
+      if dlgCrypt.chkDisableCrypt.isChecked():
+         self.labelValues[WLTFIELDS.Secure].setText(self.tr('No Encryption'))
+         self.labelValues[WLTFIELDS.Secure].setText('')
+         self.labelValues[WLTFIELDS.Secure].setText('')
+      else:
+         self.labelValues[WLTFIELDS.Secure].setText(self.tr('Encrypted (AES256)'))
 
    def getNewAddress(self):
       if ShowRecvCoinsWarningIfNecessary(self.wlt, self, self.main):
@@ -532,26 +489,24 @@ class DlgWalletDetails(ArmoryDialog):
          DlgNewAddressDisp(self.wlt, self, self.main, loading).exec_()
          self.resetTreeView()
 
-
    def execSendBtc(self):
       if TheBDM.getState() in (BDM_OFFLINE, BDM_UNINITIALIZED):
-         QMessageBox.warning(self, self.tr('Offline Mode'), self.tr(
-           'Armory is currently running in offline mode, and has no '
-           'ability to determine balances or create transactions. '
-           '<br><br> '
-           'In order to send coins from this wallet you must use a '
-           'full copy of this wallet from an online computer, '
-           'or initiate an "offline transaction" using a watching-only '
-           'wallet on an online computer.'), QMessageBox.Ok)
+         QtWidgets.QMessageBox.warning(self, self.tr('Offline Mode'), self.tr(
+            'Armory is currently running in offline mode, and has no '
+            'ability to determine balances or create transactions. '
+            '<br><br> '
+            'In order to send coins from this wallet you must use a '
+            'full copy of this wallet from an online computer, '
+            'or initiate an "offline transaction" using a watching-only '
+            'wallet on an online computer.'), QtWidgets.QMessageBox.Ok)
          return
       if TheBDM.getState() == BDM_SCANNING:
-         QMessageBox.warning(self, self.tr('Armory Not Ready'), self.tr(
-           'Armory is currently scanning the blockchain to collect '
-           'the information needed to create transactions.  This '
-           'typically takes between one and five minutes.  Please '
-           'wait until your balance appears on the main window, '
-           'then try again.'), \
-            QMessageBox.Ok)
+         QtWidgets.QMessageBox.warning(self, self.tr('Armory Not Ready'), self.tr(
+            'Armory is currently scanning the blockchain to collect '
+            'the information needed to create transactions.  This '
+            'typically takes between one and five minutes.  Please '
+            'wait until your balance appears on the main window, '
+            'then try again.'), QtWidgets.QMessageBox.Ok)
          return
 
       self.accept()
@@ -575,20 +530,6 @@ class DlgWalletDetails(ArmoryDialog):
       else:
          DlgSimpleBackup(self, self.main, self.wlt).exec_()
 
-   def execPrintDlg(self):
-      if self.wlt.isLocked:
-         unlockdlg = DlgUnlockWallet(self.wlt, self, self.main, self.tr('Create Paper Backup'))
-         if not unlockdlg.exec_():
-            return
-
-      if not self.wlt.addrMap['ROOT'].hasPrivKey():
-         QMessageBox.warning(self, self.tr('Move along...'), \
-           self.tr('This wallet does not contain any private keys.  Nothing to backup!'), QMessageBox.Ok)
-         return
-
-      OpenPaperBackupDialog('Single', self, self.main, self.wlt)
-
-
    def execRemoveDlg(self):
       dlg = DlgRemoveWallet(self.wlt, self, self.main)
       if dlg.exec_():
@@ -599,15 +540,15 @@ class DlgWalletDetails(ArmoryDialog):
          dlg = DlgUnlockWallet(self.wlt, self, self.main, self.tr('Unlock Private Keys'))
          if not dlg.exec_():
             if self.main.usermode == USERMODE.Expert:
-               QMessageBox.warning(self, self.tr('Unlock Failed'), self.tr(
+               QtWidgets.QMessageBox.warning(self, self.tr('Unlock Failed'), self.tr(
                   'Wallet was not unlocked.  The public keys and addresses '
                   'will still be shown, but private keys will not be available '
-                  'unless you reopen the dialog with the correct passphrase'), \
-                  QMessageBox.Ok)
+                  'unless you reopen the dialog with the correct passphrase'),
+                  QtWidgets.QMessageBox.Ok)
             else:
-               QMessageBox.warning(self, self.tr('Unlock Failed'), self.tr(
-                  'Wallet could not be unlocked to display individual keys.'), \
-                  QMessageBox.Ok)
+               QtWidgets.QMessageBox.warning(self, self.tr('Unlock Failed'), self.tr(
+                  'Wallet could not be unlocked to display individual keys.'),
+                  QtWidgets.QMessageBox.Ok)
                return
 
       dlg = DlgShowKeyList(self.wlt, self, self.main)
@@ -616,9 +557,9 @@ class DlgWalletDetails(ArmoryDialog):
    def execDeleteAddress(self):
       selectedList = self.wltAddrView.selectedIndexes()
       if len(selectedList) == 0:
-         QMessageBox.warning(self, self.tr('No Selection'), \
+         QtWidgets.QMessageBox.warning(self, self.tr('No Selection'), \
                self.tr('You must select an address to remove!'), \
-               QMessageBox.Ok)
+               QtWidgets.QMessageBox.Ok)
          return
 
       nodeIndex = selectedList[0]
@@ -633,12 +574,11 @@ class DlgWalletDetails(ArmoryDialog):
          dlg = DlgRemoveAddress(self.wlt, addr160, self, self.main)
          dlg.exec_()
       else:
-         QMessageBox.warning(self, self.tr('Invalid Selection'), self.tr(
-               'You cannot delete addresses generated by your wallet. '
-               'Only imported addresses can be deleted.'), \
-               QMessageBox.Ok)
+         QtWidgets.QMessageBox.warning(self, self.tr('Invalid Selection'), self.tr(
+            'You cannot delete addresses generated by your wallet. '
+            'Only imported addresses can be deleted.'),
+            QtWidgets.QMessageBox.Ok)
          return
-
 
    def execImportAddress(self):
       if not TheSettings.getSettingOrSetDefault('DNAA_ImportWarning', False):
@@ -665,30 +605,16 @@ class DlgWalletDetails(ArmoryDialog):
       except AttributeError:
          pass
 
-
    #############################################################################
    def execExpWOCopy(self):
-      """
-      Function executed when a user executes the \"Export Public Key & Chain
-      Code\" option.
-      """
-      # This should never happen....
-      if not self.wlt.addrMap['ROOT'].hasChainCode():
-         QMessageBox.warning(self,
-                             self.tr('Move along... This wallet does not have '
-                             'a chain code. Backups are pointless!'), QMessageBox.Ok)
-         return
-
-      # Proceed to the actual export center.
       dlg = DlgExpWOWltData(self.wlt, self, self.main)
-      if dlg.exec_():
-         pass  # Once executed, we're done.
+      dlg.exec_()
 
    #############################################################################
    def setWltDetailsFrame(self):
       dispCrypto = self.wlt.useEncryption and \
          self.usermode in [USERMODE.Advanced, USERMODE.Expert]
-      self.wltID = self.wlt.uniqueIDB58
+      self.wltID = self.wlt.walletId
 
       if dispCrypto:
          mem = self.wlt.getKdfMemoryReqtBytes()
@@ -696,9 +622,7 @@ class DlgWalletDetails(ArmoryDialog):
          if mem >= 1024 * 1024:
             kdfmemstr = str(mem / (1024 * 1024)) + ' MB'
 
-
       tooltips = [[]] * 10
-
       tooltips[WLTFIELDS.Name] = createToolTipWidget(self.tr(
             'This is the name stored with the wallet file.  Click on the '
             '"Change Labels" button on the right side of this '
@@ -769,62 +693,61 @@ class DlgWalletDetails(ArmoryDialog):
             'available with all wallet versions.  Creating a new wallet will '
             'always create the latest version.'))
       labelNames = [[]] * 10
-      labelNames[WLTFIELDS.Name] = QLabel(self.tr('Wallet Name:'))
-      labelNames[WLTFIELDS.Descr] = QLabel(self.tr('Description:'))
+      labelNames[WLTFIELDS.Name] = QtWidgets.QLabel(self.tr('Wallet Name:'))
+      labelNames[WLTFIELDS.Descr] = QtWidgets.QLabel(self.tr('Description:'))
 
-      labelNames[WLTFIELDS.WltID] = QLabel(self.tr('Wallet ID:'))
-      labelNames[WLTFIELDS.NumAddr] = QLabel(self.tr('Addresses Used:'))
-      labelNames[WLTFIELDS.Secure] = QLabel(self.tr('Security:'))
-      labelNames[WLTFIELDS.Version] = QLabel(self.tr('Version:'))
+      labelNames[WLTFIELDS.WltID] = QtWidgets.QLabel(self.tr('Wallet ID:'))
+      labelNames[WLTFIELDS.NumAddr] = QtWidgets.QLabel(self.tr('Addresses Used:'))
+      labelNames[WLTFIELDS.Secure] = QtWidgets.QLabel(self.tr('Security:'))
+      labelNames[WLTFIELDS.Version] = QtWidgets.QLabel(self.tr('Version:'))
 
-      labelNames[WLTFIELDS.BelongsTo] = QLabel(self.tr('Belongs to:'))
-
+      labelNames[WLTFIELDS.BelongsTo] = QtWidgets.QLabel(self.tr('Belongs to:'))
 
       # TODO:  Add wallet path/location to this!
 
       if dispCrypto:
-         labelNames[WLTFIELDS.Time] = QLabel(self.tr('Unlock Time:'))
-         labelNames[WLTFIELDS.Mem] = QLabel(self.tr('Unlock Memory:'))
+         labelNames[WLTFIELDS.Time] = QtWidgets.QLabel(self.tr('Unlock Time:'))
+         labelNames[WLTFIELDS.Mem] = QtWidgets.QLabel(self.tr('Unlock Memory:'))
 
       self.labelValues = [[]] * 10
-      self.labelValues[WLTFIELDS.Name] = QLabel(self.wlt.labelName)
-      self.labelValues[WLTFIELDS.Descr] = QLabel(self.wlt.labelDescr)
+      self.labelValues[WLTFIELDS.Name] = QtWidgets.QLabel(self.wlt.labelName)
+      self.labelValues[WLTFIELDS.Descr] = QtWidgets.QLabel(self.wlt.labelDescr)
 
-      self.labelValues[WLTFIELDS.WltID] = QLabel(self.wlt.uniqueIDB58)
-      self.labelValues[WLTFIELDS.Secure] = QLabel(self.typestr)
-      self.labelValues[WLTFIELDS.BelongsTo] = QLabel('')
-      self.labelValues[WLTFIELDS.Version] = QLabel(getVersionString(self.wlt.version))
+      self.labelValues[WLTFIELDS.WltID] = QtWidgets.QLabel(self.wlt.walletId)
+      self.labelValues[WLTFIELDS.Secure] = QtWidgets.QLabel(self.typestr)
+      self.labelValues[WLTFIELDS.BelongsTo] = QtWidgets.QLabel('')
+      self.labelValues[WLTFIELDS.Version] = QtWidgets.QLabel(getVersionString(self.wlt.version))
 
 
-      topUsed = max(self.wlt.highestUsedChainIndex, 0)
+      topUsed = max(self.wlt.getHighestUsedIndex(), 0)
       self.labelValues[WLTFIELDS.NumAddr] = QLabelButton('%d' % topUsed)
-      self.labelValues[WLTFIELDS.NumAddr].setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-      opendlgkeypool = lambda: DlgKeypoolSettings(self.wlt, self, self.main).exec_()
-      self.labelValues[WLTFIELDS.NumAddr].linkActivated.connect(opendlgkeypool)
+      self.labelValues[WLTFIELDS.NumAddr].setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+      self.labelValues[WLTFIELDS.NumAddr].linkActivated.connect(
+         lambda: DlgKeypoolSettings(self.wlt, self, self.main).exec_())
 
       # Set the owner appropriately
       if self.wlt.watchingOnly:
-         if self.main.getWltSetting(self.wltID, 'IsMine'):
+         if self.wlt.getSetting('IsMine'):
             self.labelValues[WLTFIELDS.BelongsTo] = QLabelButton(self.tr('You own this wallet'))
-            self.labelValues[WLTFIELDS.BelongsTo].setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.labelValues[WLTFIELDS.BelongsTo].setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
          else:
-            owner = self.main.getWltSetting(self.wltID, 'BelongsTo')
+            owner = self.wlt.getSetting('BelongsTo')
             if owner == '':
                self.labelValues[WLTFIELDS.BelongsTo] = QLabelButton(self.tr('Someone else...'))
-               self.labelValues[WLTFIELDS.BelongsTo].setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+               self.labelValues[WLTFIELDS.BelongsTo].setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
             else:
                self.labelValues[WLTFIELDS.BelongsTo] = QLabelButton(owner)
-               self.labelValues[WLTFIELDS.BelongsTo].setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+               self.labelValues[WLTFIELDS.BelongsTo].setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
 
          self.labelValues[WLTFIELDS.BelongsTo].linkActivated.connect(self.execSetOwner)
 
       if dispCrypto:
          self.labelValues[WLTFIELDS.Time] = QLabelButton(self.tr('Click to Test'))
-         self.labelValues[WLTFIELDS.Mem] = QLabel(kdfmemstr)
+         self.labelValues[WLTFIELDS.Mem] = QtWidgets.QLabel(kdfmemstr)
 
       for ttip in tooltips:
          try:
-            ttip.setAlignment(Qt.AlignRight | Qt.AlignTop)
+            ttip.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTop)
             w, h = relaxedSizeStr(ttip, '(?)')
             ttip.setMaximumSize(w, h)
          except AttributeError:
@@ -832,7 +755,7 @@ class DlgWalletDetails(ArmoryDialog):
 
       for lbl in labelNames:
          try:
-            lbl.setTextFormat(Qt.RichText)
+            lbl.setTextFormat(QtCore.Qt.RichText)
             lbl.setText('<b>' + lbl.text() + '</b>')
             lbl.setContentsMargins(0, 0, 0, 0)
             w, h = tightSizeStr(lbl, '9' * 16)
@@ -848,38 +771,36 @@ class DlgWalletDetails(ArmoryDialog):
          try:
             lbl.setText('<i>' + lbl.text() + '</i>')
             lbl.setContentsMargins(10, 0, 10, 0)
-            # lbl.setTextInteractionFlags(Qt.TextSelectableByMouse | \
-                                        # Qt.TextSelectableByKeyboard)
          except AttributeError:
             pass
 
       # Not sure why this has to be connected downhere... it didn't work above it
       if dispCrypto:
-         self.labelValues[WLTFIELDS.Time].setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+         self.labelValues[WLTFIELDS.Time].setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
          self.labelValues[WLTFIELDS.Time].linkActivated.connect(self.testKdfTime)
 
-      labelNames[WLTFIELDS.Descr].setAlignment(Qt.AlignLeft | Qt.AlignTop)
+      labelNames[WLTFIELDS.Descr].setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
       self.labelValues[WLTFIELDS.Descr].setWordWrap(True)
-      self.labelValues[WLTFIELDS.Descr].setAlignment(Qt.AlignLeft | Qt.AlignTop)
+      self.labelValues[WLTFIELDS.Descr].setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
 
-      lblEmpty = QLabel(' ' * 20)
+      lblEmpty = QtWidgets.QLabel(' ' * 20)
 
-      layout = QGridLayout()
+      layout = QtWidgets.QGridLayout()
 
-      layout.addWidget(tooltips[WLTFIELDS.WltID], 0, 0);
-      layout.addWidget(labelNames[WLTFIELDS.WltID], 0, 1);
+      layout.addWidget(tooltips[WLTFIELDS.WltID], 0, 0)
+      layout.addWidget(labelNames[WLTFIELDS.WltID], 0, 1)
       layout.addWidget(self.labelValues[WLTFIELDS.WltID], 0, 2)
 
-      layout.addWidget(tooltips[WLTFIELDS.Name], 1, 0);
-      layout.addWidget(labelNames[WLTFIELDS.Name], 1, 1);
+      layout.addWidget(tooltips[WLTFIELDS.Name], 1, 0)
+      layout.addWidget(labelNames[WLTFIELDS.Name], 1, 1)
       layout.addWidget(self.labelValues[WLTFIELDS.Name], 1, 2)
 
-      layout.addWidget(tooltips[WLTFIELDS.Descr], 2, 0);
-      layout.addWidget(labelNames[WLTFIELDS.Descr], 2, 1);
+      layout.addWidget(tooltips[WLTFIELDS.Descr], 2, 0)
+      layout.addWidget(labelNames[WLTFIELDS.Descr], 2, 1)
       layout.addWidget(self.labelValues[WLTFIELDS.Descr], 2, 2, 4, 1)
 
-      layout.addWidget(tooltips[WLTFIELDS.Version], 0, 3);
-      layout.addWidget(labelNames[WLTFIELDS.Version], 0, 4);
+      layout.addWidget(tooltips[WLTFIELDS.Version], 0, 3)
+      layout.addWidget(labelNames[WLTFIELDS.Version], 0, 4)
       layout.addWidget(self.labelValues[WLTFIELDS.Version], 0, 5)
 
       i = 0
@@ -890,77 +811,86 @@ class DlgWalletDetails(ArmoryDialog):
          layout.addWidget(self.labelValues[WLTFIELDS.NumAddr], i, 5)
 
       i += 1
-      layout.addWidget(tooltips[WLTFIELDS.Secure], i, 3);
-      layout.addWidget(labelNames[WLTFIELDS.Secure], i, 4);
+      layout.addWidget(tooltips[WLTFIELDS.Secure], i, 3)
+      layout.addWidget(labelNames[WLTFIELDS.Secure], i, 4)
       layout.addWidget(self.labelValues[WLTFIELDS.Secure], i, 5)
-
 
       if self.wlt.watchingOnly:
          i += 1
-         layout.addWidget(tooltips[WLTFIELDS.BelongsTo], i, 3);
-         layout.addWidget(labelNames[WLTFIELDS.BelongsTo], i, 4);
+         layout.addWidget(tooltips[WLTFIELDS.BelongsTo], i, 3)
+         layout.addWidget(labelNames[WLTFIELDS.BelongsTo], i, 4)
          layout.addWidget(self.labelValues[WLTFIELDS.BelongsTo], i, 5)
-
 
       if dispCrypto:
          i += 1
-         layout.addWidget(tooltips[WLTFIELDS.Time], i, 3);
-         layout.addWidget(labelNames[WLTFIELDS.Time], i, 4);
+         layout.addWidget(tooltips[WLTFIELDS.Time], i, 3)
+         layout.addWidget(labelNames[WLTFIELDS.Time], i, 4)
          layout.addWidget(self.labelValues[WLTFIELDS.Time], i, 5)
 
          i += 1
-         layout.addWidget(tooltips[WLTFIELDS.Mem], i, 3);
-         layout.addWidget(labelNames[WLTFIELDS.Mem], i, 4);
+         layout.addWidget(tooltips[WLTFIELDS.Mem], i, 3)
+         layout.addWidget(labelNames[WLTFIELDS.Mem], i, 4)
          layout.addWidget(self.labelValues[WLTFIELDS.Mem], i, 5)
 
-
-      self.frm = QFrame()
+      self.frm = QtWidgets.QFrame()
       self.frm.setFrameStyle(STYLE_SUNKEN)
       self.frm.setLayout(layout)
 
-
-
    def testKdfTime(self):
-      kdftimestr = "%0.3f sec" % self.wlt.testKdfComputeTime()
-      self.labelValues[WLTFIELDS.Time].setText(kdftimestr)
+      def callbackInner(success, unlockTime):
+         # this has to run in the Qt GUI thread
+         if success == False:
+            QtWidgets.QMessageBox.error(self, self.tr('Unlock Failed'),
+               self.tr("Failed to test KDF unlock time =("),
+               QtWidgets.QMessageBox.Ok)
+         kdftimestr = "%0.3f sec" % (unlockTime / 1000.)
+         self.labelValues[WLTFIELDS.Time].setText(kdftimestr)
 
+      def callback(success, unlockTime):
+         # makes sure the callback is triggered from Qt thread
+         TheSignalExecution.executeMethod(callbackInner, success, unlockTime)
+      self.wlt.testKdfComputeTime(callback)
 
    def execSetOwner(self):
-      dlg = self.dlgChangeOwner(self.wltID, self, self.main)
+      dlg = self.dlgChangeOwner(self.wlt, self, self.main)
       if dlg.exec_():
          if dlg.chkIsMine.isChecked():
-            self.main.setWltSetting(self.wltID, 'IsMine', True)
-            self.main.setWltSetting(self.wltID, 'BelongsTo', '')
-            self.labelValues[WLTFIELDS.BelongsTo].setText(self.tr('You own this wallet'))
-            self.labelValues[WLTFIELDS.BelongsTo].setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            self.labelValues[WLTFIELDS.Secure].setText(self.tr('<i>Offline</i>'))
+            self.wlt.setSetting('IsMine', True)
+            self.wlt.setSetting('BelongsTo', '')
+            self.labelValues[WLTFIELDS.BelongsTo].setText(
+               self.tr('You own this wallet'))
+            self.labelValues[WLTFIELDS.BelongsTo].setAlignment(
+               QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+            self.labelValues[WLTFIELDS.Secure].setText(
+               self.tr('<i>Offline</i>'))
          else:
             owner = unicode(dlg.edtOwnerString.text())
-            self.main.setWltSetting(self.wltID, 'IsMine', False)
-            self.main.setWltSetting(self.wltID, 'BelongsTo', owner)
+            self.wlt.setSetting('IsMine', False)
+            self.wlt.setSetting('BelongsTo', owner)
 
             if len(owner) > 0:
                self.labelValues[WLTFIELDS.BelongsTo].setText(owner)
             else:
-               self.labelValues[WLTFIELDS.BelongsTo].setText(self.tr('Someone else'))
-            self.labelValues[WLTFIELDS.Secure].setText(self.tr('<i>Watching-Only</i>'))
-            self.labelValues[WLTFIELDS.BelongsTo].setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            self.labelValues[WLTFIELDS.Secure].setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-
+               self.labelValues[WLTFIELDS.BelongsTo].setText(
+                  self.tr('Someone else'))
+            self.labelValues[WLTFIELDS.Secure].setText(
+               self.tr('<i>Watching-Only</i>'))
+            self.labelValues[WLTFIELDS.BelongsTo].setAlignment(
+               QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
+            self.labelValues[WLTFIELDS.Secure].setAlignment(
+               QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
          self.main.changeWltFilter()
-
 
    #############################################################################
    class dlgChangeOwner(ArmoryDialog):
-      def __init__(self, wltID, parent=None, main=None):
+      def __init__(self, wlt, parent=None, main=None):
          super(parent.dlgChangeOwner, self).__init__(parent, main)
 
-
-         layout = QGridLayout()
-         self.chkIsMine = QCheckBox(self.tr('This wallet is mine'))
-         self.edtOwnerString = QLineEdit()
-         if parent.main.getWltSetting(wltID, 'IsMine'):
-            lblDescr = QLabel(self.tr(
+         layout = QtWidgets.QGridLayout()
+         self.chkIsMine = QtWidgets.QCheckBox(self.tr('This wallet is mine'))
+         self.edtOwnerString = QtWidgets.QLineEdit()
+         if wlt.getSetting('IsMine'):
+            lblDescr = QtWidgets.QLabel(self.tr(
                'The funds in this wallet are currently identified as '
                'belonging to <b><i>you</i></b>.  As such, any funds '
                'available to this wallet will be included in the total '
@@ -975,12 +905,12 @@ class DlgWalletDetails(ArmoryDialog):
             self.chkIsMine.setChecked(True)
             self.edtOwnerString.setEnabled(False)
          else:
-            owner = parent.main.getWltSetting(wltID, 'BelongsTo')
+            owner = wlt.getSetting('BelongsTo')
             if owner == '':
                owner = 'someone else'
             else:
                self.edtOwnerString.setText(owner)
-            lblDescr = QLabel(self.tr(
+            lblDescr = QtWidgets.QLabel(self.tr(
                'The funds in this wallet are currently identified as '
                'belonging to <i><b>%s</b></i>.  If these funds are actually '
                'yours, and you would like the funds included in your balance in '
@@ -996,14 +926,15 @@ class DlgWalletDetails(ArmoryDialog):
                'and monitor incoming transactions.'))
             layout.addWidget(ttip, 1, 1)
 
-
          slot = lambda b: self.edtOwnerString.setEnabled(not b)
          self.chkIsMine.toggled.connect(slot)
 
-         layout.addWidget(QLabel(self.tr('Wallet owner (optional):')), 3, 0)
+         layout.addWidget(
+            QtWidgets.QLabel(self.tr('Wallet owner (optional):')),
+            3, 0)
          layout.addWidget(self.edtOwnerString, 3, 1)
-         bbox = QDialogButtonBox(QDialogButtonBox.Ok | \
-                                    QDialogButtonBox.Cancel)
+         bbox = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok | \
+            QtWidgets.QDialogButtonBox.Cancel)
          bbox.accepted.connect(self.accept)
          bbox.rejected.connect(self.reject)
          layout.addWidget(bbox, 4, 0)
@@ -1015,27 +946,27 @@ class DlgChangeLabels(ArmoryDialog):
    def __init__(self, currName='', currDescr='', parent=None, main=None):
       super(DlgChangeLabels, self).__init__(parent, main)
 
-      self.edtName = QLineEdit()
+      self.edtName = QtWidgets.QLineEdit()
       self.edtName.setMaxLength(32)
-      lblName = QLabel(self.tr("Wallet &name:"))
+      lblName = QtWidgets.QLabel(self.tr("Wallet &name:"))
       lblName.setBuddy(self.edtName)
 
-      self.edtDescr = QTextEdit()
+      self.edtDescr = QtWidgets.QTextEdit()
       tightHeight = tightSizeNChar(self.edtDescr, 1)[1]
-      self.edtDescr.setMaximumHeight(tightHeight * 4.2)
-      lblDescr = QLabel(self.tr("Wallet &description:"))
-      lblDescr.setAlignment(Qt.AlignVCenter)
+      self.edtDescr.setMaximumHeight(int(tightHeight * 4.2))
+      lblDescr = QtWidgets.QLabel(self.tr("Wallet &description:"))
+      lblDescr.setAlignment(QtCore.Qt.AlignVCenter)
       lblDescr.setBuddy(self.edtDescr)
 
       self.edtName.setText(currName)
       self.edtDescr.setText(currDescr)
 
-      buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | \
-                                   QDialogButtonBox.Cancel)
+      buttonBox = QtWidgets.QDialogButtonBox(
+         QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
       buttonBox.accepted.connect(self.accept)
       buttonBox.rejected.connect(self.reject)
 
-      layout = QGridLayout()
+      layout = QtWidgets.QGridLayout()
       layout.addWidget(lblName, 1, 0, 1, 1)
       layout.addWidget(self.edtName, 1, 1, 1, 1)
       layout.addWidget(lblDescr, 2, 0, 1, 1)
@@ -1045,7 +976,6 @@ class DlgChangeLabels(ArmoryDialog):
 
       self.setWindowTitle(self.tr('Wallet Descriptions'))
 
-
    def accept(self, *args):
       try:
          self.edtName.text().encode("ascii")
@@ -1054,7 +984,7 @@ class DlgChangeLabels(ArmoryDialog):
          return
 
       if len(str(self.edtName.text()).strip()) == 0:
-         QMessageBox.critical(self, self.tr('Empty Name'), \
-            self.tr('All wallets must have a name. '), QMessageBox.Ok)
+         QtWidgets.QMessageBox.critical(self, self.tr('Empty Name'), \
+            self.tr('All wallets must have a name. '), QtWidgets.QMessageBox.Ok)
          return
       super(DlgChangeLabels, self).accept(*args)

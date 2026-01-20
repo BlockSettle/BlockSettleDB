@@ -54,29 +54,8 @@ BIP150KeyManager
 
 /cppForSwig/BIP150KeyManager
 
-CppBlockUtils.py
-_CppBlockUtils.*
-/cppForSwig/CppBlockUtils_wrap.cxx
-
 /cppForSwig/chacha20poly1305/chacha20poly1305bench
 /cppForSwig/chacha20poly1305/chacha20poly1305tests
-
-/cppForSwig/libcryptopp.a
-/cppForSwig/libleveldb.a
-/cppForSwig/cryptopp/*.a
-/cppForSwig/cryptopp/a.out
-/cppForSwig/cryptopp/Template
-/cppForSwig/cryptopp/TestData
-/cppForSwig/cryptopp/TestVectors
-/cppForSwig/cryptopp/CTDebug
-/cppForSwig/cryptopp/Debug
-/cppForSwig/cryptopp/DLL_Debug
-/cppForSwig/cryptopp/dlltest___Win32_Debug
-/cppForSwig/cryptopp/Release
-/cppForSwig/cryptopp/Makefile
-
-/cppForSwig/fcgi/fcgi_config.h
-/cppForSwig/fcgi/examples/*
 
 /cppForSwig/gtest/BIP151RekeyTest
 /cppForSwig/gtest/ContainerTests
@@ -93,25 +72,12 @@ _CppBlockUtils.*
 /cppForSwig/gtest/SignerTests
 /cppForSwig/gtest/fakehomedir/*
 
-/cppForSwig/libbtc/bitcoin-spv
-
-!/cppForSwig/ccan/config.h
-/cppForSwig/ccan/**/*.d
-/cppForSwig/ccan/**/Info
-/cppForSwig/ccan/**/Info.plist
-
-*.DS_Store
-
 /ArmoryStandalone/*
-/cppForSwig/CppBlockUtils_wrap.h
-/cppForSwig/leveldb/*
 /cppForSwig/libs/*
 /cppForSwig/Release/*
-/cppForSwig/swigwin/*
 /cppForSwig/pypaths.txt
 /cppForSwig/output.txt
 /cppForSwig/Makefile
-/cppForSwig/lmdb/Makefile
 
 /pytest/*.bin
 /pytest/mytxfile
@@ -180,7 +146,7 @@ CppBridge
 armoryengine/BridgeProto_pb2.py
 cppForSwig/gtest/UtilsTests
 cppForSwig/gtest/ZeroConfTests
-c20p1305_cffi/c20p1305.c
-c20p1305_cffi/c20p1305.cpython-39-x86_64-linux-gnu.so
+c20p1305_cffi/c20p1305.*
+armoryengine/c20*
 
 /build

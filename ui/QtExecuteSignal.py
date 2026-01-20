@@ -1,5 +1,3 @@
-from __future__ import (absolute_import, division,
-                        print_function, unicode_literals)
 ##############################################################################
 #                                                                            #
 # Copyright (C) 2017, goatpig                                                #
@@ -8,9 +6,9 @@ from __future__ import (absolute_import, division,
 #                                                                            #
 ##############################################################################
 
-from PySide2.QtCore import QObject, Signal
 from threading import Thread
 from time import sleep
+from qtpy import QtCore
 
 from armoryengine.ArmoryUtils import LOGERROR
 
@@ -19,8 +17,8 @@ class QtExecuteSignalError(Exception):
    pass
 
 ##############################################################################
-class QtExecuteSignal(QObject):
-   executeSignal = Signal(list)
+class QtExecuteSignal(QtCore.QObject):
+   executeSignal = QtCore.Signal(list)
 
    ###########################################################################
    def __init__(self):
@@ -31,8 +29,8 @@ class QtExecuteSignal(QObject):
    ###########################################################################
    def executeMethod(self, _callable, *args):
       if not callable(_callable):
-         print (f"** executeMethod: {str(_callable)} **")
-         print (f"** args type: {str(type(args))}, args: {str(args)} **")
+         #print (f"** executeMethod: {str(_callable)} **")
+         #print (f"** args type: {str(type(args))}, args: {str(args)} **")
          raise QtExecuteSignalError("invalid arguments")
 
       self.executeSignal.emit([{
@@ -42,7 +40,8 @@ class QtExecuteSignal(QObject):
 
    ###########################################################################
    def methodSlot(self, execList):
-      execList[0]['callable'](*(execList[0]['args']))
+      args = execList[0]['args']
+      execList[0]['callable'](*args)
 
    ###########################################################################
    def callLater(self, delay, _callable, *_args):

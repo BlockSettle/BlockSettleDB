@@ -1,27 +1,29 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2017-2021, goatpig                                          //
+//  Copyright (C) 2017-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _H_TXEVALSTATE
-#define _H_TXEVALSTATE
+#pragma once
 
+#include <stdint.h>
 #include <map>
-#include "BinaryData.h"
+
+class BinaryData;
+class BinaryDataRef;
 
 namespace Armory
 {
-   namespace Signer
+   namespace Signing
    {
-      enum PubKeyType
+      enum class PubKeyType : int
       {
-         Type_Compressed,
-         Type_Uncompressed,
-         Type_Mixed,
-         Type_Unkonwn
+         Compressed = 1,
+         Uncompressed,
+         Mixed,
+         Unkonwn
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -30,20 +32,17 @@ namespace Armory
          friend class StackInterpreter;
 
       private:
+         mutable PubKeyType keyType_ = PubKeyType::Unkonwn;
+         std::map<BinaryData, bool> pubKeyState_;
          bool validStack_ = false;
-
-         unsigned n_ = 0;
 
          /*
          Fail all sigs count by setting m_ to UINT32_MAX. This guarantees
          sig checks can fail prior to setting m_ and still evaluate as
          failures (otherwise, any sig count >= m_ when m_ is 0 if unset).
          */
+         unsigned n_ = 0;
          unsigned m_ = UINT32_MAX;
-
-         std::map<BinaryData, bool> pubKeyState_;
-
-         mutable PubKeyType keyType_ = Type_Unkonwn;
 
       private:
          PubKeyType getType(void) const;
@@ -51,12 +50,10 @@ namespace Armory
       public:
          bool isValid(void) const;
          unsigned getSigCount(void) const;
-         bool isSignedForPubKey(const BinaryData& pubkey) const;
-         const std::map<BinaryData, bool>& getPubKeyMap(void) const
-         { return pubKeyState_; }
-
-         unsigned getM(void) const { return m_; }
-         unsigned getN(void) const { return n_; }
+         bool isSignedForPubKey(BinaryDataRef) const;
+         const std::map<BinaryData, bool>& getPubKeyMap(void) const;
+         unsigned getM(void) const;
+         unsigned getN(void) const;
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -66,13 +63,11 @@ namespace Armory
          std::map<unsigned, TxInEvalState> evalMap_;
 
       public:
-         size_t getEvalMapSize(void) const { return evalMap_.size(); }
-         void reset(void) { evalMap_.clear(); }
-         void updateState(unsigned id, TxInEvalState state);
+         size_t getEvalMapSize(void) const;
+         void reset(void);
+         void updateState(unsigned, TxInEvalState);
          bool isValid(void) const;
-         const TxInEvalState& getSignedStateForInput(unsigned i) const;
+         const TxInEvalState& getSignedStateForInput(unsigned) const;
       };
-   }; //namespace Signer
-}; //namespace Armory
-
-#endif
+   } //namespace Signing
+} //namespace Armory

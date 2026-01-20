@@ -1,38 +1,48 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016-18, goatpig.                                           //
+//  Copyright (C) 2016-2025, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifndef _SERVER_H_
 #define _SERVER_H_
 
-#include <string.h>
 #include <string>
 #include <memory>
 #include <atomic>
 #include <vector>
+#include <list>
 
-#include "WebSocketMessage.h"
-#include "libwebsockets.h"
-
-#include "ThreadSafeClasses.h"
-#include "BDV_Notification.h"
-#include "BinaryData.h"
-#include "EncryptionUtils.h"
-#include "ArmoryConfig.h"
+#include <Utils/ThreadSafeClasses.h>
+#include <Utils/BinaryData.h>
 #include "SocketService.h"
-#include "AuthorizedPeers.h"
-
-#include "BIP150_151.h"
-#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
+#include "libwebsockets.h"
 
 #define SERVER_AUTH_PEER_FILENAME "server.peers"
 
+class SecureBinaryData;
 class Clients;
-class BlockDataManagerThread;
+class BlockDataManager;
+class SerializedMessage;
+class BIP151Connection;
+struct AuthPeersLambdas;
+struct Socket_WritePayload;
+struct btc_pubkey_;
+
+namespace Armory
+{
+   namespace Wallets
+   {
+      class AuthorizedPeers;
+
+      namespace IO
+      {
+         struct ReadOnlyFileParams;
+      }
+   }
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 struct per_session_data__http {
@@ -71,14 +81,11 @@ struct BDV_packet
 ///////////////////////////////////////////////////////////////////////////////
 struct PendingMessage
 {
-   const uint64_t id_;
-   const uint32_t msgid_;
-   std::shared_ptr <::google::protobuf::Message> message_;
+   const uint64_t id;
+   const uint32_t msgid;
+   std::unique_ptr<Socket_WritePayload> payload;
 
-   PendingMessage(uint64_t id, uint32_t msgid, 
-      std::shared_ptr<::google::protobuf::Message> msg) :
-      id_(id), msgid_(msgid), message_(msg)
-   {}
+   PendingMessage(uint64_t, uint32_t, std::unique_ptr<Socket_WritePayload>);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -137,7 +144,7 @@ private:
 
    std::set<struct lws*> pendingWrites_;
    std::set<struct lws*>::const_iterator pendingWritesIter_;
-   
+
    //default to 2-way auth
    bool oneWayAuth_ = false;
 
@@ -165,14 +172,16 @@ public:
       struct lws *wsi, enum lws_callback_reasons reason,
       void *user, void *in, size_t len);
 
-   static void initAuthPeers(const PassphraseLambda&);
-   static void start(BlockDataManagerThread* bdmT, bool async);
+   static void initAuthPeers(const Armory::Wallets::IO::ReadOnlyFileParams&);
+   static void initAuthPeers(std::shared_ptr<Armory::Wallets::AuthorizedPeers>);
+   static void start(std::shared_ptr<BlockDataManager>, bool);
    static void shutdown(void);
    static void waitOnShutdown(void);
    static SecureBinaryData getPublicKey(void);
+   static bool isMasterKey(const btc_pubkey_&);
 
    static void write(const uint64_t&, const uint32_t&,
-      std::shared_ptr<::google::protobuf::Message>);
+      std::unique_ptr<Socket_WritePayload>);
 
    std::shared_ptr<const std::map<uint64_t, ClientConnection>>
       getConnectionStateMap(void) const;

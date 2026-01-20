@@ -221,7 +221,7 @@ SecureBinaryData ScriptSpender::getSig() const
    //should be the first item of the script
    BinaryRefReader brr(serializedScript_.getRef());
    auto sigSize = brr.get_uint8_t();
-   return brr.get_SecureBinaryData(sigSize);
+   return {brr.get_BinaryDataRef(sigSize)};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

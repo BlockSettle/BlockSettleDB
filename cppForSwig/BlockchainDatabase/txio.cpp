@@ -5,54 +5,55 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
+
 #include "txio.h"
+#include <Utils/BtcUtils.h>
+#include <Utils/DBUtils.h>
 
-using namespace std;
+using namespace Armory;
 
 //////////////////////////////////////////////////////////////////////////////
+// TxIOPair
 TxIOPair::TxIOPair(void) :
-amount_(0),
-indexOfOutput_(0),
-indexOfInput_(0),
-isTxOutFromSelf_(false),
-isFromCoinbase_(false),
-isMultisig_(false),
-txtime_(0),
-isUTXO_(false)
+   amount_(0),
+   indexOfOutput_(0),
+   indexOfInput_(0),
+   isTxOutFromSelf_(false),
+   isFromCoinbase_(false),
+   isMultisig_(false),
+   txtime_(0),
+   isUTXO_(false)
 {}
 
-//////////////////////////////////////////////////////////////////////////////
-TxIOPair::TxIOPair(uint64_t  amount) :
-amount_(amount),
-indexOfOutput_(0),
-indexOfInput_(0),
-isTxOutFromSelf_(false),
-isFromCoinbase_(false),
-isMultisig_(false),
-txtime_(0),
-isUTXO_(false)
+TxIOPair::TxIOPair(uint64_t amount) :
+   amount_(amount),
+   indexOfOutput_(0),
+   indexOfInput_(0),
+   isTxOutFromSelf_(false),
+   isFromCoinbase_(false),
+   isMultisig_(false),
+   txtime_(0),
+   isUTXO_(false)
 {}
 
-//////////////////////////////////////////////////////////////////////////////
 TxIOPair::TxIOPair(TxRef txPtrO, uint32_t txoutIndex) :
-amount_(0),
-indexOfInput_(0),
-isTxOutFromSelf_(false),
-isFromCoinbase_(false),
-isMultisig_(false),
-txtime_(0),
-isUTXO_(false)
+   amount_(0),
+   indexOfInput_(0),
+   isTxOutFromSelf_(false),
+   isFromCoinbase_(false),
+   isMultisig_(false),
+   txtime_(0),
+   isUTXO_(false)
 {
    setTxOut(txPtrO, txoutIndex);
 }
 
-//////////////////////////////////////////////////////////////////////////////
-TxIOPair::TxIOPair(TxRef     txPtrO,
+TxIOPair::TxIOPair(TxRef txPtrO,
    uint32_t  txoutIndex,
    TxRef     txPtrI,
    uint32_t  txinIndex) :
@@ -69,87 +70,78 @@ TxIOPair::TxIOPair(TxRef     txPtrO,
 
 //////////////////////////////////////////////////////////////////////////////
 TxIOPair::TxIOPair(const BinaryData& txOutKey8B, uint64_t val) :
-amount_(val),
-indexOfOutput_(0),
-indexOfInput_(0),
-isTxOutFromSelf_(false),
-isFromCoinbase_(false),
-isMultisig_(false),
-txtime_(0),
-isUTXO_(false)
+   amount_(val),
+   indexOfOutput_(0),
+   indexOfInput_(0),
+   isTxOutFromSelf_(false),
+   isFromCoinbase_(false),
+   isMultisig_(false),
+   txtime_(0),
+   isUTXO_(false)
 {
    setTxOut(txOutKey8B);
 }
 //////////////////////////////////////////////////////////////////////////////
-HashString TxIOPair::getTxHashOfOutput(const LMDBBlockDatabase *db) const
+BinaryData TxIOPair::getTxHashOfOutput(const LMDBBlockDatabase *db) const
 {
-   if (!hasTxOut())
-      return BtcUtils::EmptyHash();
-   else if (txHashOfOutput_.getSize() == 32)
+   if (!hasTxOut()) {
+      return BtcUtils::EmptyHash;
+   } else if (txHashOfOutput_.getSize() == 32) {
       return txHashOfOutput_;
-   else if (txRefOfOutput_.isInitialized() && db != nullptr)
-   {
+   } else if (txRefOfOutput_.isInitialized() && db != nullptr) {
       DBTxRef dbTxRef(txRefOfOutput_, db);
       txHashOfOutput_ = dbTxRef.getThisHash();
       return txHashOfOutput_;
    }
-
-   return BinaryData(0);
+   return {};
 }
 
 //////////////////////////////////////////////////////////////////////////////
-HashString TxIOPair::getTxHashOfInput(const LMDBBlockDatabase *db) const
+BinaryData TxIOPair::getTxHashOfInput(const LMDBBlockDatabase *db) const
 {
-   if (!hasTxIn())
-      return BtcUtils::EmptyHash();
-   else if (txHashOfInput_.getSize() == 32)
+   if (!hasTxIn()) {
+      return BtcUtils::EmptyHash;
+   } else if (txHashOfInput_.getSize() == 32) {
       return txHashOfInput_;
-   else if (txRefOfInput_.isInitialized() && db != nullptr)
-   {
+   } else if (txRefOfInput_.isInitialized() && db != nullptr) {
       DBTxRef dbTxRef(txRefOfInput_, db);
       txHashOfInput_ = dbTxRef.getThisHash();
       return txHashOfInput_;
    }
-
-   return BinaryData(0);
+   return {};
 }
 //////////////////////////////////////////////////////////////////////////////
 TxOut TxIOPair::getTxOutCopy(LMDBBlockDatabase *db) const
 {
-   // I actually want this to segfault when there is no TxOut... 
-   // we should't ever be trying to access it without checking it 
+   // I actually want this to segfault when there is no TxOut...
+   // we should't ever be trying to access it without checking it
    // first in the calling code (hasTxOut/hasTxOutZC)
-   if (hasTxOut())
-   {
+   if (hasTxOut()) {
       DBTxRef dbTxRef(txRefOfOutput_, db);
       return dbTxRef.getTxOutCopy(indexOfOutput_);
    }
-
-   throw runtime_error("Has not TxOutCopy");
+   throw std::runtime_error("Has not TxOutCopy");
 }
 
 //////////////////////////////////////////////////////////////////////////////
 TxIn TxIOPair::getTxInCopy(LMDBBlockDatabase *db) const
 {
-   // I actually want this to segfault when there is no TxIn... 
-   // we should't ever be trying to access it without checking it 
+   // I actually want this to segfault when there is no TxIn...
+   // we should't ever be trying to access it without checking it
    // first in the calling code (hasTxIn/hasTxInZC)
    if (hasTxIn())
    {
       DBTxRef dbTxRef(txRefOfInput_, db);
       return dbTxRef.getTxInCopy(indexOfInput_);
    }
-
-   throw runtime_error("Has not TxInCopy");
+   throw std::runtime_error("Has not TxInCopy");
 }
-
 
 //////////////////////////////////////////////////////////////////////////////
 bool TxIOPair::setTxIn(TxRef  txref, uint32_t index)
 {
    txRefOfInput_ = txref;
    indexOfInput_ = index;
-
    return true;
 }
 
@@ -197,16 +189,14 @@ bool TxIOPair::setTxOut(TxRef txref, uint32_t index)
    return true;
 }
 
-
 //////////////////////////////////////////////////////////////////////////////
-pair<bool, bool> TxIOPair::reassessValidity(LMDBBlockDatabase *db)
+std::pair<bool, bool> TxIOPair::reassessValidity(LMDBBlockDatabase *db)
 {
-   pair<bool, bool> result;
+   std::pair<bool, bool> result;
    result.first = hasTxOutInMain(db);
    result.second = hasTxInInMain(db);
    return result;
 }
-
 
 //////////////////////////////////////////////////////////////////////////////
 bool TxIOPair::isSpent(LMDBBlockDatabase *db) const
@@ -214,36 +204,35 @@ bool TxIOPair::isSpent(LMDBBlockDatabase *db) const
    // Not sure whether we should verify hasTxOut.  It wouldn't make much 
    // sense to have TxIn but not TxOut, but there might be a preferred 
    // behavior in such awkward circumstances
-   return (hasTxInZC() || hasTxInInMain(db));
+   return hasTxInZC() || hasTxInInMain(db);
 }
-
 
 //////////////////////////////////////////////////////////////////////////////
 bool TxIOPair::isUnspent(LMDBBlockDatabase *db) const
 {
-   return ((hasTxOutZC() || hasTxOutInMain(db)) && !isSpent(db));
-
+   return (hasTxOutZC() || hasTxOutInMain(db)) && !isSpent(db);
 }
 
 //////////////////////////////////////////////////////////////////////////////
 bool TxIOPair::isSpendable(LMDBBlockDatabase *db, uint32_t currBlk) const
 {
    // Spendable TxOuts are ones with at least 1 confirmation
-   if (hasTxInZC() || hasTxInInMain(db))
+   if (hasTxInZC() || hasTxInInMain(db)) {
       return false;
-
-   if (hasTxOutInMain(db))
-   {
-      uint32_t nConf = currBlk - txRefOfOutput_.getBlockHeight() + 1;
-      if (isFromCoinbase_ && nConf < COINBASE_MATURITY)
-         return false;
-      else
-         return true;
    }
 
-   if (hasTxOutZC()/* && isTxOutFromSelf()*/)
-      return false;
+   if (hasTxOutInMain(db)) {
+      uint32_t nConf = currBlk - txRefOfOutput_.getBlockHeight() + 1;
+      if (isFromCoinbase_ && nConf < COINBASE_MATURITY) {
+         return false;
+      } else {
+         return true;
+      }
+   }
 
+   if (hasTxOutZC()) {
+      return false;
+   }
    return false;
 }
 
@@ -252,21 +241,22 @@ bool TxIOPair::isMineButUnconfirmed(
    LMDBBlockDatabase *db, uint32_t currBlk, unsigned confTarget) const
 {
    DBTxRef dbTxRef(txRefOfInput_, db);
-   if (hasTxInZC() || (hasTxIn() && dbTxRef.isMainBranch()))
+   if (hasTxInZC() || (hasTxIn() && dbTxRef.isMainBranch())) {
       return false;
-
-   if (hasTxOutZC())
-      return true;
-
-   if (hasTxOutInMain(db))
-   {
-      uint32_t nConf = currBlk - txRefOfOutput_.getBlockHeight() + 1;
-      if (isFromCoinbase_)
-         return (nConf<COINBASE_MATURITY);
-      else
-         return (nConf<confTarget);
    }
 
+   if (hasTxOutZC()) {
+      return true;
+   }
+
+   if (hasTxOutInMain(db)) {
+      uint32_t nConf = currBlk - txRefOfOutput_.getBlockHeight() + 1;
+      if (isFromCoinbase_) {
+         return (nConf<COINBASE_MATURITY);
+      } else {
+         return (nConf<confTarget);
+      }
+   }
    return false;
 }
 
@@ -274,26 +264,26 @@ bool TxIOPair::isMineButUnconfirmed(
 bool TxIOPair::hasTxOutInMain(LMDBBlockDatabase *db) const
 {
    DBTxRef dbTxRef(txRefOfOutput_, db);
-   return (!hasTxOutZC() && hasTxOut() && dbTxRef.isMainBranch());
+   return !hasTxOutZC() && hasTxOut() && dbTxRef.isMainBranch();
 }
 
 //////////////////////////////////////////////////////////////////////////////
 bool TxIOPair::hasTxInInMain(LMDBBlockDatabase *db) const
 {
    DBTxRef dbTxRef(txRefOfInput_, db);
-   return (!hasTxInZC() && hasTxIn() && dbTxRef.isMainBranch());
+   return !hasTxInZC() && hasTxIn() && dbTxRef.isMainBranch();
 }
 
 //////////////////////////////////////////////////////////////////////////////
 bool TxIOPair::hasTxOutZC(void) const
 {
-   return txRefOfOutput_.getDBKey().startsWith(DBUtils::ZeroConfHeader_);
+   return txRefOfOutput_.getDBKey().startsWith(DBUtils::ZCPrefix);
 }
 
 //////////////////////////////////////////////////////////////////////////////
 bool TxIOPair::hasTxInZC(void) const
 {
-   return txRefOfInput_.getDBKey().startsWith(DBUtils::ZeroConfHeader_);
+   return txRefOfInput_.getDBKey().startsWith(DBUtils::ZCPrefix);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -308,18 +298,17 @@ void TxIOPair::pprintOneLine(LMDBBlockDatabase *db) const
       (hasTxInInMain(db) ? 1 : 0),
       (hasTxOutZC() ? 1 : 0),
       (hasTxInZC() ? 1 : 0));
-
 }
 
 //////////////////////////////////////////////////////////////////////////////
 bool TxIOPair::operator>=(const BinaryData &dbKey) const
 {
-   if (txRefOfOutput_ >= dbKey)
+   if (txRefOfOutput_ >= dbKey) {
       return true;
-
-   if (txRefOfInput_ >= dbKey)
+   }
+   if (txRefOfInput_ >= dbKey) {
       return true;
-
+   }
    return false;
 }
 
@@ -356,13 +345,13 @@ TxIOPair& TxIOPair::operator=(TxIOPair&& toMove)
 {
    this->amount_ = toMove.amount_;
 
-   this->txRefOfOutput_ = move(toMove.txRefOfOutput_);
-   this->indexOfOutput_ = move(toMove.indexOfOutput_);
-   this->txRefOfInput_ = move(toMove.txRefOfInput_);
-   this->indexOfInput_ = move(toMove.indexOfInput_);
+   this->txRefOfOutput_ = std::move(toMove.txRefOfOutput_);
+   this->indexOfOutput_ = std::move(toMove.indexOfOutput_);
+   this->txRefOfInput_ = std::move(toMove.txRefOfInput_);
+   this->indexOfInput_ = std::move(toMove.indexOfInput_);
 
-   this->txHashOfOutput_ = move(toMove.txHashOfOutput_);
-   this->txHashOfInput_ = move(toMove.txHashOfInput_);
+   this->txHashOfOutput_ = std::move(toMove.txHashOfOutput_);
+   this->txHashOfInput_ = std::move(toMove.txHashOfInput_);
 
    this->isTxOutFromSelf_ = toMove.isTxOutFromSelf_;
    this->isFromCoinbase_ = toMove.isFromCoinbase_;
@@ -374,7 +363,7 @@ TxIOPair& TxIOPair::operator=(TxIOPair&& toMove)
    this->isRBF_ = toMove.isRBF_;
    this->isZCChained_ = toMove.isZCChained_;
 
-   this->scrAddr_ = move(toMove.scrAddr_);
+   this->scrAddr_ = std::move(toMove.scrAddr_);
 
    return *this;
 }

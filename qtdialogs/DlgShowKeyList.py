@@ -64,30 +64,30 @@ class DlgShowKeyList(ArmoryDialog):
          'protect it like you protect the rest of your wallet. '))
 
       self.lblDescr = QRichLabel('')
-      self.lblDescr.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+      self.lblDescr.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
 
 
       txtFont = GETFONT('Fixed', 8)
-      self.txtBox = QTextEdit()
+      self.txtBox = QtWidgets.QTextEdit()
       self.txtBox.setReadOnly(True)
       self.txtBox.setFont(txtFont)
       w, h = tightSizeNChar(txtFont, 110)
       self.txtBox.setFont(txtFont)
       self.txtBox.setMinimumWidth(w)
       self.txtBox.setMaximumWidth(w)
-      self.txtBox.setMinimumHeight(h * 3.2)
-      self.txtBox.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+      self.txtBox.setMinimumHeight(int(h * 3.2))
+      self.txtBox.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Preferred)
 
       # Create a list of checkboxes and then some ID word to identify what
       # to put there
       self.chkList = {}
-      self.chkList['AddrStr'] = QCheckBox(self.tr('Address String'))
-      self.chkList['PubKeyHash'] = QCheckBox(self.tr('Hash160'))
-      self.chkList['PrivCrypt'] = QCheckBox(self.tr('Private Key (Encrypted)'))
-      self.chkList['PrivHexBE'] = QCheckBox(self.tr('Private Key (Plain Hex)'))
-      self.chkList['PrivB58'] = QCheckBox(self.tr('Private Key (Plain Base58)'))
-      self.chkList['PubKey'] = QCheckBox(self.tr('Public Key (BE)'))
-      self.chkList['ChainIndex'] = QCheckBox(self.tr('Chain Index'))
+      self.chkList['AddrStr'] = QtWidgets.QCheckBox(self.tr('Address String'))
+      self.chkList['PubKeyHash'] = QtWidgets.QCheckBox(self.tr('Hash160'))
+      self.chkList['PrivCrypt'] = QtWidgets.QCheckBox(self.tr('Private Key (Encrypted)'))
+      self.chkList['PrivHexBE'] = QtWidgets.QCheckBox(self.tr('Private Key (Plain Hex)'))
+      self.chkList['PrivB58'] = QtWidgets.QCheckBox(self.tr('Private Key (Plain Base58)'))
+      self.chkList['PubKey'] = QtWidgets.QCheckBox(self.tr('Public Key (BE)'))
+      self.chkList['ChainIndex'] = QtWidgets.QCheckBox(self.tr('Chain Index'))
 
       self.chkList['AddrStr'   ].setChecked(True)
       self.chkList['PubKeyHash'].setChecked(False)
@@ -101,20 +101,19 @@ class DlgShowKeyList(ArmoryDialog):
                   'PrivHexBE', 'PubKey', 'ChainIndex']
 
       for name in self.chkList.keys():
-         self.connect(self.chkList[name], SIGNAL('toggled(bool)'), \
-                      self.rewriteList)
+         self.chkList[name].toggled.connect(self.rewriteList)
 
 
-      self.chkImportedOnly = QCheckBox(self.tr('Imported Addresses Only'))
-      self.chkWithAddrPool = QCheckBox(self.tr('Include Unused (Address Pool)'))
-      self.chkDispRootKey = QCheckBox(self.tr('Include Paper Backup Root'))
-      self.chkOmitSpaces = QCheckBox(self.tr('Omit spaces in key data'))
+      self.chkImportedOnly = QtWidgets.QCheckBox(self.tr('Imported Addresses Only'))
+      self.chkWithAddrPool = QtWidgets.QCheckBox(self.tr('Include Unused (Address Pool)'))
+      self.chkDispRootKey = QtWidgets.QCheckBox(self.tr('Include Paper Backup Root'))
+      self.chkOmitSpaces = QtWidgets.QCheckBox(self.tr('Omit spaces in key data'))
       self.chkDispRootKey.setChecked(True)
-      self.connect(self.chkImportedOnly, SIGNAL('toggled(bool)'), self.rewriteList)
-      self.connect(self.chkWithAddrPool, SIGNAL('toggled(bool)'), self.rewriteList)
-      self.connect(self.chkDispRootKey, SIGNAL('toggled(bool)'), self.rewriteList)
-      self.connect(self.chkOmitSpaces, SIGNAL('toggled(bool)'), self.rewriteList)
-      # self.chkCSV = QCheckBox('Display in CSV format')
+      self.chkImportedOnly.toggled.connect(self.rewriteList)
+      self.chkWithAddrPool.toggled.connect(self.rewriteList)
+      self.chkDispRootKey.toggled.connect(self.rewriteList)
+      self.chkOmitSpaces.toggled.connect(self.rewriteList)
+      # self.chkCSV = QtWidgets.QCheckBox('Display in CSV format')
 
       if not self.havePriv:
          self.chkDispRootKey.setChecked(False)
@@ -146,21 +145,23 @@ class DlgShowKeyList(ArmoryDialog):
       frmChks = makeLayoutFrame(VERTICAL, chkBoxList, STYLE_SUNKEN)
 
 
-      btnGoBack = QPushButton(self.tr('<<< Go Back'))
-      btnSaveFile = QPushButton(self.tr('Save to File...'))
-      btnCopyClip = QPushButton(self.tr('Copy to Clipboard'))
+      btnGoBack = QtWidgets.QPushButton(self.tr('<<< Go Back'))
+      btnSaveFile = QtWidgets.QPushButton(self.tr('Save to File...'))
+      btnCopyClip = QtWidgets.QPushButton(self.tr('Copy to Clipboard'))
       self.lblCopied = QRichLabel('')
 
-      self.connect(btnGoBack, SIGNAL(CLICKED), self.accept)
-      self.connect(btnSaveFile, SIGNAL(CLICKED), self.saveToFile)
-      self.connect(btnCopyClip, SIGNAL(CLICKED), self.copyToClipboard)
-      frmGoBack = makeLayoutFrame(HORIZONTAL, [btnGoBack, \
-                                            STRETCH, \
-                                            self.chkOmitSpaces, \
-                                            STRETCH, \
-                                            self.lblCopied, \
-                                            btnCopyClip, \
-                                            btnSaveFile])
+      btnGoBack.clicked.connect(self.accept)
+      btnSaveFile.clicked.connect(self.saveToFile)
+      btnCopyClip.clicked.connect(self.copyToClipboard)
+      frmGoBack = makeLayoutFrame(HORIZONTAL, [
+         btnGoBack,
+         STRETCH,
+         self.chkOmitSpaces,
+         STRETCH,
+         self.lblCopied,
+         btnCopyClip,
+         btnSaveFile
+      ])
 
       frmDescr = makeLayoutFrame(HORIZONTAL, [self.lblDescr], STYLE_SUNKEN)
 
@@ -170,7 +171,7 @@ class DlgShowKeyList(ArmoryDialog):
          self.chkList['PrivB58'  ].setEnabled(False)
          self.chkList['PrivB58'  ].setChecked(False)
 
-      dlgLayout = QGridLayout()
+      dlgLayout = QtWidgets.QGridLayout()
       dlgLayout.addWidget(frmDescr, 0, 0, 1, 1)
       dlgLayout.addWidget(frmChks, 0, 1, 1, 1)
       dlgLayout.addWidget(self.txtBox, 1, 0, 1, 2)
@@ -235,7 +236,7 @@ class DlgShowKeyList(ArmoryDialog):
          binChain0Chk, binChain1Chk = None, None
 
       self.havePriv = False
-      topChain = self.wlt.highestUsedChainIndex
+      topChain = self.wlt.getHighestUsedIndex()
       extraLbl = ''
 
       for addr in self.addrCopies:
@@ -312,7 +313,7 @@ class DlgShowKeyList(ArmoryDialog):
 
 
    def copyToClipboard(self):
-      clipb = QApplication.clipboard()
+      clipb = QtWidgets.QApplication.clipboard()
       clipb.clear()
       clipb.setText(str(self.txtBox.toPlainText()))
       self.lblCopied.setText(self.tr('<i>Copied!</i>'))

@@ -1,13 +1,12 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016-2021, goatpig.                                         //
+//  Copyright (C) 2016-2025, goatpig.                                         //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _BDM_SERVER_H
-#define _BDM_SERVER_H
+#pragma once
 
 #include <vector>
 #include <map>
@@ -15,89 +14,71 @@
 #include <thread>
 #include <future>
 
-#include "BitcoinP2p.h"
+#include <Utils/ArmoryErrors.h>
+#include <Ledgers/LedgerEntry.h>
+#include "BitcoinP2P.h"
 #include "BlockDataViewer.h"
-#include "EncryptionUtils.h"
-#include "LedgerEntry.h"
-#include "DbHeader.h"
 #include "BDV_Notification.h"
-#include "BDVCodec.h"
-#include "ZeroConf.h"
-#include "Server.h"
-#include "BtcWallet.h"
-#include "ArmoryErrors.h"
-#include "ZeroConfNotifications.h"
+//#include "Server.h"
+//#include "BtcWallet.h"
 
 #define MAX_CONTENT_LENGTH 1024*1024*1024
 #define CALLBACK_EXPIRE_COUNT 5
 
-enum WalletType
-{
-   TypeWallet,
-   TypeLockbox
-};
-
-enum BDVCommandProcessingResultType
-{
-   BDVCommandProcess_Success,
-   BDVCommandProcess_Failure,
-   BDVCommandProcess_Static,
-   BDVCommandProcess_ZC_P2P,
-   BDVCommandProcess_ZC_RPC,
-   BDVCommandProcess_UnregisterAddresses,
-   BDVCommandProcess_PayloadNotReady
-};
-
 class BDV_Server_Object;
+class WebSocketMessagePartial;
+using BdvPtr = std::shared_ptr<BDV_Server_Object>;
 
-namespace DBTestUtils
+struct btc_pubkey_;
+namespace Armory
 {
-   std::tuple<std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned> waitOnSignal(
-      Clients*, const std::string&, ::Codec_BDVCommand::NotificationType);
+   namespace ZeroConf
+   {
+      class ZeroConfCallbacks_BDV;
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 struct RpcBroadcastPacket
 {
-   std::shared_ptr<BDV_Server_Object> bdvPtr_;
+   BdvPtr bdvPtr_;
    std::shared_ptr<BinaryData> rawTx_;
-   std::string requestID_;
-   
-   std::map<std::string, std::shared_ptr<BDV_Server_Object>> extraRequestors_;
+   std::set<BdvPtr> extraRequestors_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-struct BDV_Payload
+class BDV_Payload
 {
+private:
    BinaryData packetData_;
-   std::shared_ptr<BDV_Server_Object> bdvPtr_;
-   uint32_t messageID_;
-   uint64_t bdvID_;
-};
+   BdvPtr bdvPtr_;
+   const BdvIdKey bdvID_;
+   const btc_pubkey_& pubkey_;
+   uint32_t messageID_ = UINT32_MAX;
 
-///////////////////////////////////////////////////////////////////////////////
-struct BDV_PartialMessage
-{
-   std::vector<std::shared_ptr<BDV_Payload>> payloads_;
-   WebSocketMessagePartial partialMessage_;
+public:
+   BDV_Payload(BinaryData, BdvPtr, BdvIdKey, const btc_pubkey_&);
 
-   bool parsePacket(std::shared_ptr<BDV_Payload>);
-   bool isReady(void) const { return partialMessage_.isReady(); }
-   bool getMessage(std::shared_ptr<::google::protobuf::Message>);
-   void reset(void);
-   size_t topId(void) const;
+   uint32_t getMessageID(void) const;
+   void setMessageID(uint32_t);
 
-   static unsigned getMessageId(std::shared_ptr<BDV_Payload>);
+   uint64_t getBdvID(void) const;
+   const btc_pubkey_& getPubkey(void) const;
+
+   const BinaryData& getData(void) const;
+   BinaryData&& moveData(void);
+
+   BdvPtr getBdvPtr(void) const;
+   BdvPtr&& moveBdvPtr(void);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 class Callback
 {
 public:
-
    virtual ~Callback() = 0;
 
-   virtual void callback(std::shared_ptr<::Codec_BDVCommand::BDVCallback>) = 0;
+   virtual void push(std::unique_ptr<Socket_WritePayload>) = 0;
    virtual bool isValid(void) = 0;
    virtual void shutdown(void) = 0;
 };
@@ -106,60 +87,45 @@ public:
 class WS_Callback : public Callback
 {
 private:
-   const uint64_t bdvID_;
+   const BdvIdKey bdvID_;
 
 public:
    WS_Callback(const uint64_t& bdvid) :
       bdvID_(bdvid)
    {}
 
-   void callback(std::shared_ptr<::Codec_BDVCommand::BDVCallback>);
-   bool isValid(void) { return true; }
-   void shutdown(void) {}
+   void push(std::unique_ptr<Socket_WritePayload>) override;
+   bool isValid(void) override { return true; }
+   void shutdown(void) override {}
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 class UnitTest_Callback : public Callback
 {
 private:
-   Armory::Threading::BlockingQueue<
-      std::shared_ptr<::Codec_BDVCommand::BDVCallback>> notifQueue_;
+   Armory::Threading::BlockingQueue<std::unique_ptr<Socket_WritePayload>> notifQueue_;
 
 public:
-   void callback(std::shared_ptr<::Codec_BDVCommand::BDVCallback>);
-   bool isValid(void) { return true; }
-   void shutdown(void) {}
+   void push(std::unique_ptr<Socket_WritePayload>) override;
+   bool isValid(void) override { return true; }
+   void shutdown(void) override {}
 
-   std::shared_ptr<::Codec_BDVCommand::BDVCallback> getNotification(void);
+   BinaryData getNotification(void);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 class BDV_Server_Object : public BlockDataViewer
 {
    friend class Clients;
-   friend std::tuple<std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned>
-      DBTestUtils::waitOnSignal(
-      Clients*, const std::string&, ::Codec_BDVCommand::NotificationType);
 
-private: 
+private:
    std::atomic<unsigned> started_;
    std::thread initT_;
-   std::unique_ptr<Callback> cb_;
 
-   std::string bdvID_;
-   BlockDataManagerThread* bdmT_;
-
-   std::map<std::string, LedgerDelegate> delegateMap_;
-
-   struct walletRegStruct
-   {
-      std::shared_ptr<::Codec_BDVCommand::BDVCommand> command_;
-      WalletType type_;
-   };
-
+   const BdvIdKey bdvID_;
    std::mutex registerWalletMutex_;
    std::mutex processPacketMutex_;
-   std::map<std::string, walletRegStruct> wltRegMap_;
+   std::map<std::string, WalletRegistrationRequest> wltRegMap_;
 
    std::shared_ptr<std::promise<bool>> isReadyPromise_;
    std::shared_future<bool> isReadyFuture_;
@@ -168,55 +134,72 @@ private:
    std::atomic<unsigned> packetProcess_threadLock_;
    std::atomic<unsigned> notificationProcess_threadLock_;
 
-   std::map<unsigned, BDV_PartialMessage> messageMap_;
+   std::map<unsigned, WebSocketMessagePartial> messageMap_;
+   unsigned lastValidMessageId_ = 0;
+   std::vector<uint8_t> scratchPad_;
+
+public:
+   std::map<std::string, LedgerDelegate> delegateMap_;
+   std::unique_ptr<Callback> notifications_;
 
 private:
    BDV_Server_Object(BDV_Server_Object&) = delete; //no copies
-      
-   BDVCommandProcessingResultType processCommand(
-      std::shared_ptr<::Codec_BDVCommand::BDVCommand>,
-      std::shared_ptr<::google::protobuf::Message>&);
-   void startThreads(void);
-
-   void registerWallet(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
-   void registerLockbox(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
-   void populateWallets(std::map<std::string, walletRegStruct>&);
+   void populateWallets(std::map<std::string, WalletRegistrationRequest>&);
    void setup(void);
-
-   void flagRefresh(
-      BDV_refresh refresh, const BinaryData& refreshId,
-      std::unique_ptr<BDV_Notification_ZC> zcPtr);
-
-   unsigned lastValidMessageId_ = 0;
+   WebSocketMessagePartial preparePayload(std::shared_ptr<BDV_Payload>);
+   std::unique_ptr<BDV_Notification_ZC> createZcNotification(
+      const std::set<BinaryDataRef>&);
 
 public:
-   BDV_Server_Object(const std::string& id, BlockDataManagerThread *bdmT);
-
-   ~BDV_Server_Object(void) 
+   BDV_Server_Object(BdvIdKey, std::shared_ptr<BlockDataManager>);
+   ~BDV_Server_Object(void)
    { 
-      haltThreads(); 
+      haltThreads();
    }
 
-   const std::string& getID(void) const { return bdvID_; }
+   void startThreads(void);
+   BdvIdKey getID(void) const { return bdvID_; }
+   void registerWallet(WalletRegistrationRequest&);
    void processNotification(std::shared_ptr<BDV_Notification>);
    void init(void);
    void haltThreads(void);
-   BDVCommandProcessingResultType processPayload(std::shared_ptr<BDV_Payload>&,
-      std::shared_ptr<::google::protobuf::Message>&);
+   std::vector<uint8_t>& getScratchPad(void);
+
+   /*
+   Creates a delegate, inserts it in the delegate map and returns the id.
+   Also checks if the delegate already exists
+   */
+   const std::string& getLedgerDelegate(void); //the bdv itself
+   const std::string& getLedgerDelegate(const std::string&); //walletId
+   const std::string& getLedgerDelegate(
+      const std::string&, const BinaryData&); //walletId, address
+
+   void flagRefresh(
+      BDV_refresh refresh, const std::string& refreshId,
+      std::unique_ptr<BDV_Notification_ZC> zcPtr);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+struct BDVMap
+{
+   std::map<uint64_t, BdvPtr> bdvs;
+   mutable std::mutex mu;
+
+   void add(BdvPtr);
+   void del(BdvIdKey);
+   BdvPtr get(BdvIdKey) const;
+   std::map<BdvIdKey, BdvPtr> get(void) const;
+};
+
+////
 class Clients
 {
-   friend class ZeroConfCallbacks_BDV;
+   friend class Armory::ZeroConf::ZeroConfCallbacks_BDV;
 
 private:
-   Armory::Threading::TransactionalMap<std::string, std::shared_ptr<BDV_Server_Object>> BDVs_;
+   BDVMap BDVs_;
    mutable Armory::Threading::BlockingQueue<bool> gcCommands_;
-   BlockDataManagerThread* bdmT_ = nullptr;
-
-   std::function<void(void)> shutdownCallback_;
-
+   std::shared_ptr<BlockDataManager> bdm_;
    std::atomic<bool> run_;
 
    std::vector<std::thread> controlThreads_;
@@ -225,13 +208,13 @@ private:
    mutable Armory::Threading::BlockingQueue<std::shared_ptr<BDV_Notification>> outerBDVNotifStack_;
    Armory::Threading::BlockingQueue<std::shared_ptr<BDV_Notification_Packet>> innerBDVNotifStack_;
    Armory::Threading::BlockingQueue<std::shared_ptr<BDV_Payload>> packetQueue_;
-   Armory::Threading::BlockingQueue<std::string> unregBDVQueue_;
+   Armory::Threading::BlockingQueue<BdvIdKey> unregBDVQueue_;
    Armory::Threading::BlockingQueue<RpcBroadcastPacket> rpcBroadcastQueue_;
 
    std::mutex shutdownMutex_;
 
 private:
-   void notificationThread(void) const;
+   void notificationThread(void);
    void unregisterAllBDVs(void);
    void bdvMaintenanceLoop(void);
    void bdvMaintenanceThread(void);
@@ -239,40 +222,21 @@ private:
    void unregisterBDVThread(void);
 
    void broadcastThroughRPC(void);
+   void parseStandAlonePayload(std::shared_ptr<BDV_Payload>);
 
 public:
-   Clients(void)
-   {}
+   Clients(std::shared_ptr<BlockDataManager>);
 
-   Clients(BlockDataManagerThread* bdmT,
-      std::function<void(void)> shutdownLambda)
-   {
-      init(bdmT, shutdownLambda);
-   }
-
-   void init(BlockDataManagerThread* bdmT,
-      std::function<void(void)> shutdownLambda);
-
-   std::shared_ptr<BDV_Server_Object> get(const std::string& id) const;
-   
-   void processShutdownCommand(
-      std::shared_ptr<::Codec_BDVCommand::StaticCommand>);
-   std::shared_ptr<::google::protobuf::Message> registerBDV(
-      std::shared_ptr<::Codec_BDVCommand::StaticCommand>, std::string bdvID);
-   void unregisterBDV(std::string bdvId);
+   void init(void);
+   BdvPtr get(BdvIdKey) const;
+   bool registerBDV(const std::string&, BdvIdKey);
+   void unregisterBDV(BdvIdKey);
    void shutdown(void);
-   void exitRequestLoop(void);
-   
-   void queuePayload(std::shared_ptr<BDV_Payload>& payload)
-   {  
-      packetQueue_.push_back(move(payload));
-   }
+   std::shared_ptr<BlockDataManager> bdm(void) const;
 
-   std::shared_ptr<::google::protobuf::Message> processUnregisteredCommand(
-      const uint64_t& bdvId, std::shared_ptr<::Codec_BDVCommand::StaticCommand>);
-
-   std::shared_ptr<::google::protobuf::Message> processCommand(
+   void queuePayload(std::shared_ptr<BDV_Payload>&);
+   std::unique_ptr<Socket_WritePayload> processCommand(
       std::shared_ptr<BDV_Payload>);
+   void rpcBroadcast(RpcBroadcastPacket&);
+   void p2pBroadcast(BdvIdKey, std::vector<BinaryDataRef>&);
 };
-
-#endif

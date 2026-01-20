@@ -1,22 +1,21 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2019, goatpig                                               //
+//  Copyright (C) 2019-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _H_AUTHORIZEDPEERS
-#define _H_AUTHORIZEDPEERS
+#pragma once
 
 #include <memory>
 #include <string>
+#include <set>
 #include <map>
-#include "btc/ecc_key.h"
-#include "EncryptionUtils.h"
-#include "Wallets.h"
-#include "DBUtils.h"
-#include "ArmoryConfig.h"
+#include <filesystem>
+
+#include <Utils/SecureBinaryData.h>
+#include <btc/ecc_key.h>
 
 #define PEERS_WALLET_PASSWORD "password"
 #define PEERS_WALLET_BIP32_ACCOUNT 0xFF005618
@@ -27,6 +26,14 @@ namespace Armory
 {
    namespace Wallets
    {
+      class AssetWallet;
+
+      namespace IO
+      {
+         struct ReadOnlyFileParams;
+         struct CreateFileParams;
+      };
+
       //////////////////////////////////////////////////////////////////////////
       class PeerFileMissing
       {
@@ -60,38 +67,36 @@ namespace Armory
          //<pubkey, sig>
          std::pair<SecureBinaryData, SecureBinaryData> rootSignature_;
 
-         //<pubkey, description>
+         //<pubkey, <description, asset id>>
          std::map<SecureBinaryData,
             std::pair<std::string, unsigned>> peerRootKeys_;
 
-      private:
-         void loadWallet(const std::string&, const PassphraseLambda&);
-         void createWallet(const std::string&, const std::string&,
-            const PassphraseLambda&);
+         //public key of master ACL; a client that completes a 2-way
+         //AEAD handshake with this key will receive master credentials
+         SecureBinaryData masterKey_;
 
+      private:
+         AuthorizedPeers(std::shared_ptr<AssetWallet>);
+
+         void loadWallet(const IO::ReadOnlyFileParams&);
+         void initFromWallet(void);
          void addPeer(const SecureBinaryData&,
             const std::initializer_list<std::string>&);
-         void addPeer(const btc_pubkey&,
+         void addPeer(const btc_pubkey_&,
             const std::initializer_list<std::string>&);
          void erasePeerRootKey(const SecureBinaryData&);
 
       public:
-         AuthorizedPeers(
-            const std::string&, const std::string&, const PassphraseLambda&);
+         AuthorizedPeers(const IO::ReadOnlyFileParams&);
          AuthorizedPeers(void);
 
          const std::map<std::string, btc_pubkey>& getPeerNameMap(void) const;
          const std::set<SecureBinaryData>& getPublicKeySet(void) const;
          const SecureBinaryData& getPrivateKey(const BinaryDataRef&) const;
-         
-         const std::map<SecureBinaryData, std::pair<std::string, unsigned>>&
-            getRootKeys(void) const { return peerRootKeys_; }
-         const std::pair<SecureBinaryData, SecureBinaryData>& getRootSig(void) {
-            return rootSignature_; }
 
          /* addPeer:
          input:
-         - pubkey as SecurBinaryData/btc_pubkey. secp256k1 un/compressed
+         - pubkey as SecureBinaryData/btc_pubkey. secp256k1 un/compressed
            public key
          - count as unsigned: number of names as strings, at least 1
          - count names as string/char*
@@ -127,13 +132,18 @@ namespace Armory
          void eraseKey(const btc_pubkey&);
 
          const btc_pubkey& getOwnPublicKey(void) const;
+         bool setMasterKey(const btc_pubkey&);
+         bool setMasterKey(const SecureBinaryData&);
+         void eraseMasterKey(void);
+         bool isMasterKey(const btc_pubkey&) const;
+         bool isMasterKey(const SecureBinaryData&) const;
 
          //takes path to peers db, passphrase lambdas are handled internally
-         static void changeControlPassphrase(const std::string&);
+         static void changeControlPassphrase(const std::filesystem::path&);
          static AuthPeersLambdas getAuthPeersLambdas(
             std::shared_ptr<AuthorizedPeers>);
+         static std::shared_ptr<AuthorizedPeers> createWallet(
+            const IO::CreateFileParams&);
       };
-   }; //namespace Wallets
-}; //namespace Armory
-
-#endif
+   } //namespace Wallets
+} //namespace Armory

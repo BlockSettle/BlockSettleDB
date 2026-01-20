@@ -1,138 +1,128 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2020-2021, goatpig                                          //
+//  Copyright (C) 2020-2025, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "ResolverFeed_Wallets.h"
-#include "Wallets/Addresses.h"
-#include "Wallets/Wallets.h"
+#include <Utils/BtcUtils.h>
+#include <Wallets/Accounts/AddressAccounts.h>
+#include <Wallets/Addresses.h>
+#include <Wallets/Wallets.h>
+#include <Wallets/WalletIdTypes.h>
 
-using namespace std;
-using namespace Armory::Signer;
-using namespace Armory::Assets;
-using namespace Armory::Wallets;
+using namespace Armory;
+using namespace Armory::Signing;
 
-////////////////////////////////////////////////////////////////////////////////
-////
-//// ResolverFeed_AssetWalletSingle
-////
-////////////////////////////////////////////////////////////////////////////////
-void Armory::Signer::ResolverFeed_AssetWalletSingle::addToMap(shared_ptr<AddressEntry> addrPtr)
+namespace
 {
-   try
+   std::pair<std::shared_ptr<Assets::AssetEntry>, AddressEntryType>
+   getAssetPairForKey(std::shared_ptr<Wallets::AssetWallet_Single> wltPtr,
+      const BinaryData& key)
    {
-      BinaryDataRef hash(addrPtr->getHash());
-      BinaryDataRef preimage(addrPtr->getPreimage());
+      //run through accounts
+      auto accountIDs = wltPtr->getAccountIDs();
+      for (const auto& accID : accountIDs) {
+         /*
+         Accounts store script hashes with their relevant prefix, resolver
+         uses unprefixed hashes as found in the actual outputs. Hence,
+         all possible script prefixes will be prepended to the key to
+         look for the relevant asset ID
+         */
 
-      hash_to_preimage_.insert(make_pair(hash, preimage));
+         auto accPtr = wltPtr->getAccountForID(accID);
+         auto prefixSet = accPtr->getAddressTypeSet();
+         const auto& hashMap = accPtr->getAddressHashMap();
+         std::set<uint8_t> usedPrefixes;
+
+         for (const auto& addrType : prefixSet) {
+            BinaryWriter prefixedKey;
+            try {
+               //skip prefixes already used
+               auto prefix = AddressEntry::getPrefixByte(addrType);
+               auto insertIter = usedPrefixes.insert(prefix);
+               if (!insertIter.second) {
+                  continue;
+               }
+               prefixedKey.put_uint8_t(prefix);
+            } catch (const AddressException&) {}
+
+            prefixedKey.put_BinaryData(key);
+            auto iter = hashMap.find(prefixedKey.getData());
+            if (iter == hashMap.end()) {
+               continue;
+            }
+
+            /*
+            We have a hit for this prefix, return the asset and its
+            address type.
+
+            Note that we can't use addrType, as it may use a prefix 
+            shared across several address types (i.e. P2SH-P2PK and 
+            P2SH-P2WPKH).
+
+            Therefor, we return the address type attached to hash 
+            rather the one used to roll the prefix.
+            */
+            auto asset = accPtr->getAssetForID(iter->second.first);
+            return std::make_pair(asset, iter->second.second);
+         }
+      }
+      return std::make_pair(nullptr, AddressEntryType::Default);
    }
-   catch (const exception&)
-   {}
+}
 
-   auto addr_nested = dynamic_pointer_cast<AddressEntry_Nested>(addrPtr);
-   if (addr_nested != nullptr)
-   {
-      addToMap(addr_nested->getPredecessor());
+////////////////////////////////////////////////////////////////////////////////
+// ResolverFeed_AssetWalletSingle
+ResolverFeed_AssetWalletSingle::ResolverFeed_AssetWalletSingle(
+   std::shared_ptr<Wallets::AssetWallet_Single> wltPtr) :
+   wltPtr_(wltPtr)
+{
+   if (wltPtr_ == nullptr) {
+      throw std::runtime_error("null wallet ptr");
+   }
+}
+
+void ResolverFeed_AssetWalletSingle::addToMap(
+   std::shared_ptr<AddressEntry> addrPtr)
+{
+   try {
+      hashToPreimage_.emplace(addrPtr->getHash(), addrPtr->getPreimage());
+   } catch (const std::exception&) {}
+
+   auto addrNested = std::dynamic_pointer_cast<AddressEntry_Nested>(addrPtr);
+   if (addrNested != nullptr) {
+      addToMap(addrNested->getPredecessor());
       return;
    }
 
-   auto addr_with_asset = dynamic_pointer_cast<AddressEntry_WithAsset>(addrPtr);
-   if (addr_with_asset != nullptr)
-   {
-      BinaryDataRef preimage(addrPtr->getPreimage());
-      auto& asset = addr_with_asset->getAsset();
-
-      auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
-      if (asset_single == nullptr)
-         throw WalletException("multisig asset in asset_single resolver");
-
-      pubkey_to_asset_.insert(make_pair(preimage, asset_single));
-   }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-pair<shared_ptr<AssetEntry>, AddressEntryType>
-Armory::Signer::ResolverFeed_AssetWalletSingle::getAssetPairForKey(const BinaryData& key) const
-{
-   //run through accounts
-   auto accountIDs = wltPtr_->getAccountIDs();
-   for (auto& accID : accountIDs)
-   {
-      /*
-      Accounts store script hashes with their relevant prefix, resolver
-      uses unprefixed hashes as found in the actual outputs. Hence,
-      all possible script prefixes will be prepended to the key to
-      look for the relevant asset ID
-      */
-
-      auto accPtr = wltPtr_->getAccountForID(accID);
-
-      auto prefixSet = accPtr->getAddressTypeSet();
-      auto& hashMap = accPtr->getAddressHashMap();
-      set<uint8_t> usedPrefixes;
-
-      for (auto& addrType : prefixSet)
-      {
-         BinaryWriter prefixedKey;
-         try
-         {
-            auto prefix = AddressEntry::getPrefixByte(addrType);
-
-            //skip prefixes already used
-            auto insertIter = usedPrefixes.insert(prefix);
-            if (!insertIter.second)
-               continue;
-
-            prefixedKey.put_uint8_t(prefix);
-         }
-         catch (const AddressException&)
-         {}
-
-         prefixedKey.put_BinaryData(key);
-
-         auto iter = hashMap.find(prefixedKey.getData());
-         if (iter == hashMap.end())
-            continue;
-
-         /*
-         We have a hit for this prefix, return the asset and its
-         address type.
-
-         Note that we can't use addrType, as it may use a prefix 
-         shared across several address types (i.e. P2SH-P2PK and 
-         P2SH-P2WPKH).
-
-         Therefor, we return the address type attached to hash 
-         rather the one used to roll the prefix.
-         */
-
-         auto asset = accPtr->getAssetForID(iter->second.first);
-         return make_pair(asset, iter->second.second);
+   auto addrWithAsset = std::dynamic_pointer_cast<AddressEntry_WithAsset>(addrPtr);
+   if (addrWithAsset != nullptr) {
+      auto assetSingle = std::dynamic_pointer_cast<Assets::AssetEntry_Single>(
+         addrWithAsset->getAsset());
+      if (assetSingle == nullptr) {
+         throw Wallets::WalletException("multisig asset in asset_single resolver");
       }
+      pubkeyToAsset_.emplace(addrPtr->getPreimage(), assetSingle);
    }
-
-   return make_pair(nullptr, AddressEntryType_Default);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-BinaryData Armory::Signer::ResolverFeed_AssetWalletSingle::getByVal(const BinaryData& key)
+BinaryData ResolverFeed_AssetWalletSingle::getByVal(const BinaryData& key)
 {
    //check cached hits first
-   auto iter = hash_to_preimage_.find(key);
-   if (iter != hash_to_preimage_.end())
+   auto iter = hashToPreimage_.find(key);
+   if (iter != hashToPreimage_.end()) {
       return iter->second;
-
-   //short of that, try to get the asset for this key
-   auto assetPair = getAssetPairForKey(key);
-   if (assetPair.first == nullptr ||
-      assetPair.second == AddressEntryType_Default)
-   {
-      throw runtime_error("could not resolve key");
    }
 
+   //short of that, try to get the asset for this key
+   auto assetPair = getAssetPairForKey(wltPtr_, key);
+   if (assetPair.first == nullptr ||
+      assetPair.second == AddressEntryType::Default) {
+      throw std::runtime_error("could not resolve key");
+   }
    auto addrPtr = AddressEntry::instantiate(
       assetPair.first, assetPair.second);
 
@@ -150,16 +140,13 @@ BinaryData Armory::Signer::ResolverFeed_AssetWalletSingle::getByVal(const Binary
    return addrPtr->getPreimage();
 }
 
-////////////////////////////////////////////////////////////////////////////////
 const SecureBinaryData& ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(
    const BinaryData& pubkey)
 {
    //check cache first
    {
-      auto pubkeyref = pubkey.getRef();
-      auto cacheIter = pubkey_to_asset_.find(pubkeyref);
-      if (cacheIter != pubkey_to_asset_.end())
-      {
+      auto cacheIter = pubkeyToAsset_.find(pubkey);
+      if (cacheIter != pubkeyToAsset_.end()) {
          return wltPtr_->getDecryptedPrivateKeyForAsset(
             cacheIter->second);
       }
@@ -168,14 +155,11 @@ const SecureBinaryData& ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(
    //if we have a bip32 path hint for this pubkey, use that
    {
       auto pathIter = bip32Paths_.find(pubkey);
-      if (pathIter != bip32Paths_.end())
-      {
-         if (!pathIter->second.second.isValid())
-         {
-            pathIter->second.second =
-               wltPtr_->derivePrivKeyFromPath(pathIter->second.first);
+      if (pathIter != bip32Paths_.end()) {
+         if (!pathIter->second.second.isValid()) {
+            pathIter->second.second = wltPtr_->derivePrivKeyFromPath(
+               pathIter->second.first);
          }
-
          return wltPtr_->getDecryptedPrivateKeyForId(pathIter->second.second);
       }
    }
@@ -192,15 +176,16 @@ const SecureBinaryData& ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(
    */
 
    auto hash = BtcUtils::getHash160(pubkey);
-   auto assetPair = getAssetPairForKey(hash);
-   if (assetPair.first == nullptr)
+   auto assetPair = getAssetPairForKey(wltPtr_, hash);
+   if (assetPair.first == nullptr) {
       throw NoAssetException("invalid pubkey");
+   }
 
-   auto assetSingle =
-      dynamic_pointer_cast<AssetEntry_Single>(assetPair.first);
-   if (assetSingle == nullptr)
-      throw logic_error("invalid asset type");
-
+   auto assetSingle = std::dynamic_pointer_cast<Assets::AssetEntry_Single>(
+      assetPair.first);
+   if (assetSingle == nullptr) {
+      throw std::logic_error("invalid asset type");
+   }
    return wltPtr_->getDecryptedPrivateKeyForAsset(assetSingle);
 
    /*
@@ -217,77 +202,64 @@ const SecureBinaryData& ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(
    */
 }
 
-////////////////////////////////////////////////////////////////////////////////
-BIP32_AssetPath Armory::Signer::ResolverFeed_AssetWalletSingle::resolveBip32PathForPubkey(
+BIP32_AssetPath ResolverFeed_AssetWalletSingle::resolveBip32PathForPubkey(
    const BinaryData& pubkey)
 {
    //check cache first
    {
-      auto pubkeyref = pubkey.getRef();
-      auto cacheIter = pubkey_to_asset_.find(pubkeyref);
-      if (cacheIter != pubkey_to_asset_.end())
+      auto cacheIter = pubkeyToAsset_.find(pubkey);
+      if (cacheIter != pubkeyToAsset_.end()) {
          return wltPtr_->getBip32PathForAsset(cacheIter->second);
+      }
    }
 
-   auto&& hash = BtcUtils::getHash160(pubkey);
-   auto assetPair = getAssetPairForKey(hash);
-   if (assetPair.first == nullptr)
+   auto hash = BtcUtils::getHash160(pubkey);
+   auto assetPair = getAssetPairForKey(wltPtr_, hash);
+   if (assetPair.first == nullptr) {
       throw NoAssetException("invalid pubkey");
-
+   }
    return wltPtr_->getBip32PathForAsset(assetPair.first);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void Armory::Signer::ResolverFeed_AssetWalletSingle::seedFromAddressEntry(
-   shared_ptr<AddressEntry> addrPtr)
+void ResolverFeed_AssetWalletSingle::seedFromAddressEntry(
+   std::shared_ptr<AddressEntry> addrPtr)
 {
-   try
-   {
+   try {
       //add hash to preimage pair
-      auto& hash = addrPtr->getHash();
-      auto& preimage = addrPtr->getPreimage();
-      hash_to_preimage_.insert(make_pair(hash, preimage));
-   }
-   catch (AddressException&)
-   {
+      hashToPreimage_.emplace(addrPtr->getHash(), addrPtr->getPreimage());
+   } catch (const AddressException&) {
       return;
    }
 
    //is this address nested?
-   auto addrNested =
-      dynamic_pointer_cast<AddressEntry_Nested>(addrPtr);
-   if (addrNested == nullptr)
-      return; //return if not
+   auto addrNested = std::dynamic_pointer_cast<AddressEntry_Nested>(addrPtr);
+   if (addrNested == nullptr) {
+      //return if not
+      return;
+   }
 
    //seed the predecessor too
    seedFromAddressEntry(addrNested->getPredecessor());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void Armory::Signer::ResolverFeed_AssetWalletSingle::setBip32PathForPubkey(
+void ResolverFeed_AssetWalletSingle::setBip32PathForPubkey(
    const BinaryData& pubkey, const BIP32_AssetPath& path)
 {
-   bip32Paths_.emplace(pubkey, make_pair(path, Armory::Wallets::AssetId()));
+   bip32Paths_.emplace(pubkey, std::make_pair(path, Wallets::AssetId{}));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-////
-//// ResolverFeed_AssetWalletSingle
-////
-////////////////////////////////////////////////////////////////////////////////
-Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig::ResolverFeed_AssetWalletSingle_ForMultisig(
-   shared_ptr<AssetWallet_Single> wltPtr) :
+// ResolverFeed_AssetWalletSingle_ForMultisig
+ResolverFeed_AssetWalletSingle_ForMultisig::ResolverFeed_AssetWalletSingle_ForMultisig(
+   std::shared_ptr<Wallets::AssetWallet_Single> wltPtr) :
    wltPtr_(wltPtr)
 {
    auto accountIDs = wltPtr->getAccountIDs();
-   for (auto& accID : accountIDs)
-   {
+   for (auto& accID : accountIDs) {
       auto addrAcc = wltPtr->getAccountForID(accID);
-      for (auto& assID : addrAcc->getAccountIdSet())
-      {
+      for (auto& assID : addrAcc->getAccountIdSet()) {
          auto assAcc = addrAcc->getAccountForID(assID);
-         for (unsigned i = 0; i < assAcc->getAssetCount(); i++)
-         {
+         for (unsigned i = 0; i < assAcc->getAssetCount(); i++) {
             auto asset = assAcc->getAssetForKey(i);
             addToMap(asset);
          }
@@ -295,51 +267,75 @@ Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig::ResolverFeed_AssetWa
    }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig::
-   addToMap(shared_ptr<AssetEntry> asset)
+void ResolverFeed_AssetWalletSingle_ForMultisig::addToMap(
+   std::shared_ptr<Assets::AssetEntry> asset)
 {
-   auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
-   if (asset_single == nullptr)
-      throw NoAssetException("multisig asset in asset_single resolver");
-
-   auto pubkey = asset_single->getPubKey();
+   auto assetSingle = std::dynamic_pointer_cast<Assets::AssetEntry_Single>(
+      asset);
+   if (assetSingle == nullptr) {
+      throw NoAssetException("multisig asset in AssetSingle resolver");
+   }
+   auto pubkey = assetSingle->getPubKey();
    BinaryDataRef pubkey_compressed(pubkey->getCompressedKey());
    BinaryDataRef pubkey_uncompressed(pubkey->getUncompressedKey());
 
-   pubkey_to_asset_.insert(make_pair(pubkey_compressed, asset_single));
-   pubkey_to_asset_.insert(make_pair(pubkey_uncompressed, asset_single));
+   pubkeyToAsset_.emplace(pubkey_compressed, assetSingle);
+   pubkeyToAsset_.emplace(pubkey_uncompressed, assetSingle);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-BinaryData Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig::
-   getByVal(const BinaryData&)
+BinaryData ResolverFeed_AssetWalletSingle_ForMultisig::getByVal(
+   const BinaryData&)
 {
    //find id for the key
-   throw runtime_error("no preimages in multisig feed");
+   throw std::runtime_error("no preimages in multisig feed");
 }
 
-////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig::
-   getPrivKeyForPubkey(const BinaryData& pubkey)
+const SecureBinaryData& ResolverFeed_AssetWalletSingle_ForMultisig::
+getPrivKeyForPubkey(const BinaryData& pubkey)
 {
-   auto pubkeyref = BinaryDataRef(pubkey);
-   auto iter = pubkey_to_asset_.find(pubkeyref);
-   if (iter == pubkey_to_asset_.end())
-      throw runtime_error("invalid value");
-
+   auto iter = pubkeyToAsset_.find(pubkey);
+   if (iter == pubkeyToAsset_.end()) {
+      throw std::runtime_error("invalid value");
+   }
    const auto& privkeyAsset = iter->second->getPrivKey();
    return wltPtr_->getDecryptedValue(privkeyAsset);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-BIP32_AssetPath Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig::
-   resolveBip32PathForPubkey(const BinaryData&)
+BIP32_AssetPath ResolverFeed_AssetWalletSingle_ForMultisig::
+resolveBip32PathForPubkey(const BinaryData&)
 {
-   throw runtime_error("invalid pubkey");
+   throw std::runtime_error("invalid pubkey");
 }
 
-////////////////////////////////////////////////////////////////////////////////
-void Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig::
-   setBip32PathForPubkey(const BinaryData&, const BIP32_AssetPath&)
+void ResolverFeed_AssetWalletSingle_ForMultisig::
+setBip32PathForPubkey(const BinaryData&, const BIP32_AssetPath&)
 {}
+
+////////////////////////////////////////////////////////////////////////////////
+// ResolverFeed_AssetWalletSingle_Exotic
+ResolverFeed_AssetWalletSingle_Exotic::
+ResolverFeed_AssetWalletSingle_Exotic(
+   std::shared_ptr<Wallets::AssetWallet_Single> wltPtr) :
+   ResolverFeed_AssetWalletSingle(wltPtr)
+{}
+
+const SecureBinaryData& ResolverFeed_AssetWalletSingle_Exotic::
+getPrivKeyForPubkey(const BinaryData& pubkey)
+{
+   try {
+      return ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(pubkey);
+   } catch (const NoAssetException&) {}
+
+   throw std::runtime_error("not implemented yet");
+
+   /*
+   Failed to get the asset for the pukbey by hashing it, run through
+   all assets linearly instead.
+   */
+
+   //grab account
+
+   //grab asset account
+
+   //run through assets, check pubkeys
+}

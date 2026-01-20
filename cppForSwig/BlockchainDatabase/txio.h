@@ -15,7 +15,7 @@
 
 #include <functional>
 
-#include "BinaryData.h"
+#include "Utils/BinaryData.h"
 #include "BlockObj.h"
 
 class TxIOPair
@@ -56,7 +56,7 @@ public:
 
    uint32_t  getIndexOfOutput(void) const { return indexOfOutput_; }
    uint32_t  getIndexOfInput(void) const  { return indexOfInput_; }
-   OutPoint  getOutPoint(LMDBBlockDatabase *db) const { return OutPoint(getTxHashOfOutput(db), indexOfOutput_); }
+   Outpoint  getOutPoint(LMDBBlockDatabase *db) const { return Outpoint(getTxHashOfOutput(db), indexOfOutput_); }
 
    std::pair<bool, bool> reassessValidity(LMDBBlockDatabase *db);
    bool  isTxOutFromSelf(void) const  { return isTxOutFromSelf_; }

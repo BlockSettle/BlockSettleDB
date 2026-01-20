@@ -13,9 +13,12 @@
 #include "../Addresses.h"
 
 #define ARMORY_LEGACY_ACCOUNTID        0xF6E10000
+#define IMPORTS_ACCOUNT_PRIV           0x00001200
+#define IMPORTS_ACCOUNT_PUB            0x00001201
 #define IMPORTS_ACCOUNTID              0x00000000
 #define ARMORY_LEGACY_ASSET_ACCOUNTID  0x00000001U
 #define ECDH_ASSET_ACCOUNTID           0x20000000U
+
 #define SEED_DEPTH                     0xFFFF
 
 namespace Armory
@@ -42,10 +45,12 @@ namespace Armory
          {}
       };
 
-      enum AssetAccountTypeEnum
+      enum class AssetAccountType : int
       {
-         AssetAccountTypeEnum_Plain = 0,
-         AssetAccountTypeEnum_ECDH
+         Plain = 0,
+         ECDH,
+         Imports,
+         ImportsWO
       };
 
       enum AccountTypeEnum
@@ -75,18 +80,21 @@ namespace Armory
          */
          AccountTypeEnum_ECDH,
 
-         AccountTypeEnum_Custom
+         /*
+         As the name says, to import key pairs
+         */
+         AccountTypeEnum_Imports
       };
 
-      enum MetaAccountType
+      enum class MetaAccountType : int
       {
-         MetaAccount_Unset = 0,
-         MetaAccount_Comments,
-         MetaAccount_AuthPeers
+         Unset = 0,
+         Comments,
+         AuthPeers
       };
 
-      ////////////////////////////////////////////////////////////////////////////////
-      ////////////////////////////////////////////////////////////////////////////////
+      //////////////////////////////////////////////////////////////////////////
+      //////////////////////////////////////////////////////////////////////////
       class AccountType
       {
       protected:
@@ -96,26 +104,21 @@ namespace Armory
 
       public:
          //tors
-         AccountType()
-         {}
-
-         virtual ~AccountType() = 0;
+         AccountType(void);
+         virtual ~AccountType(void) = 0;
 
          //locals
-         void setMain(bool ismain) { isMain_ = ismain; }
-         bool isMain(void) const { return isMain_; }
+         void setMain(bool);
+         bool isMain(void) const;
 
-         const std::set<AddressEntryType>& getAddressTypes(void) const
-         { return addressTypes_; }
-
-         AddressEntryType getDefaultAddressEntryType(void) const
-         { return defaultAddressEntryType_; }
-
+         const std::set<AddressEntryType>& getAddressTypes(void) const;
+         AddressEntryType getDefaultAddressEntryType(void) const;
          void addAddressType(AddressEntryType);
          void setDefaultAddressType(AddressEntryType);
 
          //virtuals
          virtual AccountTypeEnum type(void) const = 0;
+         virtual std::string name(void) const = 0;
          virtual Wallets::AddressAccountId getAccountID(void) const = 0;
          virtual Wallets::AssetAccountId getOuterAccountID(void) const = 0;
          virtual Wallets::AssetAccountId getInnerAccountID(void) const = 0;
@@ -128,10 +131,9 @@ namespace Armory
       public:
          AccountType_ArmoryLegacy(void);
 
-         AccountTypeEnum type(void) const override
-         { return AccountTypeEnum_ArmoryLegacy; }
-
-         bool isWatchingOnly(void) const override {return false;}
+         AccountTypeEnum type(void) const override;
+         bool isWatchingOnly(void) const override;
+         std::string name(void) const override;
 
          Wallets::AddressAccountId getAccountID(void) const override;
          Wallets::AssetAccountId getOuterAccountID(void) const override;
@@ -140,6 +142,8 @@ namespace Armory
          static const Wallets::AddressAccountId addrAccountId;
       };
 
+      //////////////////////////////////////////////////////////////////////////
+      //////////////////////////////////////////////////////////////////////////
       struct NodeData
       {
          using Depth    = uint16_t;
@@ -162,36 +166,11 @@ namespace Armory
          //given branch)
          const bool depthOnly;
 
-         NodeData(Depth d, BranchId b, NodeVal nv, bool dOnly = false) :
-            depth(d), branchId(b), value(nv), depthOnly(dOnly)
-         {}
+         NodeData(Depth, BranchId, NodeVal, bool dOnly=false);
 
-         bool operator<(const NodeData& rhs) const
-         {
-            //for depth based searches
-            if (depthOnly || rhs.depthOnly)
-               return depth < rhs.depth;
-
-            //otherwise, order by depth if possible, differentiate by
-            //branch if necessary
-            if (depth == rhs.depth)
-               return branchId < rhs.branchId;
-
-            return depth < rhs.depth;
-         }
-
-         bool operator==(const NodeData& rhs) const
-         {
-            return
-               depth == rhs.depth &&
-               branchId == rhs.branchId &&
-               value == rhs.value;
-         }
-
-         bool isHardDerviation(void) const
-         {
-            return (value & 0x80000000);
-         }
+         bool operator<(const NodeData&) const;
+         bool operator==(const NodeData&) const;
+         bool isHardDerviation(void) const;
       };
 
       ////////////////////
@@ -213,7 +192,7 @@ namespace Armory
       public:
          const NodeData& appendNode(uint32_t);
          const NodeData& getNodeByRelativeDepth(uint16_t);
-         const Path& getNodes(void) const { return nodes_; }
+         const Path& getNodes(void) const;
       };
 
       ////////////////////
@@ -222,12 +201,10 @@ namespace Armory
          const DerivationBranch::Path path;
          const SecureBinaryData b58Root;
 
-         bool isInitialized(void) const
-         {
-            return !b58Root.empty();
-         }
+         bool isInitialized(void) const;
       };
 
+      ////////////////////
       class DerivationTree
       {
       private:
@@ -292,43 +269,12 @@ namespace Armory
          mutable SecureBinaryData b58RootSbd_;
 
       public:
-         PathAndRoot(const std::vector<uint32_t> p, const std::string& root) :
-            path_(p), b58RootStr_(root), b58RootSbd_({})
-         {
-            if (root.empty())
-               throw std::runtime_error("[PathAndRoot] empty root");
-         }
+         PathAndRoot(const std::vector<uint32_t>, const std::string&);
+         PathAndRoot(const std::vector<uint32_t>, const SecureBinaryData&);
 
-         PathAndRoot(const std::vector<uint32_t> p, const SecureBinaryData& root) :
-            path_(p), b58RootStr_({}), b58RootSbd_(root)
-         {
-            if (root.empty())
-               throw std::runtime_error("[PathAndRoot] empty root");
-         }
-
-         const std::vector<uint32_t>& getPath(void) const
-         {
-            return path_;
-         }
-
-         const SecureBinaryData& getRootSbd(void) const
-         {
-            if (b58RootSbd_.empty())
-               b58RootSbd_ = SecureBinaryData::fromString(b58RootStr_);
-
-            return b58RootSbd_;
-         }
-
-         const std::string& getRootStr(void) const
-         {
-            if (b58RootStr_.empty())
-            {
-               b58RootStr_ = std::string(
-                  b58RootSbd_.toCharPtr(), b58RootSbd_.getSize());
-            }
-
-            return b58RootStr_;
-         }
+         const std::vector<uint32_t>& getPath(void) const;
+         const SecureBinaryData& getRootSbd(void) const;
+         const std::string& getRootStr(void) const;
       };
 
       ////
@@ -358,24 +304,20 @@ namespace Armory
          Wallets::AssetAccountId getOuterAccountID(void) const override;
          Wallets::AssetAccountId getInnerAccountID(void) const override;
          bool isWatchingOnly(void) const override { return false;}
+         std::string name(void) const override;
 
          //bip32 locals
          unsigned getSeedFingerprint(void) const;
          unsigned getAddressLookup(void) const;
-         void setAddressLookup(unsigned count)
-         {
-            addressLookup_ = count;
-         }
+         void setAddressLookup(unsigned);
 
-         void setNodes(const std::set<unsigned>& nodes);
+         void setNodes(const std::set<unsigned>&);
          void setOuterAccountID(const Wallets::AccountKeyType&);
          void setInnerAccountID(const Wallets::AccountKeyType&);
          void setRoots(const std::vector<PathAndRoot>&);
          void setSeedRoot(const SecureBinaryData&);
 
-         virtual AccountTypeEnum type(void) const override
-         { return AccountTypeEnum_BIP32; }
-
+         virtual AccountTypeEnum type(void) const override;
          const DerivationTree& getDerivationTree(void) const;
       };
 
@@ -386,20 +328,14 @@ namespace Armory
          const SecureBinaryData salt_;
 
       public:
-         AccountType_BIP32_Salted(
-            DerivationTree& tree,
-            const SecureBinaryData& salt) :
-            AccountType_BIP32(tree), salt_(salt)
-         {}
+         AccountType_BIP32_Salted(DerivationTree&, const SecureBinaryData&);
 
-         static std::shared_ptr<AccountType_BIP32_Salted> makeFromDerPaths(uint32_t,
-            const std::vector<std::vector<unsigned>>&, const SecureBinaryData&);
+         static std::shared_ptr<AccountType_BIP32_Salted> makeFromDerPaths(
+            uint32_t, const std::vector<std::vector<unsigned>>&,
+            const SecureBinaryData&);
 
-         AccountTypeEnum type(void) const
-         { return AccountTypeEnum_BIP32_Salted; }
-
-         const SecureBinaryData& getSalt(void) const
-         { return salt_; }
+         AccountTypeEnum type(void) const;
+         const SecureBinaryData& getSalt(void) const;
       };
 
       ////////////////////////////////////////////////////////////////////////////////
@@ -411,27 +347,37 @@ namespace Armory
 
       public:
          //tor
-         AccountType_ECDH(
-            const SecureBinaryData& privKey,
-            const SecureBinaryData& pubKey) :
-            privateKey_(privKey), publicKey_(pubKey)
-         {
-            //run checks
-            if (privateKey_.getSize() == 0 && publicKey_.getSize() == 0)
-               throw AccountException("invalid key length");
-         }
+         AccountType_ECDH(const SecureBinaryData&, const SecureBinaryData&);
 
          //local
-         const SecureBinaryData& getPrivKey(void) const { return privateKey_; }
-         const SecureBinaryData& getPubKey(void) const { return publicKey_; }
+         const SecureBinaryData& getPrivKey(void) const;
+         const SecureBinaryData& getPubKey(void) const;
 
          //virtual
-         AccountTypeEnum type(void) const override { return AccountTypeEnum_ECDH; }
+         AccountTypeEnum type(void) const override;
          Wallets::AddressAccountId getAccountID(void) const override;
          Wallets::AssetAccountId getOuterAccountID(void) const override;
          Wallets::AssetAccountId getInnerAccountID(void) const override;
 
          virtual bool isWatchingOnly(void) const override;
+         std::string name(void) const override;
+      };
+
+      class AccountType_Imports : public AccountType
+      {
+         const bool hasPrivateKeys_;
+
+      public:
+         AccountType_Imports(bool);
+
+         //virtual
+         AccountTypeEnum type(void) const override;
+         Wallets::AddressAccountId getAccountID(void) const override;
+         Wallets::AssetAccountId getOuterAccountID(void) const override;
+         Wallets::AssetAccountId getInnerAccountID(void) const override;
+
+         virtual bool isWatchingOnly(void) const override;
+         std::string name(void) const override;
       };
    }; //namespace Accounts
 }; //namespace Armory

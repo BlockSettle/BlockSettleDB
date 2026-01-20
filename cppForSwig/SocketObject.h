@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016, goatpig.                                              //
+//  Copyright (C) 2016-2025, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,22 +23,21 @@
 #define socketService socketService_win
 #endif
 
-#include "ThreadSafeClasses.h"
-#include "bdmenums.h"
-#include "log.h"
+#include "Utils/ThreadSafeClasses.h"
+#include "Utils/BinaryData.h"
 #include "SocketIncludes.h"
-#include "BinaryData.h"
 
-   
-typedef std::function<bool(std::vector<uint8_t>, std::exception_ptr)>  ReadCallback;
+typedef std::function<bool(std::vector<uint8_t>, std::exception_ptr)> ReadCallback;
+enum class SocketType : int;
 
 ///////////////////////////////////////////////////////////////////////////////
 struct CallbackReturn
 {
    virtual ~CallbackReturn(void) = 0;
-   virtual void callback(BinaryDataRef bdr) = 0;
+   virtual void callback(BinaryDataRef) = 0;
 };
 
+////
 struct CallbackReturn_CloseBitcoinP2PSocket : public CallbackReturn
 {
 private:
@@ -47,51 +46,48 @@ private:
 
 public:
    CallbackReturn_CloseBitcoinP2PSocket(
-      std::shared_ptr<Armory::Threading::BlockingQueue<
-         std::vector<uint8_t>>> datastack) :
-      dataStack_(datastack)
-   {}
+      std::shared_ptr<Armory::Threading::BlockingQueue<std::vector<uint8_t>>>);
 
-   void callback(const BinaryDataRef&) 
-   { dataStack_->terminate(nullptr); }
+   void callback(const BinaryDataRef&);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 struct Socket_ReadPayload
 {
+public:
    uint16_t id_ = UINT16_MAX;
    std::unique_ptr<CallbackReturn> callbackReturn_ = nullptr;
 
-   Socket_ReadPayload(void)
-   {}
-
-   Socket_ReadPayload(unsigned id) :
-      id_(id)
-   {}
+public:
+   Socket_ReadPayload(void);
+   Socket_ReadPayload(unsigned);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 struct Socket_WritePayload
 {
+public:
    unsigned id_;
 
+public:
    virtual ~Socket_WritePayload(void) = 0;
    virtual void serialize(std::vector<uint8_t>&) = 0;
    virtual std::string serializeToText(void) = 0;
    virtual size_t getSerializedSize(void) const = 0;
+   virtual bool isSingleSegment(void) const;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 struct AcceptStruct
 {
+public:
    SOCKET sockfd_;
    sockaddr saddr_;
    socklen_t addrlen_;
    ReadCallback readCallback_;
 
-   AcceptStruct(void) :
-      addrlen_(sizeof(saddr_))
-   {}
+public:
+   AcceptStruct(void);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -120,22 +116,20 @@ protected:
 private:
    void init(void);
 
-protected:   
+protected:
+   SocketPrototype(void);
+
    void setBlocking(SOCKET, bool);
    void listen(AcceptCallback, SOCKET& sockfd);
 
-   SocketPrototype(void) :
-      addr_(""), port_("")
-   {}
-   
 public:
    SocketPrototype(const std::string& addr, const std::string& port, bool init = true);
    virtual ~SocketPrototype(void) = 0;
 
    virtual bool testConnection(void);
-   bool isBlocking(void) const { return blocking_; }
+   bool isBlocking(void) const;
    SOCKET openSocket(bool blocking);
-   
+
    static void closeSocket(SOCKET&);
    virtual void pushPayload(
       std::unique_ptr<Socket_WritePayload>,
@@ -143,8 +137,11 @@ public:
    virtual bool connectToRemote(void) = 0;
 
    virtual SocketType type(void) const = 0;
-   const std::string& getAddrStr(void) const { return addr_; }
-   const std::string& getPortStr(void) const { return port_; }
+   const std::string& getAddrStr(void) const;
+   const std::string& getPortStr(void) const;
+
+   //override me
+   virtual bool running(void) const;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -157,29 +154,19 @@ private:
    int writeToSocket(std::vector<uint8_t>&);
 
 public:
-   SimpleSocket(const std::string& addr, const std::string& port) :
-      SocketPrototype(addr, port)
-   {}
-   
-   SimpleSocket(SOCKET sockfd) :
-      SocketPrototype(), sockfd_(sockfd)
-   {}
+   SimpleSocket(const std::string& addr, const std::string& port);
+   SimpleSocket(SOCKET);
+   ~SimpleSocket(void);
 
-   ~SimpleSocket(void)
-   {
-      closeSocket(sockfd_);
-   }
-
-   SocketType type(void) const { return SocketSimple; }
-
+   SocketType type(void) const override;
+   SOCKET getSockFD(void) const;
    void pushPayload(
       std::unique_ptr<Socket_WritePayload>,
-      std::shared_ptr<Socket_ReadPayload>);
+      std::shared_ptr<Socket_ReadPayload>) override;
    std::vector<uint8_t> readFromSocket(void);
    void shutdown(void);
    void listen(AcceptCallback);
-   bool connectToRemote(void);
-   SOCKET getSockFD(void) const { return sockfd_; }
+   bool connectToRemote(void) override;
 
    //
    static bool checkSocket(const std::string& ip, const std::string& port);
@@ -193,12 +180,11 @@ class PersistentSocket : public SocketPrototype
 private:
    SOCKET sockfd_ = SOCK_MAX;
    std::vector<std::thread> threads_;
-   
+
    std::vector<uint8_t> writeLeftOver_;
    size_t writeOffset_ = 0;
 
    std::atomic<bool> run_;
-
    std::shared_future<bool> shutdownFut_;
    std::unique_ptr<std::promise<bool>> shutdownProm_;
    std::mutex shutdownMutex_;
@@ -231,29 +217,16 @@ protected:
 
 public:
    PersistentSocket(const std::string& addr, const std::string& port);
-   PersistentSocket(SOCKET sockfd);
-
-   ~PersistentSocket(void)
-   {
-      for (auto& thr : threads_)
-      {
-         if (thr.joinable())
-            thr.join();
-      }
-      threads_.clear();
-
-      cleanUpPipes();
-      closeSocket(sockfd_);
-   }
+   PersistentSocket(SOCKET);
+   ~PersistentSocket(void);
 
    void shutdown();
-   bool openSocket(bool blocking);
-   int getSocketName(struct sockaddr& sa);
-   int getPeerName(struct sockaddr& sa);
+   bool openSocket(bool);
+   int getSocketName(struct sockaddr& );
+   int getPeerName(struct sockaddr&);
    bool connectToRemote(void);
-   bool isValid(void) const { return sockfd_ != SOCK_MAX; }
-   bool testConnection(void) { return isValid(); }
-
+   bool isValid(void) const;
+   bool testConnection(void);
    void blockUntilClosed(void) const;
 };
 
@@ -267,9 +240,9 @@ private:
       SocketStruct(const SocketStruct&) = delete;
 
    public:
-      SocketStruct(void)
-      {}
+      SocketStruct(void);
 
+   public:
       std::shared_ptr<SimpleSocket> sock_;
       std::thread thr_;
    };
@@ -289,10 +262,7 @@ private:
 
 public:
    ListenServer(const std::string& addr, const std::string& port);
-   ~ListenServer(void)
-   {
-      stop();
-   }
+   ~ListenServer(void);
 
    void start(ReadCallback);
    void stop(void);

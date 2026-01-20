@@ -270,7 +270,7 @@ TEST_F(DB1kIter, DbInit1kIter_WithSignals)
       EXPECT_EQ(le.getBlockNum(), UINT32_MAX);*/
 
       //pull ZC from DB, verify it's carrying the proper data
-      auto&& dbtx = iface_->beginTransaction(ZERO_CONF, LMDB::ReadOnly);
+      auto&& dbtx = iface_->beginTransaction(ZERO_CONF, LMDB::Mode::ReadOnly);
       StoredTx zcStx;
       BinaryData zcKey = WRITE_UINT16_BE(0xFFFF);
       zcKey.append(WRITE_UINT32_LE(0));
@@ -347,7 +347,7 @@ TEST_F(DB1kIter, DbInit1kIter_WithSignals)
 
       //The BDM was recycled, but the ZC is still live, and the mempool should 
       //have reloaded it. Pull from DB and verify
-      dbtx = move(iface_->beginTransaction(ZERO_CONF, LMDB::ReadOnly));
+      dbtx = move(iface_->beginTransaction(ZERO_CONF, LMDB::Mode::ReadOnly));
       StoredTx zcStx2;
 
       EXPECT_EQ(iface_->getStoredZcTx(zcStx2, zcKey), true);
@@ -382,7 +382,7 @@ TEST_F(DB1kIter, DbInit1kIter_WithSignals)
       EXPECT_EQ(spendableBalance, 10 * COIN);
       EXPECT_EQ(unconfirmedBalance, 60 * COIN);
 
-      dbtx = move(iface_->beginTransaction(ZERO_CONF, LMDB::ReadOnly));
+      dbtx = move(iface_->beginTransaction(ZERO_CONF, LMDB::Mode::ReadOnly));
       StoredTx zcStx3;
 
       EXPECT_EQ(iface_->getStoredZcTx(zcStx3, zcKey), true);
@@ -423,7 +423,7 @@ TEST_F(DB1kIter, DbInit1kIter_WithSignals)
       EXPECT_EQ(le.getBlockNum(), 5);*/
 
       //Tx is now in a block, ZC should be gone from DB
-      dbtx = move(iface_->beginTransaction(ZERO_CONF, LMDB::ReadWrite));
+      dbtx = move(iface_->beginTransaction(ZERO_CONF, LMDB::Mode::ReadWrite));
       StoredTx zcStx4;
 
       EXPECT_EQ(iface_->getStoredZcTx(zcStx4, zcKey), false);
@@ -471,9 +471,7 @@ GTEST_API_ int main(int argc, char **argv)
 
    std::cout << "Running main() from gtest_main.cc\n";
 
-   // Setup the log file 
-   STARTLOGGING("cppTestsLog.txt", LogLvlDebug2);
-   //LOGDISABLESTDOUT();
+   LOGDISABLESTDOUT();
 
    testing::InitGoogleTest(&argc, argv);
    int exitCode = RUN_ALL_TESTS();
